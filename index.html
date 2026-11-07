@@ -22,7 +22,6 @@
   canvas#game, #rotate { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   body {
     display: flex; align-items: center; justify-content: center; box-sizing: border-box;
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
   }
@@ -269,7 +268,8 @@
       const W = G.cfg.VIEW_W, H = G.cfg.VIEW_H;
       const r = canvasEl && canvasEl.getBoundingClientRect ? canvasEl.getBoundingClientRect() : null;
       if (!r || !r.width || !r.height) return { x: clientX, y: clientY };
-      return { x: ((clientX - r.left) / r.width) * W, y: ((clientY - r.top) / r.height) * H };
+      const pd = G.pad || { l: 0, r: 0, t: 0, b: 0 };
+      return { x: ((clientX - r.left) / r.width) * (W + pd.l + pd.r) - pd.l, y: ((clientY - r.top) / r.height) * (H + pd.t + pd.b) - pd.t };
     }
     function onKey(e, isDown) {
       const action = KEYMAP[e.code];
@@ -704,19 +704,30 @@
     // Екран заповнюється максимально; буфер — цілий множник, CSS дотягує (image-rendering: pixelated).
     const fit = Math.max(0.25, Math.min(aw / W, ah / H));
     G.fit = fit;
+    // Round 19: канвас на ВЕСЬ екран — смуги safe-area (виріз, кути, смужка home) заповнюються
+    // продовженням картинки (G.pad, логічні px), а гра/інтерфейс лишаються в безпечній області.
+    const pd = G.pad = {
+      l: Math.max(0, Math.round(sa.left / fit)), r: Math.max(0, Math.round(sa.right / fit)),
+      t: Math.max(0, Math.round(sa.top / fit)), b: Math.max(0, Math.round(sa.bottom / fit)),
+    };
+    // залишок (якщо пропорція впирається в межі VIEW_W) теж віддаємо смугам, щоб не було чорного
+    const extraW = Math.max(0, Math.floor((aw - W * fit) / fit / 2)), extraH = Math.max(0, Math.floor((ah - H * fit) / fit / 2));
+    pd.l += extraW; pd.r += extraW; pd.t += extraH; pd.b += extraH;
+    const TW = W + pd.l + pd.r, TH = H + pd.t + pd.b;
     // Round 17: на середній/низькій якості буфер екрана обмежено (×3 / ×2) — решту дотягує CSS (image-rendering: pixelated)
     const cap = (G.gfx && G.gfx.p && G.gfx.p.maxScale) || 99;
     const s = Math.max(1, Math.min(cap, Math.ceil(fit * (window.devicePixelRatio || 1))));
-    if (G.scale === s && G.screen.width === W * s && G.screen.height === H * s && G.screen.style && G.screen.style.width === Math.floor(W * fit) + 'px' && G.screen.style.height === Math.floor(H * fit) + 'px') return;
+    const cw = Math.round(TW * fit) + 'px', ch = Math.round(TH * fit) + 'px';
+    if (G.scale === s && G.screen.width === TW * s && G.screen.height === TH * s && G.screen.style && G.screen.style.width === cw && G.screen.style.height === ch) return;
     G.scale = s;
-    if (G.screen.width !== W * s) G.screen.width = W * s;
-    if (G.screen.height !== H * s) G.screen.height = H * s;
-    if (G.screen.style) { G.screen.style.width = Math.floor(W * fit) + 'px'; G.screen.style.height = Math.floor(H * fit) + 'px'; }
+    if (G.screen.width !== TW * s) G.screen.width = TW * s;
+    if (G.screen.height !== TH * s) G.screen.height = TH * s;
+    if (G.screen.style) { G.screen.style.width = cw; G.screen.style.height = ch; }
     G.screenCtx.imageSmoothingEnabled = false;
   };
 
   // Round 18: логічна ширина для області aw×ah (CSS px). G.cfg.FIXED_W — примусова ширина (тести/налагодження, ?w=480).
-  G.cfg.VIEW_W_MIN = 480; G.cfg.VIEW_W_MAX = 640;
+  G.cfg.VIEW_W_MIN = 480; G.cfg.VIEW_W_MAX = 760;
   G.viewWidthFor = function (aw, ah) {
     if (G.cfg.FIXED_W) return G.cfg.FIXED_W;
     const H = G.cfg.VIEW_H;
@@ -848,7 +859,46 @@
     // буфер → екран
     if (G.screenCtx) {
       G.screenCtx.imageSmoothingEnabled = false;
-      G.screenCtx.drawImage(G.canvas, 0, 0, G.screen.width, G.screen.height);
+      const pd = G.pad, sc = G.scale, W = G.cfg.VIEW_W, H = G.cfg.VIEW_H, c = G.screenCtx, cv = G.canvas;
+      if (!pd || !(pd.l || pd.r || pd.t || pd.b)) c.drawImage(cv, 0, 0, G.screen.width, G.screen.height);
+      else {
+        const X = pd.l * sc, Y = pd.t * sc, BW = W * sc, BH = H * sc;
+        c.drawImage(cv, X, Y, BW, BH);
+        // смуги safe-area: «ембієнт» — розмите й притемнене продовження краю кадру (без читабельного тексту/кнопок)
+        const l = pd.l, r = pd.r, t = pd.t, b = pd.b, SW = G.screen.width, SH = G.screen.height;
+        const amb = G._amb || (G._amb = G.util.makeCanvas(4, 40)), ag = amb.getContext('2d');
+        const soft = (sx, sy, sw, sh, dx, dy, dw, dh, vert) => {
+          if (dw <= 0 || dh <= 0) return;
+          const aw = vert ? 1 : 4, ah = vert ? 4 : 1;
+          if (amb.width !== aw) amb.width = aw;
+          if (amb.height !== ah) amb.height = ah;
+          ag.imageSmoothingEnabled = true; ag.clearRect(0, 0, aw, ah);
+          ag.drawImage(cv, sx, sy, sw, sh, 0, 0, aw, ah);
+          c.save(); c.imageSmoothingEnabled = true;
+          c.drawImage(amb, 0, 0, aw, ah, dx, dy, dw, dh);
+          c.restore();
+        };
+        const E = 24;
+        c.fillStyle = '#000'; c.fillRect(0, 0, SW, Y); c.fillRect(0, Y + BH, SW, SH - Y - BH);
+        c.fillRect(0, Y, X, BH); c.fillRect(X + BW, Y, SW - X - BW, BH);
+        if (l) soft(0, 0, Math.min(E, W), H, 0, Y, X, BH, true);
+        if (r) soft(W - Math.min(E, W), 0, Math.min(E, W), H, X + BW, Y, SW - X - BW, BH, true);
+        if (t) soft(0, 0, W, Math.min(E, H), X, 0, BW, Y, false);
+        if (b) soft(0, H - Math.min(E, H), W, Math.min(E, H), X, Y + BH, BW, SH - Y - BH, false);
+        c.imageSmoothingEnabled = false;
+        const N = 5, band = (x0, y0, w, h, horiz, toEdgeAtStart) => {
+          for (let i = 0; i < N; i++) {
+            const k = toEdgeAtStart ? N - 1 - i : i;
+            c.fillStyle = 'rgba(0,0,0,' + (0.3 + k * 0.1).toFixed(2) + ')';
+            if (horiz) { const a0 = Math.round(x0 + w * i / N), a1 = Math.round(x0 + w * (i + 1) / N); c.fillRect(a0, y0, a1 - a0, h); }
+            else { const a0 = Math.round(y0 + h * i / N), a1 = Math.round(y0 + h * (i + 1) / N); c.fillRect(x0, a0, w, a1 - a0); }
+          }
+        };
+        if (l) band(0, Y, X, BH, true, true);
+        if (r) band(X + BW, Y, SW - X - BW, BH, true, false);
+        if (t) band(X, 0, BW, Y, false, true);
+        if (b) band(X, Y + BH, BW, SH - Y - BH, false, false);
+      }
     }
   };
 
