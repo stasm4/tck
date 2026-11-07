@@ -20470,8 +20470,8 @@
     if (modeOn()) {
       m = Math.min(m, 10);
       if (q.x < m || q.y < m || q.x > VW() - m || q.y > VH() - m) return false;
-      const r = hudList()[3];
-      return !(q.x > r[0] - 4 && q.y > r[1] - 4);
+      // Round 20: камера більше не «пролітає» до буса — двері під міні-картою теж рахуються (бус на екрані)
+      return true;
     }
     if (q.x < m || q.y < m || q.x > VW() - m || q.y > VH() - m) return false;
     for (const r of hudList()) if (q.x > r[0] - 4 && q.x < r[2] + 4 && q.y > r[1] - 4 && q.y < r[3] + 4) return false;
@@ -21053,6 +21053,12 @@
           // round 10: виходять лише на очах — бус пішов з кадру (камера поїхала) → решта лишається всередині
           if (!inCam(this.x, this.y, 8) || !viewOk(d.x, d.y, 8)) { this.crew += this.dropQueue + 1; // запас 8 px: камера (look-ahead) ще посунеться за цей кадр
             this.dropQueue = 0; this.closeT = 0.5; this._dropped = false; return; }
+          // Round 20: ВТЕЧА/щоденна — ліміт ТЦК на вулиці одночасно (mission.tckCap); решта лишається в бусі
+          const capM = modeOn() && G.run && G.run.mission && G.run.mission.tckCap;
+          if (!post && capM && G.tck && G.tck.list) {
+            let alive = 0; for (const t of G.tck.list) if (t.alive && !t.ko) alive++;
+            if (alive >= capM) { this.crew += this.dropQueue + 1; this.dropQueue = 0; this.closeT = 0.5; return; }
+          }
           const types = this.crewTypes && this.crewTypes.length ? [this.crewTypes.shift()] : null;
           if (G.tck && G.tck.spawnGroup) {
             const k = this.dropped = (this.dropped || 0) + 1;
@@ -21097,11 +21103,15 @@
       if (this.squad) { this.squadT = (this.squadT || 0) + dt; if (this.squadT > CFG.dropGiveUp + (this.yardPlan || this.mode === 'yard' ? 12 : 0)) this.squad = false; }
       this.passT = Math.max(0, (this.passT || 0) - dt);
       // round 13: ВТЕЧА — бус облави застряг у черзі за кадром (світлофор/затор) — інший бус заїде з іншого боку
-      if (modeOn() && this.mode === 'drop' && !this._dropped && this.crew > 0 && this.speed < 1) {
+      // Round 20: … або гравець утік від нього (бус за кадром і відстає > 330 px 1.5 с) — новий заїжджає попереду
+      const pq = P(), farBehind = modeOn() && this.mode === 'drop' && this.squad && !this._dropped && this.crew > 0 && pq && !pq.hidden && !pq.riding && Math.hypot(pq.x - this.x, pq.y - this.y) > 330 && NAV().offscreen(this, 30);
+      this.farT = farBehind ? (this.farT || 0) + dt : 0;
+      if (modeOn() && this.mode === 'drop' && !this._dropped && this.crew > 0 && (this.speed < 1 || this.farT > 1.5)) {
         this.sqStuckT = (this.sqStuckT || 0) + dt;
-        if (this.squad && this.sqStuckT > 3 && NAV().offscreen(this, 30)) {
-          this.sqStuckT = 0;
-          const nb = B.spawnDrop(80, 400, { crew: this.crew, crewTypes: this.crewTypes, onCrew: this.onCrew, avoid: this });
+        if (this.squad && (this.sqStuckT > 3 || this.farT > 1.5) && NAV().offscreen(this, 30)) {
+          this.sqStuckT = 0; this.farT = 0;
+          const pv = P(), sp = pv ? Math.hypot(pv.vx || 0, pv.vy || 0) : 0;
+          const nb = B.spawnDrop(80, 400, { crew: this.crew, crewTypes: this.crewTypes, onCrew: this.onCrew, avoid: this, dir: sp > 20 ? { x: pv.vx / sp, y: pv.vy / sp } : null });
           if (nb && nb !== this) { this.alive = false; NAV().releaseAll(this); B.stats.squadRespawn = (B.stats.squadRespawn || 0) + 1; G.events.emit('bus:replaced', { old: this, bus: nb }); return; }
         }
       } else this.sqStuckT = 0;
@@ -22218,7 +22228,12 @@
         nb.setMode('drop'); nb.dropAll = true; nb.squad = true; nb.squadT = 0; nb.onCrew = opts.onCrew || null;
         return nb;
       }
-      const c = cands[Math.min(cands.length - 1, Math.floor(G.rng.next() * Math.min(3, cands.length)))];
+      // Round 20: місце висадки — попереду гравця (куди він біжить / до цілі), а не за спиною
+      if (opts.dir && cands.length > 1) {
+        const dx = opts.dir.x, dy = opts.dir.y;
+        cands.sort((u, v) => ((v.x - p.x) * dx + (v.y - p.y) * dy) / (Math.hypot(v.x - p.x, v.y - p.y) || 1) - ((u.x - p.x) * dx + (u.y - p.y) * dy) / (Math.hypot(u.x - p.x, u.y - p.y) || 1));
+      }
+      const c = cands[Math.min(cands.length - 1, Math.floor(G.rng.next() * Math.min(opts.dir ? 2 : 3, cands.length)))];
       const n = Math.max(1, opts.crew | 0 || this.crewSize());
       const bus = this.arriveFrom(c, { crew: n, mode: 'drop', crewTypes: opts.crewTypes ? opts.crewTypes.slice() : null });
       if (!bus) return null;
@@ -29367,7 +29382,7 @@
   // huntChance — частка випадкових бусів, що їдуть "на виклик" (засідка на маршруті гравця, ~20 с). Місія 1 — без змін.
   const TIER = {
     1: { huntChance: 0, busRate: 1, maxBuses: 1, tckHp: 1, firstBus: null, groupSize: [3, 4], tckSpeed: 1, tckTypes: T_BASE, typeWeights: { polite: 3, rude: 2, tired: 3 } },
-    2: { huntChance: 0.2, busRate: 1.6, maxBuses: 1, tckHp: 1, firstBus: [12, 16], groupSize: [3, 4], tckSpeed: 1, tckTypes: T_BASE, typeWeights: { polite: 3, rude: 2, tired: 3 } },
+    2: { huntChance: 0.5, busRate: 2.0, maxBuses: 1, tckHp: 1, firstBus: [6, 9], groupSize: [2, 3], tckSpeed: 1, tckTypes: T_BASE, typeWeights: { polite: 3, rude: 2, tired: 3 } },
     3: { huntChance: 0.35, busRate: 2.3, maxBuses: 2, tckHp: 1.1, firstBus: [8, 12], groupSize: [3, 5], tckSpeed: 1.05, tckTypes: T_SPR, typeWeights: { polite: 3, rude: 3, tired: 2, sprinter: 1 } },
     4: { huntChance: 0.4, busRate: 2.7, maxBuses: 2, tckHp: 1.2, firstBus: [7, 10], groupSize: [4, 5], tckSpeed: 1.08, tckTypes: T_ALL, typeWeights: { polite: 2, rude: 3, tired: 2, sly: 1, sprinter: 1 } },
     5: { huntChance: 0.45, busRate: 3.0, maxBuses: 3, tckHp: 1.25, firstBus: [6, 9], groupSize: [4, 5], tckSpeed: 1.1, tckTypes: T_ALL, typeWeights: { polite: 2, rude: 3, tired: 2, sly: 2, sprinter: 1 } },
@@ -31429,13 +31444,13 @@
   function pickGoal(from, r, prevKind, avoid, minD) {
     const C = goalCands();
     const lo = minD || 250;
-    let pool = C.filter((g) => { const d = Math.hypot(g.x - from.x, g.y - from.y); return d >= lo && d <= 600 && !(avoid && avoid.some((a) => Math.hypot(a.x - g.x, a.y - g.y) < 120)); });
+    let pool = C.filter((g) => { const d = Math.hypot(g.x - from.x, g.y - from.y); return d >= lo && d <= 900 && !(avoid && avoid.some((a) => Math.hypot(a.x - g.x, a.y - g.y) < 120)); });
     if (pool.length < 3 && lo > 250) pool = C.filter((g) => { const d = Math.hypot(g.x - from.x, g.y - from.y); return d >= 250 && d <= 600; });
     if (pool.length > 4 && prevKind) { const p2 = pool.filter((g) => g.kind !== prevKind); if (p2.length >= 3) pool = p2; }
     for (let tries = 0; tries < 8 && pool.length; tries++) {
       const i = Math.floor(r() * pool.length), g = pool[i];
       const pl = pathLen(from, g);
-      if (pl.len <= 900) return Object.assign({}, g, { pathLen: pl.len, path: pl.path });
+      if (pl.len <= 1300) return Object.assign({}, g, { pathLen: pl.len, path: pl.path });
       pool.splice(i, 1);
     }
     // запасний: найближча придатна
@@ -31443,7 +31458,7 @@
     for (const g of C) { const d = Math.hypot(g.x - from.x, g.y - from.y); if (d > 150 && d < bd) { const pl = pathLen(from, g); if (pl.len < 1e8) { bd = d; best = Object.assign({}, g, { pathLen: pl.len, path: pl.path }); } } }
     return best;
   }
-  function goalTime(len, n) { return Math.round(Math.max(25, Math.min(48, 18 + len / 40)) * Math.max(0.78, 1 - 0.03 * (n - 1)) - 4 * stacks('otgul')); }
+  function goalTime(len, n) { return Math.round(Math.max(18, Math.min(45, 7 + len / 48)) * Math.max(0.78, 1 - 0.03 * (n - 1)) - 4 * stacks('otgul')); }
 
   function plan(seedStr, daily) {
     const seed = hashStr((daily ? 'daily:' : 'esc:') + seedStr);
@@ -31494,8 +31509,9 @@
     const tw = n >= 4 ? { polite: 2, rude: 3, tired: 1, sly: 2, sprinter: Math.min(4, n - 2) } : n >= 3 ? { polite: 3, rude: 3, tired: 2, sprinter: 1 } : { polite: 3, rude: 2, tired: 3 };
     return {
       busRate: Math.round(Math.min(6, 1.6 + 0.5 * (n - 1)) * tr * 100) / 100,
-      maxBuses: Math.min(6, 2 + Math.floor(n / 2)),
-      groupSize: [Math.min(6, 2 + Math.floor(n / 2)), Math.min(7, 3 + Math.floor(n / 2))],
+      maxBuses: Math.min(3, 1 + Math.floor(n / 3)),
+      groupSize: n <= 2 ? [2, 2] : n <= 5 ? [2, 3] : [3, 3],
+      tckCap: Math.min(6, n <= 1 ? 2 : n <= 2 ? 3 : n <= 4 ? 4 : 5 + Math.floor((n - 5) / 4)), // Round 20: не більше стількох ТЦК одночасно
       tckSpeed: Math.round(Math.min(1.35, 1 + 0.04 * (n - 1)) * bl * 1000) / 1000,
       huntChance: Math.min(0.85, 0.3 + 0.1 * (n - 1)),
       tckHp: Math.round(Math.min(1.9, 1 + 0.08 * (n - 1)) * 100) / 100,
@@ -31833,7 +31849,7 @@
       const rg = S.plan.route[n - 1];
       const pl = p ? pathLen(p, rg) : { len: 400, path: null };
       g = Object.assign({}, rg, { pathLen: pl.len < 1e8 ? pl.len : Math.hypot(rg.x - p.x, rg.y - p.y) * 1.3, path: pl.path });
-    } else if (p) g = pickGoal(p, S.rngGoal, S.goalPrev && S.goalPrev.kind, S.goalPrev ? [S.goalPrev] : null, Math.min(450, 280 + 30 * (n - 1)));
+    } else if (p) g = pickGoal(p, S.rngGoal, S.goalPrev && S.goalPrev.kind, S.goalPrev ? [S.goalPrev] : null, Math.min(650, 440 + 40 * (n - 1)));
     if (S.forceGoalFn && p) { // тести/рендери
       const fc = goalCands().filter(S.forceGoalFn)[0];
       if (fc) { const pl = pathLen(p, fc); g = Object.assign({}, fc, { pathLen: pl.len < 1e8 ? pl.len : Math.hypot(fc.x - p.x, fc.y - p.y), path: pl.path }); }
@@ -31854,7 +31870,7 @@
     }
     applyMods(m);
     // перший контакт — за ~2–3.5 с (диспетчер шле бус); облава — одразу три
-    S.dispatchAt = (first ? 3 : 2) + G.rng.next() * 1.2;
+    S.dispatchAt = (first ? 2.2 : 2) + G.rng.next() * (first ? 0.6 : 1.2);
     if (G.bus) G.bus.spawnT = Math.min(G.bus.spawnT, 4 + G.rng.next() * 3);
     if (!first) { sfx('whistle_fab'); if (P()) P().chalEvent('wave', n, true); }
     announce();
@@ -31968,6 +31984,13 @@
 
   // ═══════════════════════════ Диспетчер: бус до гравця ═══════════════════════════
   // Найближчий бус з екіпажем (≤ near px) отримує позицію і висаджує всіх на екрані; інакше бус-облава з-за кадру.
+  // куди біжить гравець: швидкість, інакше — до цілі хвилі
+  function aheadDir(p) {
+    let dx = p.vx || 0, dy = p.vy || 0;
+    if (Math.hypot(dx, dy) < 20 && S && S.goal) { dx = S.goal.x - p.x; dy = S.goal.y - p.y; }
+    const l = Math.hypot(dx, dy);
+    return l > 1 ? { x: dx / l, y: dy / l } : null;
+  }
   function sendBus(crew, near) {
     const p = G.player;
     if (!p || !G.bus) return null;
@@ -31979,19 +32002,22 @@
       if (dd < bd) { bd = dd; bus = b; }
     }
     if (bus) { bus.setMode('drop'); bus.dropAll = true; bus.squad = true; bus.squadT = 0; bus.hunt = 0; bus.dropCd = 0; }
-    else bus = G.bus.spawnDrop(110, 320, { crew });
+    else bus = G.bus.spawnDrop(110, 320, { crew, dir: aheadDir(p) });
     return bus;
   }
+  function tckCap() { const m = G.run && G.run.mission; return (m && m.tckCap) || 4; }
+  function tckAlive() { let n = 0; if (G.tck && G.tck.list) for (const t of G.tck.list) if (t.alive && !t.ko) n++; return n; }
   function crewFor() { const d = difficulty(S.wave); return S.wave <= 2 ? 2 : d.groupSize[0] + Math.floor(G.rng.next() * (d.groupSize[1] - d.groupSize[0] + 1)); }
   function dispatch(why, count) {
     const p = G.player;
     if (!p || !G.tck || !G.bus || p.caught) return;
     S.dispatches++;
     if (G.tck.forceChase) G.tck.forceChase(why || 'director');
+    if (tckAlive() >= tckCap()) return; // Round 20: на вулиці вже досить ТЦК
     const n = count || 1;
     for (let i = 0; i < n; i++) {
       if (i === 0) { const b = sendBus(crewFor(), 300); if (b) camAssist(p, b); }
-      else G.after(900 * i, () => { if (S && !S.caught && G.run && !G.run.ended) G.bus.spawnDrop(110, 360, { crew: crewFor() }); }, {});
+      else G.after(900 * i, () => { if (S && !S.caught && G.run && !G.run.ended) G.bus.spawnDrop(110, 360, { crew: crewFor(), dir: aheadDir(G.player) }); }, {});
     }
   }
 
@@ -32018,7 +32044,7 @@
   }
   // Камера-асистент: дороги в кадрі нема (двір, парк, набережна) — камера плавно зсувається до місця, де бус зупиниться
   // (гравець лишається в кадрі, якщо вміщається; інакше — короткий «проліт» до буса і назад), щоб висадку було видно.
-  const CAM_MAX = { x: 200, y: 108 };
+  const CAM_MAX = { x: 70, y: 40 }; // Round 20: лише легкий зсув у бік буса, без прольоту (гравець завжди в центрі кадру)
   function camAssist(p, bus) {
     const cam = G.camera;
     if (!cam || !G.bus || !G.bus.viewOk) return;
@@ -32037,7 +32063,7 @@
       c.hold = b.dropQueue > 0 ? 0.6 : Math.max(0, (c.hold || 0) - G.cfg.DT);
       const ox = (b.x - p.x) * 0.85, oy = (b.y - p.y) * 0.85;
       if (Math.abs(ox) <= CAM_MAX.x && Math.abs(oy) <= CAM_MAX.y) return { x: ox, y: oy };
-      return { x: b.x - p.x, y: b.y - p.y, fly: true };
+      return { x: U2.clamp(b.x - p.x, -CAM_MAX.x, CAM_MAX.x), y: U2.clamp(b.y - p.y, -CAM_MAX.y, CAM_MAX.y) };
     }
     // бус заїжджає у двір — камера лишається на гравцеві
     if (b && (b.mode === 'yard' || (b.mode === 'drop' && b.yardPlan && !b.dropSpot))) return { x: 0, y: 0 };
@@ -32062,8 +32088,7 @@
     const ox = (tx - p.x) * 0.85, oy = (ty - p.y) * 0.85;
     // уміщається з гравцем у кадрі — зсув; ні — після 3 с проліт до буса/дороги (гравець ненадовго поза кадром)
     if (Math.abs(ox) <= CAM_MAX.x && Math.abs(oy) <= CAM_MAX.y) return { x: ox, y: oy };
-    if (c.t > 3) return { x: tx - p.x, y: ty - p.y, fly: true };
-    return { x: U2.clamp(ox, -CAM_MAX.x, CAM_MAX.x), y: U2.clamp(oy, -CAM_MAX.y, CAM_MAX.y) };
+        return { x: U2.clamp(ox, -CAM_MAX.x, CAM_MAX.x), y: U2.clamp(oy, -CAM_MAX.y, CAM_MAX.y) };
   }
   function updateCam(dt, p) {
     const c = S.cam; if (!c) return;
@@ -32642,10 +32667,31 @@
     if (A.desc) { let d = A.desc; while (d.length > 6 && u.measure(d, 8) > VW() - 20) d = d.slice(0, -2) + '…'; u.text(ctx, d, VW() / 2, y0 + 41, { size: 8, align: 'center', color: '#b4abb2' }); }
     ctx.restore();
   }
+  // Round 20: загрози поза кадром — червоні стрілки біля краю (бус з екіпажем ≤ 520 px, ТЦК у погоні ≤ 260 px)
+  function drawThreats(ctx) {
+    const p = G.player, cam = G.camera; if (!p || !cam || S.cleared) return;
+    const W = VW(), H = VH(), M = 12, cx = W / 2, cy = H / 2, t = G.realTime;
+    const items = [];
+    if (G.bus && G.bus.list) for (const b of G.bus.list) if (b.alive && b.crew > 0 && !b.post && (b.mode === 'drop' || b.mode === 'yard' || b.squad) && Math.hypot(b.x - p.x, b.y - p.y) < 520) items.push({ x: b.x, y: b.y, bus: true });
+    if (G.tck && G.tck.list && G.tck.chaseActive) for (const k of G.tck.list) if (k.alive && !k.ko && k.state === 'chase' && Math.hypot(k.x - p.x, k.y - p.y) < 260) items.push({ x: k.x, y: k.y });
+    for (const it of items) {
+      const q = cam.toScreen(it.x, it.y);
+      if (q.x > 0 && q.y > 0 && q.x < W && q.y < H) continue;
+      const a = Math.atan2(q.y - cy, q.x - cx);
+      const kx = (cx - M) / Math.max(1e-3, Math.abs(Math.cos(a))), ky = (cy - M) / Math.max(1e-3, Math.abs(Math.sin(a)));
+      const r = Math.min(kx, ky), ax = cx + Math.cos(a) * r, ay = cy + Math.sin(a) * r;
+      const pulse = 0.65 + 0.35 * Math.sin(t * 8);
+      ctx.save(); ctx.globalAlpha = pulse;
+      arrowAt(ctx, Math.round(ax), Math.round(ay), a, it.bus ? 8 : 6, '#1a0e20');
+      arrowAt(ctx, Math.round(ax), Math.round(ay), a, it.bus ? 6 : 4.5, it.bus ? '#ff6050' : '#ffb347');
+      ctx.restore();
+    }
+  }
   function drawHUD(ctx) {
     const u = U();
     if (!u) return;
     if (S && G.player) {
+      drawThreats(ctx);
       drawGoal(ctx, u);
       drawPops(ctx, u);
       const w = PANEL.w, h = PANEL.h, x = PANEL.x(), y = PANEL.y;
