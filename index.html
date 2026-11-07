@@ -2,6 +2,9 @@
 <html lang="uk">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>ТЦК</title>
 <meta name="theme-color" content="#000000">
@@ -269,7 +272,7 @@
       const r = canvasEl && canvasEl.getBoundingClientRect ? canvasEl.getBoundingClientRect() : null;
       if (!r || !r.width || !r.height) return { x: clientX, y: clientY };
       const pd = G.pad || { l: 0, r: 0, t: 0, b: 0 };
-      return { x: ((clientX - r.left) / r.width) * (W + pd.l + pd.r) - pd.l, y: ((clientY - r.top) / r.height) * (H + pd.t + pd.b) - pd.t };
+      return { x: ((clientX - r.left) / r.width) * (W + pd.l + pd.r) - pd.l - ((G.safe && G.safe.s) || 0), y: ((clientY - r.top) / r.height) * (H + pd.t + pd.b) - pd.t };
     }
     function onKey(e, isDown) {
       const action = KEYMAP[e.code];
@@ -696,7 +699,8 @@
     const vv = window.visualViewport;
     const vw = vv && vv.width > 0 ? Math.min(window.innerWidth || vv.width, vv.width) : window.innerWidth;
     const vh = vv && vv.height > 0 ? Math.min(window.innerHeight || vv.height, vv.height) : window.innerHeight;
-    const aw = Math.max(1, vw - sa.left - sa.right), ah = Math.max(1, vh - sa.top - sa.bottom);
+    // Round 21: картинка — на ВЕСЬ екран (і під вирізом/кутами); інтерфейс відступає на G.safe.s (логічні px) з боків
+    const aw = Math.max(1, vw), ah = Math.max(1, vh);
     // Round 18: динамічна логічна ширина — висота завжди 270, ширина за пропорцією видимої області
     // (телефон 2.16:1 → ~584), у межах VIEW_W_MIN..VIEW_W_MAX, парна. 16:9 і вужче (iPad 4:3) — 480 (смуги згори/знизу).
     const W = G.viewWidthFor(aw, ah);
@@ -706,10 +710,8 @@
     G.fit = fit;
     // Round 19: канвас на ВЕСЬ екран — смуги safe-area (виріз, кути, смужка home) заповнюються
     // продовженням картинки (G.pad, логічні px), а гра/інтерфейс лишаються в безпечній області.
-    const pd = G.pad = {
-      l: Math.max(0, Math.round(sa.left / fit)), r: Math.max(0, Math.round(sa.right / fit)),
-      t: Math.max(0, Math.round(sa.top / fit)), b: Math.max(0, Math.round(sa.bottom / fit)),
-    };
+    const pd = G.pad = { l: 0, r: 0, t: 0, b: 0 };
+    G.safe.s = Math.max(0, Math.min(Math.floor((W - 480) / 2), Math.round(Math.max(sa.left, sa.right) / fit)));
     // залишок (якщо пропорція впирається в межі VIEW_W) теж віддаємо смугам, щоб не було чорного
     const extraW = Math.max(0, Math.floor((aw - W * fit) / fit / 2)), extraH = Math.max(0, Math.floor((ah - H * fit) / fit / 2));
     pd.l += extraW; pd.r += extraW; pd.t += extraH; pd.b += extraH;
@@ -813,6 +815,45 @@
   };
   G._realW = 0;
 
+  // ── Round 21: безпечна зона інтерфейсу (виріз iPhone) ──
+  // Світ малюється на всю ширину VIEW_W; інтерфейс — у «безпечній» ширині VIEW_W − 2·safe.s, зсунутій на safe.s.
+  // Координати миші/тапів (toLogical) — уже в системі інтерфейсу.
+  G.safe = { s: 0 };
+  G._ui = false;
+  G.withUIW = function (fn) {
+    const k = G.safe.s;
+    if (!k || G._ui) return fn();
+    const W = G.cfg.VIEW_W; G.cfg.VIEW_W = W - 2 * k; G._ui = true;
+    try { return fn(); } finally { G.cfg.VIEW_W = W; G._ui = false; }
+  };
+  let uiC = null, insC = null;
+  // прозорий шар інтерфейсу поверх світу
+  G.uiLayer = function (ctx, fn) {
+    const k = G.safe.s;
+    if (!k || G._ui) return fn(ctx);
+    const IW = G.cfg.VIEW_W - 2 * k, H = G.cfg.VIEW_H;
+    if (!uiC || uiC.width !== IW || uiC.height !== H) uiC = G.util.makeCanvas(IW, H);
+    const g = uiC.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, IW, H);
+    G.withUIW(() => fn(g));
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(uiC, k, 0); ctx.restore();
+  };
+  // екрани без світу (меню, кат-сцени, результат): уся сцена в безпечній ширині, краї — мʼяке продовження
+  G.drawInset = function (ctx, fn) {
+    const k = G.safe.s;
+    if (!k || G._ui) return fn(ctx);
+    const IW = G.cfg.VIEW_W - 2 * k, H = G.cfg.VIEW_H;
+    if (!insC || insC.width !== IW || insC.height !== H) insC = G.util.makeCanvas(IW, H);
+    const g = insC.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.imageSmoothingEnabled = false;
+    g.fillStyle = '#000'; g.fillRect(0, 0, IW, H);
+    G.withUIW(() => fn(g));
+    G.blitWide(ctx, insC, IW, H, 0.12, 'soft');
+  };
+  const WORLD_STATES = { play: 1, paused: 1, dialog: 1 };
+  G.isWorldState = (st) => !!WORLD_STATES[st || G.state];
+
   // Відступи safe-area у CSS px (зонд #sa у shell.html з padding: env(safe-area-inset-*)); без DOM — нулі.
   function readSafeArea() {
     const z = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -848,7 +889,7 @@
     G.realTime += dt;
     tickTimers(dt, G.state === 'play' ? sdt : 0);
     const sc = G.scenes[G.state];
-    if (sc && sc.update) sc.update(sdt, dt);
+    if (sc && sc.update) { if (G.isWorldState()) sc.update(sdt, dt); else G.withUIW(() => sc.update(sdt, dt)); }
     G.frame++;
   };
 
@@ -861,12 +902,16 @@
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, G.cfg.VIEW_W, G.cfg.VIEW_H);
     const sc = G.scenes[G.state];
-    if (sc && sc.draw) sc.draw(ctx);
+    if (sc && sc.draw) {
+      if (G.isWorldState()) sc.draw(ctx);
+      else if (sc.drawBg && G.safe.s) { sc.drawBg(ctx); G._bgDone = true; try { G.uiLayer(ctx, (g) => sc.draw(g)); } finally { G._bgDone = false; } } // фон — на всю ширину, інтерфейс — у безпечній зоні
+      else G.drawInset(ctx, (g) => sc.draw(g));
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     // сенсорне керування (05_touch.js) — поверх усього, лише на сенсорних пристроях
     if (G.touch && G.touch.active && G.touch.draw) {
-      try { G.touch.draw(ctx); } catch (e) { console.error('touch draw', e); G.touch.draw = null; }
+      try { G.uiLayer(ctx, (g) => G.touch.draw(g)); } catch (e) { console.error('touch draw', e); G.touch.draw = null; }
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
     }
     if (G.debug) G.text(ctx, 'fps ' + G.fps.toFixed(0) + ' ent ' + G.entities.length + ' ' + G.state, 2, G.cfg.VIEW_H - 10, { size: 8, color: '#0f0' });
@@ -916,7 +961,7 @@
       // Round 21: сенсорні кнопки — у повній роздільності екрана (гладкі, з іконками)
       if (G.touch && G.touch.active && G.touch.drawHi) {
         const pd2 = G.pad || { l: 0, t: 0 };
-        try { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.imageSmoothingEnabled = true; G.touch.drawHi(c, G.scale, pd2.l * G.scale, pd2.t * G.scale); } catch (e) { console.error('touch hi', e); G.touch.drawHi = null; } finally { c.restore(); c.imageSmoothingEnabled = false; }
+        try { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.imageSmoothingEnabled = true; G.touch.drawHi(c, G.scale, (pd2.l + G.safe.s) * G.scale, pd2.t * G.scale); } catch (e) { console.error('touch hi', e); G.touch.drawHi = null; } finally { c.restore(); c.imageSmoothingEnabled = false; }
       }
     }
   };
@@ -1004,7 +1049,7 @@
 //   (G.heroes.ab.cd > 0) і світиться, коли вміння діє.
 (function () {
   const G = window.G;
-  const VW = () => G.cfg.VIEW_W, VH = () => G.cfg.VIEW_H;
+  const VW = () => G.cfg.VIEW_W - (G._ui || !G.safe ? 0 : 2 * G.safe.s), VH = () => G.cfg.VIEW_H; // Round 21: ширина безпечної зони
   const I = G.input;
 
   // ───────── визначення пристрою ─────────
@@ -23854,8 +23899,9 @@
     }
     return y + 46;
   }
+  S.menu.drawBg = function (ctx) { drawMenuBg(ctx, M.t); }; // Round 21: фон меню — на весь екран (і під вирізом)
   S.menu.draw = function (ctx) {
-    drawMenuBg(ctx, M.t);
+    if (!G._bgDone) drawMenuBg(ctx, M.t);
     const bob = Math.round(Math.sin(M.t * 2) * 1.5);
     const pulse = Math.sin(M.t * 4) > -0.6;
     U.text(ctx, 'ТИ В РОЗШУКУ', VW() / 2 + 2, 10 + bob + 2, { size: 24, align: 'center', color: '#1a0e20' });
@@ -33447,7 +33493,7 @@
   };
   G.drawPlay = function (ctx) {
     G.drawWorld(ctx);
-    call(G.ui, 'drawHUD', ctx);
+    G.uiLayer(ctx, (g) => call(G.ui, 'drawHUD', g)); // Round 21: інтерфейс — у безпечній зоні
   };
 
   // ── Крок гри в стані play (порядок з ARCHITECTURE.md) ──
@@ -33488,12 +33534,12 @@
   S.paused.enter = function () { call(G.ui && G.ui.pauseMenu, 'enter'); };
   S.paused.update = function (dt, realDt) {
     G.camera.update(0);
-    if (G.ui && G.ui.pauseMenu) G.ui.pauseMenu.update(realDt);
+    if (G.ui && G.ui.pauseMenu) G.withUIW(() => G.ui.pauseMenu.update(realDt));
     else if (G.input.pressed('pause')) { G.input.consume('pause'); G.setState('play'); }
   };
   S.paused.draw = function (ctx) {
     G.drawPlay(ctx);
-    if (G.ui && G.ui.pauseMenu) { G.ui.pauseMenu.draw(ctx); return; }
+    if (G.ui && G.ui.pauseMenu) { const k = G.safe.s; if (k) { ctx.fillStyle = 'rgba(10,6,16,0.6)'; ctx.fillRect(0, 0, k, G.cfg.VIEW_H); ctx.fillRect(G.cfg.VIEW_W - k, 0, k, G.cfg.VIEW_H); } G.uiLayer(ctx, (g) => G.ui.pauseMenu.draw(g)); return; }
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.fillRect(0, 0, G.cfg.VIEW_W, G.cfg.VIEW_H);
     G.text(ctx, 'ПАУЗА', G.cfg.VIEW_W / 2, G.cfg.VIEW_H / 2 - 16, { size: 24, align: 'center', shadow: true });
@@ -33545,8 +33591,8 @@
   })();
 
   // Діалог: світ заморожений, але видимий
-  S.dialog.update = function (dt, realDt) { call(G.dialog, 'update', realDt); };
-  S.dialog.draw = function (ctx) { G.drawPlay(ctx); call(G.dialog, 'draw', ctx); };
+  S.dialog.update = function (dt, realDt) { G.withUIW(() => call(G.dialog, 'update', realDt)); };
+  S.dialog.draw = function (ctx) { G.drawPlay(ctx); G.uiLayer(ctx, (g) => call(G.dialog, 'draw', g)); };
 
   // Кат-сцена: під нею світ (якщо забіг іде), кат-сцена малює поверх що хоче
   S.cutscene.update = function (dt, realDt) { call(G.cutscene, 'update', realDt); };
