@@ -30896,16 +30896,27 @@
     const VW = G.cfg.VIEW_W, VH = G.cfg.VIEW_H;
     const night = (G.lighting && G.lighting.night) || 0;
     if (S.ev.rain) {
+      // Round 20: мʼякий дощ — тонкі косі краплі з різною швидкістю (плавно, без мерехтіння), легкі бризки, ледь сірий тон
       const e = S.ev.rain, k = Math.min(1, e.t / 2, Math.max(0, e.dur - e.t) / 2);
       ctx.save();
-      ctx.fillStyle = 'rgba(40,50,80,' + (0.18 * k).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH);
-      ctx.fillStyle = 'rgba(190,205,230,' + ((0.45 - 0.2 * night) * k).toFixed(3) + ')';
-      const t = G.realTime;
-      for (let i = 0; i < 140; i++) {
-        const x = ((i * 97 + Math.floor(t * 60) * 3) % (VW + 40)) - 20;
-        const y = ((i * 53 + Math.floor(t * 420)) % (VH + 20)) - 10;
-        ctx.fillRect(Math.round(x), Math.round(y), 1, 5);
-        ctx.fillRect(Math.round(x) - 1, Math.round(y) + 5, 1, 2);
+      ctx.fillStyle = 'rgba(30,40,60,' + (0.1 * k).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH);
+      const t = G.realTime, N = Math.round(70 * VW / 480);
+      const hsh = (i, m) => { let h = (i * 2654435761 + m * 40503) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; return (h >>> 0) / 4294967296; };
+      ctx.fillStyle = 'rgba(200,215,235,' + ((0.42 - 0.14 * night) * k).toFixed(3) + ')';
+      for (let i = 0; i < N; i++) {
+        const sp = 260 + hsh(i, 1) * 140, len = 5 + Math.floor(hsh(i, 2) * 5);
+        const y = (hsh(i, 3) * (VH + 30) + t * sp) % (VH + 30) - 15;
+        const x = (hsh(i, 4) * (VW + 40) + t * sp * 0.22) % (VW + 40) - 20;
+        const xi = Math.round(x), yi = Math.round(y);
+        ctx.fillRect(xi, yi, 1, len >> 1); ctx.fillRect(xi + 1, yi + (len >> 1), 1, len - (len >> 1));
+      }
+      // бризки: короткі «кільця» на асфальті
+      ctx.fillStyle = 'rgba(210,225,240,' + (0.22 * k).toFixed(3) + ')';
+      for (let i = 0; i < 14; i++) {
+        const per = 0.5 + hsh(i, 5) * 0.4, ph = (t / per + hsh(i, 6)) % 1, cyc = Math.floor(t / per + hsh(i, 6));
+        if (ph > 0.35) continue;
+        const sx = Math.round(hsh(i * 7 + cyc, 7) * VW), sy = Math.round(hsh(i * 7 + cyc, 8) * VH), r = ph < 0.15 ? 1 : 2;
+        ctx.fillRect(sx - r, sy, 1, 1); ctx.fillRect(sx + r, sy, 1, 1);
       }
       ctx.restore();
     }
@@ -31875,23 +31886,21 @@
 
   // ═══════════════════════════ Хвилі: «Евакуація» ═══════════════════════════
   // Кожна хвиля: точка евакуації за 250–600 px, таймер, модифікатори; дійшов — бонуси, перк, наступна хвиля звідти.
+  // Round 20: не більше одного «важкого» модифікатора; хвиля Майора — лише Майор; 1–2 — без модифікаторів;
+  // з 8-ї хвилі до важкого може додатися легкий (дощ / блекаут / маршрутка / тривога)
+  const MOD_HARD = ['oblava', 'sprint', 'snitch'], MOD_SOFT = ['rain', 'blackout', 'marsh', 'alarm'];
   function modsFor(n) {
     if (S.forceMods) { const f = S.forceMods; S.forceMods = null; return f.slice(); } // тести
     if (S.mode === 'daily') return (S.plan.combo || []).slice();
-    const out = [];
-    if (n % 5 === 0) out.push('major');
-    if (n === 1) return out;
-    const cnt = n >= 5 ? 2 : 1;
-    const pool = MOD_IDS.filter((id) => id !== 'major' && id !== (S.mods && S.mods[0]));
-    let guard = 0;
-    while (out.length < cnt + (n % 5 === 0 ? 1 : 0) && guard++ < 30) {
-      const id = pool[Math.floor(G.rng.next() * pool.length)];
-      if (out.indexOf(id) >= 0) continue;
-      if ((id === 'rain' && out.indexOf('blackout') >= 0) || (id === 'blackout' && out.indexOf('rain') >= 0)) continue;
-      if (n < 3 && (id === 'oblava' || id === 'sprint')) continue;
-      out.push(id);
-    }
-    return out;
+    if (n % 5 === 0) return ['major'];
+    if (n <= 2) return [];
+    const prev = S.mods || [];
+    const pick = (pool) => { const q = pool.filter((id) => prev.indexOf(id) < 0); const L = q.length ? q : pool; return L[Math.floor(G.rng.next() * L.length)]; };
+    // 3–7: по черзі легкий / важкий (з 4-ї), 8+: важкий + легкий
+    if (n < 8) return [(n % 2 === 1 || n < 4) ? pick(MOD_SOFT) : pick(MOD_HARD)];
+    const hard = pick(MOD_HARD); let soft = pick(MOD_SOFT);
+    if (hard === 'oblava' && soft === 'alarm') soft = 'rain';
+    return [hard, soft];
   }
   function applyMods(m) {
     const on = S.modOn = {};
@@ -31969,6 +31978,7 @@
       }, {});
     }
     if (p && !first) {
+      p.heal(p.maxHp * 0.3); // Round 20: передих між хвилями — +30% здоровʼя
       if (stacks('shawarma')) p.heal(30 * stacks('shawarma'));
       if (stacks('radar')) p.addBuff('radar', 25);
       if (stacks('hood')) p.addBuff('disguise', 15);
@@ -31983,7 +31993,7 @@
     const head = (S.mode === 'daily' ? 'ТОЧКА ' + S.wave + '/' + DAILY_POINTS : 'ХВИЛЯ ' + S.wave) + (S.mods.length ? ' · ' + S.mods.map((id) => MODS[id].name).join(' · ') : '');
     const sub = g ? 'ДІЙДИ ДО ' + g.label : 'ВИЖИВИ';
     const desc = S.mods.length ? S.mods.map((id) => MODS[id].desc).join(' · ') : (S.wave === 1 ? 'Буси вже виїхали. Не стій на місці!' : '');
-    S.ann = { head, sub, desc, t: 0, life: 3.4, color: S.mods.length ? MODS[S.mods[0]].color : '#ffd23a' };
+    S.ann = { head, sub, desc, t: 0, life: 2.6, color: S.mods.length ? MODS[S.mods[0]].color : '#ffd23a' };
     sfx('announce');
   }
   function endWave() {
@@ -32737,18 +32747,22 @@
     }
   }
   // диктор: великий текст хвилі (виїжджає зверху, тримається, тане)
+  // Round 20: компактне оголошення під верхньою панеллю (не закриває гравця й дорогу)
   function drawAnn(ctx, u) {
     const A = S.ann; if (!A) return;
-    const t = A.t, inK = Math.min(1, t / 0.25), outK = Math.min(1, Math.max(0, (A.life - t) / 0.4));
-    const a = Math.min(inK, outK), y0 = 64 + Math.round((1 - inK) * -30);
+    const t = A.t, inK = Math.min(1, t / 0.2), outK = Math.min(1, Math.max(0, (A.life - t) / 0.35));
+    const a = Math.min(inK, outK);
+    const W = Math.max(220, Math.min(VW() - 236, 340)), x0 = Math.round(VW() / 2 - W / 2), y0 = 24 + Math.round((1 - inK) * -8);
+    const H = A.desc ? 40 : 29;
     ctx.save(); ctx.globalAlpha = a;
-    ctx.fillStyle = 'rgba(16,8,22,0.72)'; ctx.fillRect(0, y0 - 6, VW(), A.desc ? 62 : 50);
-    ctx.fillStyle = A.color; ctx.fillRect(0, y0 - 6, VW(), 2); ctx.fillRect(0, y0 + (A.desc ? 54 : 42), VW(), 2);
-    let hs = 20; while (hs > 10 && u.measure(A.head, hs) > VW() - 20) hs -= 2;
-    u.text(ctx, A.head, VW() / 2, y0, { size: hs, align: 'center', color: A.color, outline: '#1a0e20', shadow: true });
-    let ss = 12; while (ss > 8 && u.measure(A.sub, ss) > VW() - 20) ss -= 2;
-    u.text(ctx, A.sub, VW() / 2, y0 + 24, { size: ss, align: 'center', color: '#fbf6ea', outline: '#1a0e20', shadow: true });
-    if (A.desc) { let d = A.desc; while (d.length > 6 && u.measure(d, 8) > VW() - 20) d = d.slice(0, -2) + '…'; u.text(ctx, d, VW() / 2, y0 + 41, { size: 8, align: 'center', color: '#b4abb2' }); }
+    ctx.fillStyle = 'rgba(16,8,22,0.78)'; ctx.fillRect(x0, y0, W, H);
+    ctx.fillStyle = A.color; ctx.fillRect(x0, y0, W, 2); ctx.fillRect(x0, y0 + H - 1, W, 1);
+    let hs = 12; while (hs > 8 && u.measure(A.head, hs) > W - 10) hs -= 2;
+    let head = A.head; while (head.length > 6 && u.measure(head, hs) > W - 10) head = head.slice(0, -2) + '…';
+    u.text(ctx, head, VW() / 2, y0 + 4, { size: hs, align: 'center', color: A.color, outline: '#1a0e20', shadow: true });
+    let sub = A.sub; while (sub.length > 6 && u.measure(sub, 8) > W - 10) sub = sub.slice(0, -2) + '…';
+    u.text(ctx, sub, VW() / 2, y0 + 5 + hs + 2, { size: 8, align: 'center', color: '#fbf6ea', outline: '#1a0e20' });
+    if (A.desc) { let d = A.desc; while (d.length > 6 && u.measure(d, 8) > W - 10) d = d.slice(0, -2) + '…'; u.text(ctx, d, VW() / 2, y0 + 29, { size: 8, align: 'center', color: '#c9c0c8' }); }
     ctx.restore();
   }
   // Round 20: загрози поза кадром — червоні стрілки біля краю (бус з екіпажем ≤ 520 px, ТЦК у погоні ≤ 260 px)
