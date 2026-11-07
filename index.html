@@ -22788,6 +22788,11 @@
     clock: { rows: ['.###.', '#w#w#', '#w##w', '#www#', '.###.'], pal: { '#': '#2a1a2e', w: '#fbf6ea' } },
     tck: { rows: ['.ggg.', 'ggggg', '.sss.', '.sss.', 'ooooo', 'ooooo', '.o.o.'], pal: { g: '#474b2d', s: '#f3c39b', o: '#6b7142' } },
     star: { rows: ['..#..', '#####', '.###.', '.#.#.'], pal: { '#': '#f7c948' } },
+    // Round 21: меню
+    person: { rows: ['.##.', '#ss#', '.ss.', 'cccc', 'cccc', 'c..c'], pal: { '#': '#5b3426', s: '#f3c39b', c: '#e5483c' } },
+    shirt: { rows: ['##.##', '#####', '.###.', '.###.', '.###.'], pal: { '#': '#8fc7e4' } },
+    cal: { rows: ['#.#.#', '#####', '#wwww', '#w#w#', '#wwww'], pal: { '#': '#d8443a', w: '#fbf6ea' } },
+    gear: { rows: ['.#.#.', '#####', '##.##', '#####', '.#.#.'], pal: { '#': '#b4abb2' } },
   };
   // Round 17: іконка малюється один раз у кеш-канвас (раніше — fillRect на кожен піксель щокадру, ~400 викликів у HUD)
   const iconC = {};
@@ -23487,6 +23492,7 @@
     const placed = [];
     for (const r of rects) {
       r.x = G.util.clamp(r.x, 2, VW() - r.w - 2);
+      r.y = Math.min(r.y, VH() - r.h - 2); // Round 21: мовець за нижнім краєм — бульбашка все одно в кадрі
       for (let it = 0; it < 10; it++) {
         let hit = null;
         for (const q of placed) if (r.x < q.x + q.w + 1 && r.x + r.w + 1 > q.x && r.y < q.y + q.h + 1 && r.y + r.h + 1 > q.y) { hit = q; break; }
@@ -23706,15 +23712,22 @@
   // Round 16 (B13): спливаюча нагорода за вхід і тости меню — у вільній зоні праворуч під «Завданнями дня»
   const LOGIN_POP_R = () => ({ x: 206 + Math.round((VW() - 212) / 2) - 105, y: 176, w: 210, h: 34 });
   // Round 11: ГРАТИ (кампанія, ◀ ▶ — місія, E / ☰ — екран місій) · ВТЕЧА · ЩОДЕННА · ПРОКАЧКА · ГАРДЕРОБ · КРАМНИЦЯ · КЕРУВАННЯ
-  const MENU_X = 16, MENU_W = 176;
+  const MENU_X = 14, MENU_W = 190;
+  // Round 21: велика картка ГРАТИ + сітка 2×3 з іконками + рядок КЕРУВАННЯ
+  const MENU_ICON = { heroes: 'person', escape: 'run', daily: 'cal', upgrades: 'fist', wardrobe: 'shirt', shop: 'coin', controls: 'gear' };
+  const MENU_COL = { heroes: '#e5483c', escape: '#f7c948', daily: '#93c25b', upgrades: '#ef8a3b', wardrobe: '#8fc7e4', shop: '#f7c948', controls: '#b4abb2' };
   function menuItems() {
     const it = [{ id: 'start', label: 'ГРАТИ' }, { id: 'heroes', label: 'ГЕРОЇ' }, { id: 'escape', label: 'ВТЕЧА' }, { id: 'daily', label: 'ЩОДЕННА' }, { id: 'upgrades', label: 'ПРОКАЧКА' },
       { id: 'wardrobe', label: 'ГАРДЕРОБ' }, { id: 'shop', label: 'КРАМНИЦЯ' }, { id: 'controls', label: 'КЕРУВАННЯ' }];
-    const y0 = 48;
-    it.forEach((o, i) => { o.r = { x: MENU_X, y: y0 + i * 21 + (i > 0 ? 3 : 0), w: o.id === 'start' ? MENU_W - 24 : MENU_W, h: o.id === 'start' ? 22 : 19 }; });
+    const cw = Math.floor((MENU_W - 4) / 2);
+    it.forEach((o, i) => {
+      if (i === 0) o.r = { x: MENU_X, y: 44, w: MENU_W - 26, h: 36 };
+      else if (i < 7) { const k = i - 1; o.r = { x: MENU_X + (k % 2) * (cw + 4), y: 86 + Math.floor(k / 2) * 28, w: cw, h: 24 }; o.col = k % 2; }
+      else o.r = { x: MENU_X, y: 170, w: MENU_W, h: 17 };
+    });
     return it;
   }
-  const missionsBtn = () => ({ x: MENU_X + MENU_W - 21, y: 48, w: 21, h: 22 });
+  const missionsBtn = () => ({ x: MENU_X + MENU_W - 22, y: 44, w: 22, h: 36 });
   function changeDay(d) {
     const maxDay = G.progress ? G.progress.maxDay || 1 : 1;
     const n = G.util.clamp(M.day + d, 1, maxDay);
@@ -23753,6 +23766,7 @@
     if (navUp()) { M.focus = (M.focus + n - 1) % n; click(); }
     if (navDown()) { M.focus = (M.focus + 1) % n; click(); }
     const cur = M.items[M.focus];
+    if (cur && cur.col != null && (navLeft() || navRight())) { M.focus += cur.col ? -1 : 1; click(); }
     if (cur && cur.id === 'start') {
       if (navLeft()) changeDay(-1);
       if (navRight()) changeDay(1);
@@ -23822,19 +23836,23 @@
   function drawLoginPanel(ctx, x, y, w) {
     const P = G.progress, L = P && P.login;
     if (!L) return y;
-    U.panel(ctx, x, y, w, 50, { fill: 'rgba(30,20,36,0.88)' });
-    U.text(ctx, 'ЩОДЕННА НАГОРОДА', x + 8, y + 4, { size: 8, color: '#fde98f', shadow: true });
-    U.text(ctx, 'серія ' + L.n + ' дн.', x + w - 8, y + 4, { size: 8, align: 'right', color: '#ef8a3b' });
-    const cw = Math.floor((w - 16 - 6 * 3) / 7);
+    U.rect(ctx, 'rgba(0,0,0,0.3)', x + 1, y + 2, w, 42);
+    U.panel(ctx, x, y, w, 42, { fill: 'rgba(30,20,38,0.86)' });
+    U.icon(ctx, 'coin', x + 6, y + 4);
+    U.text(ctx, 'НАГОРОДА ЗА ВХІД', x + 15, y + 3, { size: 7, color: '#fde98f', shadow: true });
+    U.text(ctx, 'серія ' + L.n + ' дн.', x + w - 6, y + 3, { size: 7, align: 'right', color: '#ef8a3b' });
+    const cw = Math.floor((w - 12 - 6 * 2) / 7);
     for (let i = 0; i < 7; i++) {
-      const c = L.cycle[i], cx = x + 8 + i * (cw + 3), cy = y + 16;
+      const c = L.cycle[i], cx = x + 6 + i * (cw + 2), cy = y + 14;
       const pulse = c.today && Math.sin(G.realTime * 5) > 0;
-      U.panel(ctx, cx, cy, cw, 28, { fill: c.today ? (pulse ? '#5e9846' : '#4a7a38') : c.got ? 'rgba(70,90,60,0.8)' : 'rgba(58,46,68,0.95)', border: c.today ? '#fde98f' : '#1a0e20', hi: false });
-      U.text(ctx, i === 6 ? '7★' : String(i + 1), cx + cw / 2, cy + 2, { size: 7, align: 'center', color: c.got ? '#fde98f' : '#b4abb2' });
-      if (c.got && !c.today) U.icon(ctx, 'check', cx + cw / 2 - 3, cy + 14);
-      else U.text(ctx, String(c.money), cx + cw / 2, cy + 14, { size: 7, align: 'center', color: '#93c25b' });
+      U.rect(ctx, c.today ? '#fde98f' : '#120a18', cx - 1, cy - 1, cw + 2, 24);
+      U.rect(ctx, c.today ? (pulse ? '#6aa84f' : '#5a9a40') : c.got ? 'rgba(70,96,60,0.95)' : 'rgba(58,46,68,0.95)', cx, cy, cw, 22);
+      U.rect(ctx, 'rgba(255,255,255,0.12)', cx, cy, cw, 1);
+      U.text(ctx, i === 6 ? '7★' : String(i + 1), cx + cw / 2, cy + 1, { size: 7, align: 'center', color: c.got || c.today ? '#fde98f' : '#8a8090' });
+      if (c.got && !c.today) U.icon(ctx, 'check', cx + Math.round(cw / 2) - 3, cy + 13);
+      else U.text(ctx, String(c.money), cx + cw / 2, cy + 11, { size: 7, align: 'center', color: '#93c25b' });
     }
-    return y + 54;
+    return y + 46;
   }
   S.menu.draw = function (ctx) {
     drawMenuBg(ctx, M.t);
@@ -23847,36 +23865,72 @@
     const camp = (G.missions && G.missions.CAMPAIGN) || 15;
     for (let i = 0; i < M.items.length; i++) {
       const it = M.items[i], f = i === M.focus, r = it.r;
+      const nb = (it.id === 'heroes' && bd.heroes) || (it.id === 'escape' && bd.escape) || (it.id === 'daily' && bd.daily) || (it.id === 'upgrades' && (bd.upgrades || bd.achievements)) || (it.id === 'wardrobe' && bd.wardrobe);
       if (it.id === 'start') {
         const maxDay = P ? P.maxDay || 1 : 1;
-        U.panel(ctx, r.x, r.y, r.w, r.h, { fill: f ? '#d8443a' : '#8a2a2a', border: f ? '#fde98f' : '#1a0e20' });
-        // відблиск, що пробігає по кнопці
+        // тінь + картка
+        U.rect(ctx, 'rgba(0,0,0,0.35)', r.x + 2, r.y + 3, r.w + 26, r.h);
+        U.rect(ctx, '#1a0e20', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+        U.rect(ctx, f ? '#e5483c' : '#b8352c', r.x, r.y, r.w, r.h);
+        U.rect(ctx, f ? '#ff7a5e' : '#d8443a', r.x, r.y, r.w, Math.round(r.h / 2));
+        U.rect(ctx, 'rgba(255,255,255,0.35)', r.x, r.y, r.w, 1);
+        U.rect(ctx, 'rgba(0,0,0,0.25)', r.x, r.y + r.h - 2, r.w, 2);
+        if (f) { U.rect(ctx, '#fde98f', r.x - 1, r.y - 1, r.w + 2, 1); U.rect(ctx, '#fde98f', r.x - 1, r.y + r.h, r.w + 2, 1); U.rect(ctx, '#fde98f', r.x - 1, r.y, 1, r.h); U.rect(ctx, '#fde98f', r.x + r.w, r.y, 1, r.h); }
         const sh = (M.t * 90) % (r.w + 60) - 30;
-        if (sh > 2 && sh < r.w - 10) { ctx.save(); ctx.fillStyle = 'rgba(255,240,200,0.22)'; ctx.fillRect(Math.round(r.x + sh), r.y + 2, 8, r.h - 4); ctx.restore(); }
+        if (sh > 2 && sh < r.w - 10) { ctx.save(); ctx.fillStyle = 'rgba(255,240,200,0.25)'; ctx.fillRect(Math.round(r.x + sh), r.y + 2, 8, r.h - 4); ctx.restore(); }
         if (maxDay > 1) {
-          U.tri(ctx, r.x + 7, r.y + r.h / 2, 'left', 4, M.day > 1 ? '#fde98f' : '#7a4a4a');
-          U.tri(ctx, r.x + r.w - 7, r.y + r.h / 2, 'right', 4, M.day < maxDay ? '#fde98f' : '#7a4a4a');
+          U.tri(ctx, r.x + 8, r.y + 24, 'left', 4, M.day > 1 ? '#fde98f' : '#8a4a4a');
+          U.tri(ctx, r.x + r.w - 8, r.y + 24, 'right', 4, M.day < maxDay ? '#fde98f' : '#8a4a4a');
         }
         const ms = P && P.mission ? P.mission(M.day) : null;
-        U.text(ctx, 'ГРАТИ', r.x + r.w / 2, r.y + 1, { size: 10, align: 'center', color: '#fff8e0', shadow: true });
+        const gw = U.measure('ГРАТИ', 16);
+        U.tri(ctx, Math.round(r.x + r.w / 2 - gw / 2 - 4), r.y + 11, 'right', 5, '#fff8e0');
+        U.text(ctx, 'ГРАТИ', r.x + r.w / 2 + 6, r.y + 2, { size: 16, align: 'center', color: '#fff8e0', outline: '#5a1410' });
         let lbl = (M.day > camp ? 'День ' + M.day : 'Місія ' + M.day) + (ms && ms.short && M.day <= camp ? ': ' + ms.short : '');
-        while (lbl.length > 6 && U.measure(lbl, 7) > r.w - 24) lbl = lbl.slice(0, -2) + '…';
-        U.text(ctx, lbl, r.x + r.w / 2, r.y + 12, { size: 7, align: 'center', color: '#fde0c0' });
+        while (lbl.length > 6 && U.measure(lbl, 7) > r.w - 26) lbl = lbl.slice(0, -2) + '…';
+        U.text(ctx, lbl, r.x + r.w / 2, r.y + 23, { size: 7, align: 'center', color: '#ffe4cc' });
         if (f) { const blink = Math.floor(G.realTime * 3) % 2 ? 0 : 1; U.tri(ctx, r.x - 6 - blink, r.y + r.h / 2, 'right', 4, '#fde98f'); }
         const mb = missionsBtn();
-        U.panel(ctx, mb.x, mb.y, mb.w, mb.h, { fill: 'rgba(58,46,68,0.95)' });
-        for (let k = 0; k < 3; k++) U.rect(ctx, '#e8dcc8', mb.x + 6, mb.y + 7 + k * 4, 9, 2);
-      } else {
-        U.button(ctx, r, menuLabel(it), f, { size: 10 });
-        if (it.id === 'escape' && f) U.icon(ctx, 'run', r.x + 6, r.y + 6);
+        U.rect(ctx, '#1a0e20', mb.x - 1, mb.y - 1, mb.w + 2, mb.h + 2);
+        U.rect(ctx, '#3a2a46', mb.x, mb.y, mb.w, mb.h); U.rect(ctx, 'rgba(255,255,255,0.18)', mb.x, mb.y, mb.w, 1);
+        for (let k = 0; k < 3; k++) U.rect(ctx, '#e8dcc8', mb.x + 6, mb.y + 12 + k * 5, 10, 2);
+        continue;
       }
-      const nb = (it.id === 'heroes' && bd.heroes) ? 'НОВЕ!' : (it.id === 'escape' && bd.escape) ? 'НОВЕ!' : (it.id === 'daily' && bd.daily) ? 'СЬОГОДНІ' : (it.id === 'upgrades' && (bd.upgrades || bd.achievements)) ? 'НОВЕ!' : (it.id === 'wardrobe' && bd.wardrobe) ? 'НОВЕ!' : null;
-      if (nb) badge(ctx, r.x + r.w - U.measure(nb, 7) - 4, r.y - 4, nb);
+      const col = MENU_COL[it.id] || '#b4abb2';
+      // тінь, рамка, тіло
+      U.rect(ctx, 'rgba(0,0,0,0.3)', r.x + 1, r.y + 2, r.w, r.h);
+      U.rect(ctx, f ? '#fde98f' : '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+      U.rect(ctx, f ? 'rgba(72,52,86,0.97)' : 'rgba(34,22,44,0.9)', r.x, r.y, r.w, r.h);
+      U.rect(ctx, 'rgba(255,255,255,' + (f ? 0.18 : 0.08) + ')', r.x, r.y, r.w, 1);
+      U.rect(ctx, col, r.x, r.y, 2, r.h); // кольорова смужка
+      const ic = MENU_ICON[it.id], isz = U.iconSize(ic);
+      if (it.id === 'controls') {
+        if (ic) U.icon(ctx, ic, r.x + 8, r.y + Math.round((r.h - isz.h) / 2));
+        U.text(ctx, it.label, r.x + r.w / 2, r.y + 4, { size: 8, align: 'center', color: f ? '#fde98f' : '#d8cfd8' });
+      } else {
+        if (ic) U.icon(ctx, ic, r.x + 6, r.y + Math.round((r.h - isz.h * 2) / 2), 2);
+        let sub = null;
+        if (it.id === 'escape' && P && P.escRecord && P.escRecord.best) sub = '★ ' + P.escRecord.best;
+        if (it.id === 'heroes' && P && P.heroSel && G.heroes && G.heroes.get(P.heroSel)) sub = G.heroes.get(P.heroSel).name;
+        if (it.id === 'daily' && bd.daily) sub = 'не зіграно';
+        if (it.id === 'shop' && P) sub = P.money + ' грн';
+        const tx = r.x + 22, tw = r.w - 26;
+        if (sub) {
+          U.text(ctx, it.label, tx, r.y + 3, { size: 8, color: f ? '#fde98f' : '#fbf6ea', shadow: true });
+          while (sub.length > 4 && U.measure(sub, 7) > tw) sub = sub.slice(0, -2) + '…';
+          U.text(ctx, sub, tx, r.y + 13, { size: 7, color: '#b4abb2' });
+        } else U.text(ctx, it.label, tx, r.y + 7, { size: 8, color: f ? '#fde98f' : '#fbf6ea', shadow: true });
+      }
+      if (nb) { // значок «!»
+        const bx = r.x + r.w - 6, by = r.y - 3, on = Math.sin(G.realTime * 6) > -0.3;
+        U.rect(ctx, '#1a0e20', bx - 1, by - 1, 9, 9); U.rect(ctx, on ? '#ff4a3a' : '#c8302a', bx, by, 7, 7);
+        U.rect(ctx, '#fff8e0', bx + 3, by + 1, 1, 3); U.rect(ctx, '#fff8e0', bx + 3, by + 5, 1, 1);
+      }
     }
-    // права колонка: нагорода за вхід і завдання дня
-    const px = 206, pw = VW() - px - 8;
-    const y = drawLoginPanel(ctx, px, 50, pw);
-    if (G.modes && G.modes.drawChallenges) G.modes.drawChallenges(ctx, px, y, pw, 66);
+    // права колонка: нагорода за вхід і завдання дня (компактно, праворуч — у центрі видно місто)
+    const pw = Math.min(250, VW() - 232), px = VW() - pw - 10;
+    const y = drawLoginPanel(ctx, px, 44, pw);
+    if (G.modes && G.modes.drawChallenges) G.modes.drawChallenges(ctx, px, y, pw, 60);
     // нижній рядок
     const esc = P ? P.escapes : 0;
     const info = 'Втеч: ' + esc + (P && P.maxStars ? '   ★ ' + P.totalStars + '/' + P.maxStars + '   ' + P.money + ' грн' : '');
