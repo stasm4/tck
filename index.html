@@ -20931,13 +20931,15 @@
         }
       }
       // round 10: бус-засідка (екіпаж усередині) бачить трохи гірше — повз нього можна прослизнути
-      const range = (CFG.sight * (0.35 + 0.65 * vis) + (G.tck ? G.tck.wanted * 12 : 0)) * (this.mode === 'post' ? CFG.postSight : 1);
+      // Round 20: сюжет — бус «на виклику» (hunt) шукає саме тебе: бачить далі й упізнає навіть спокійного пішохода
+      const hk = !modeOn() && this.hunt > 0 && this.mode !== 'post' && !p.riding;
+      const range = (CFG.sight * (0.35 + 0.65 * (hk ? Math.max(vis, 0.8) : vis)) * (hk ? 1.35 : 1) + (G.tck ? G.tck.wanted * 12 : 0)) * (this.mode === 'post' ? CFG.postSight : 1);
       const d = Math.hypot(p.x - this.x, p.y - this.y);
       if (d > range || vis < 0.03) { this.notice = Math.max(0, this.notice - dt * 0.5); return false; }
       if (G.world && G.world.lineOfSight && !G.world.lineOfSight(this.x, this.y - 6, p.x, p.y - 6)) { this.notice = Math.max(0, this.notice - dt * 0.5); return false; }
       this.sees = true;
       const nt = CFG.noticeTime + recog();
-      this.notice = Math.min(1, this.notice + dt * vis / Math.max(0.2, nt) * (d < 80 ? 1.6 : 1));
+      this.notice = Math.min(1, this.notice + dt * (hk ? Math.max(vis, 0.7) : vis) / Math.max(0.2, nt) * (d < 80 ? 1.6 : 1));
       return true;
     }
 
@@ -21249,7 +21251,9 @@
             const passed = a && this.routeDone() && Math.hypot(p.x - a.x, p.y - a.y) > 260 && this.aheadDist(p, a) < 0;
             if (!a || passed) { const q = this.crossAhead(p); if (q) this.ambush(q.x, q.y, true); }
           }
-          this.follow(dt, CFG.chaseSpeed * 0.9, false); // "на виклику": швидко і без світлофорів
+          // Round 20: сюжет — водій помітив когось схожого: пригальмовує, придивляється (щоб не проскочити повз)
+          const slow = !modeOn() && this.notice > 0.05 && p && Math.hypot(p.x - this.x, p.y - this.y) < 260;
+          this.follow(dt, slow ? CFG.patrolSpeed * 0.45 : CFG.chaseSpeed * 0.9, false); // "на виклику": швидко і без світлофорів
         } else this.follow(dt, CFG.patrolSpeed, true);
         if (this.routeDone() && !(this.hunt > 0)) this.pickPatrolTarget();
         if (this.notice >= 1 && p) {
@@ -22416,6 +22420,21 @@
             if (p && this.activeCount() < (m.maxBuses || 1)) { // round 12: сховок більше не «вимикає» буси
               const nb = this.spawnAtEdge(450, 1500);
               if (nb && G.rng.next() < (m.huntChance || 0)) nb.hunt = 20; // round 9: "на виклик" — засідка на маршруті
+            }
+          }
+        }
+        // Round 20: сюжет — «диспетчер»: довго без погоні (mission.quietMax с) → бус на виклик неподалік (у міру, не частіше)
+        if (!modeOn() && m.quietMax > 0) {
+          const pq = P(), raid = G.missions && G.missions.state && G.missions.state.ev && G.missions.state.ev.air_raid;
+          const busy = (G.tck && G.tck.chaseActive) || this.list.some((b) => b.alive && b.crew > 0 && (b.mode === 'drop' || b.mode === 'block'));
+          this.quietT = busy || raid || !pq || pq.hidden || pq.riding || G.state !== 'play' ? 0 : (this.quietT || 0) + dt;
+          if (this.quietT > m.quietMax * G.rng.range(0.85, 1.15)) {
+            this.quietT = 0;
+            if (this.activeCount() < (m.maxBuses || 1) + 1 && G.tck && G.tck.forceChase) {
+              // облава: бус заїжджає в кадр, стає біля бордюру й висаджує екіпаж (як у ВТЕЧІ)
+              const n = Math.max(2, Math.min(3, this.crewSize ? this.crewSize() : 2));
+              const nb = this.spawnDrop(130, 330, { crew: n, dir: (pq.vx || pq.vy) ? { x: pq.vx / (Math.hypot(pq.vx, pq.vy) || 1), y: pq.vy / (Math.hypot(pq.vx, pq.vy) || 1) } : null });
+              if (nb) { G.tck.forceChase('director'); this.stats.director = (this.stats.director || 0) + 1; if (G.ui && G.ui.toast) G.ui.toast('Чат «Де ТЦК Київ»: бус їде просто до тебе!', 2200); }
             }
           }
         }
@@ -29447,13 +29466,13 @@
   // huntChance — частка випадкових бусів, що їдуть "на виклик" (засідка на маршруті гравця, ~20 с). Місія 1 — без змін.
   const TIER = {
     1: { huntChance: 0, busRate: 1, maxBuses: 1, tckHp: 1, firstBus: null, groupSize: [3, 4], tckSpeed: 1, tckTypes: T_BASE, typeWeights: { polite: 3, rude: 2, tired: 3 } },
-    2: { huntChance: 0.5, busRate: 2.0, maxBuses: 1, tckHp: 1, firstBus: [6, 9], groupSize: [2, 3], tckSpeed: 1, tckTypes: T_BASE, typeWeights: { polite: 3, rude: 2, tired: 3 } },
-    3: { huntChance: 0.35, busRate: 2.3, maxBuses: 2, tckHp: 1.1, firstBus: [8, 12], groupSize: [3, 5], tckSpeed: 1.05, tckTypes: T_SPR, typeWeights: { polite: 3, rude: 3, tired: 2, sprinter: 1 } },
-    4: { huntChance: 0.4, busRate: 2.7, maxBuses: 2, tckHp: 1.2, firstBus: [7, 10], groupSize: [4, 5], tckSpeed: 1.08, tckTypes: T_ALL, typeWeights: { polite: 2, rude: 3, tired: 2, sly: 1, sprinter: 1 } },
-    5: { huntChance: 0.45, busRate: 3.0, maxBuses: 3, tckHp: 1.25, firstBus: [6, 9], groupSize: [4, 5], tckSpeed: 1.1, tckTypes: T_ALL, typeWeights: { polite: 2, rude: 3, tired: 2, sly: 2, sprinter: 1 } },
-    6: { huntChance: 0.5, busRate: 3.3, maxBuses: 3, tckHp: 1.4, firstBus: [6, 9], groupSize: [4, 6], tckSpeed: 1.15, tckTypes: T_ALL, typeWeights: { polite: 1, rude: 3, tired: 1, sly: 3, sprinter: 2 } },
-    7: { huntChance: 0.55, busRate: 3.6, maxBuses: 3, tckHp: 1.5, firstBus: [5, 8], groupSize: [4, 6], tckSpeed: 1.2, tckTypes: T_ALL, typeWeights: { polite: 1, rude: 3, tired: 1, sly: 3, sprinter: 2 } },
-    8: { huntChance: 0.6, busRate: 3.8, maxBuses: 4, tckHp: 1.6, firstBus: [5, 8], groupSize: [4, 6], tckSpeed: 1.22, tckTypes: T_ALL, typeWeights: { polite: 1, rude: 3, tired: 1, sly: 3, sprinter: 3 } },
+    2: { huntChance: 0.6, quietMax: 32, busRate: 2.0, maxBuses: 1, tckHp: 1, firstBus: [6, 9], groupSize: [2, 3], tckSpeed: 1, tckTypes: T_BASE, typeWeights: { polite: 3, rude: 2, tired: 3 } },
+    3: { huntChance: 0.65, quietMax: 28, busRate: 2.3, maxBuses: 2, tckHp: 1.1, firstBus: [8, 12], groupSize: [3, 5], tckSpeed: 1.05, tckTypes: T_SPR, typeWeights: { polite: 3, rude: 3, tired: 2, sprinter: 1 } },
+    4: { huntChance: 0.7, quietMax: 25, busRate: 2.7, maxBuses: 2, tckHp: 1.2, firstBus: [7, 10], groupSize: [4, 5], tckSpeed: 1.08, tckTypes: T_ALL, typeWeights: { polite: 2, rude: 3, tired: 2, sly: 1, sprinter: 1 } },
+    5: { huntChance: 0.75, quietMax: 22, busRate: 3.0, maxBuses: 3, tckHp: 1.25, firstBus: [6, 9], groupSize: [4, 5], tckSpeed: 1.1, tckTypes: T_ALL, typeWeights: { polite: 2, rude: 3, tired: 2, sly: 2, sprinter: 1 } },
+    6: { huntChance: 0.8, quietMax: 20, busRate: 3.3, maxBuses: 3, tckHp: 1.4, firstBus: [6, 9], groupSize: [4, 6], tckSpeed: 1.15, tckTypes: T_ALL, typeWeights: { polite: 1, rude: 3, tired: 1, sly: 3, sprinter: 2 } },
+    7: { huntChance: 0.8, quietMax: 18, busRate: 3.6, maxBuses: 3, tckHp: 1.5, firstBus: [5, 8], groupSize: [4, 6], tckSpeed: 1.2, tckTypes: T_ALL, typeWeights: { polite: 1, rude: 3, tired: 1, sly: 3, sprinter: 2 } },
+    8: { huntChance: 0.85, quietMax: 16, busRate: 3.8, maxBuses: 4, tckHp: 1.6, firstBus: [5, 8], groupSize: [4, 6], tckSpeed: 1.22, tckTypes: T_ALL, typeWeights: { polite: 1, rude: 3, tired: 1, sly: 3, sprinter: 3 } },
   };
 
   const STAR3 = {
@@ -29746,7 +29765,7 @@
       place: d.place, placeLabel: PLACE_LABEL[d.place] || d.place,
       deadline: deadlineFor(d), start: startOf(d), weekday: d.weekday, dayPart: dayPart(startOf(d)),
       introText: introFor(d),
-      busRate: tier.busRate, huntChance: tier.huntChance || 0, maxBuses: tier.maxBuses, tckHp: tier.tckHp,
+      busRate: tier.busRate, huntChance: tier.huntChance || 0, quietMax: tier.quietMax || 0, maxBuses: tier.maxBuses, tckHp: tier.tckHp,
       firstBus: tier.firstBus ? tier.firstBus.slice() : null,
       groupSize: tier.groupSize.slice(), tckSpeed: tier.tckSpeed, tckTypes: tier.tckTypes.slice(),
       typeWeights: Object.assign({}, tier.typeWeights),
