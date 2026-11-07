@@ -889,7 +889,7 @@
         const N = 5, band = (x0, y0, w, h, horiz, toEdgeAtStart) => {
           for (let i = 0; i < N; i++) {
             const k = toEdgeAtStart ? N - 1 - i : i;
-            c.fillStyle = 'rgba(0,0,0,' + (0.3 + k * 0.1).toFixed(2) + ')';
+            c.fillStyle = 'rgba(0,0,0,' + (0.55 + k * 0.09).toFixed(2) + ')';
             if (horiz) { const a0 = Math.round(x0 + w * i / N), a1 = Math.round(x0 + w * (i + 1) / N); c.fillRect(a0, y0, a1 - a0, h); }
             else { const a0 = Math.round(y0 + h * i / N), a1 = Math.round(y0 + h * (i + 1) / N); c.fillRect(x0, a0, w, a1 - a0); }
           }
@@ -9084,6 +9084,8 @@
   }
   function prop(kind, x, y, w, h, o) {
     o = o || {};
+    // Round 20: клумби не зливаються — між двома клумбами щонайменше 2 тайли
+    if (kind === 'flowerbed' && props.some((q) => q.kind === 'flowerbed' && x < q.x + q.w + 2 && x + w + 2 > q.x && y < q.y + q.h + 2 && y + h + 2 > q.y)) return null;
     const p = { kind, x, y, w, h, v: R.int(0, 9999), color: o.color || null, type: o.type || null };
     if (o.solid !== false) {
       for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
@@ -9145,18 +9147,18 @@
   ];
   let shopI = 0;
   const nextShop = () => SHOPS[shopI++ % SHOPS.length];
-  const BILLBOARDS = [
-    'Кредит за 5 хвилин. Відсотки — назавжди',
-    'Маршрутка №404: маршрут не знайдено',
-    'ЖК «Затишний»: вид на інший ЖК',
-    'Гречка -2%! Встигни до кінця дня',
-    'Таксі «Швидко»: подача від 40 хвилин',
-    'Біжиш на роботу? Спортзал тобою пишається',
-    'Київ: тут кава швидша за метро',
-    'Курси англійської: Where is my бус?',
-    'Ваша реклама могла б тікати тут',
-    'ЖК «Дніпровський»: вид на Батьківщину',
-    'Донать на ЗСУ — це теж кардіо',
+  const BILLBOARDS = [ // Round 20: «ЗАГОЛОВОК|підпис» — постер з піктограмою (boardText)
+    'КРЕДИТ ЗА 5 ХВ|відсотки назавжди',
+    'МАРШРУТКА 404|маршруту нема',
+    'ЖК «ЗАТИШНИЙ»|вид на інший ЖК',
+    'ГРЕЧКА -2%|встигни до вечора',
+    'ТАКСІ «ШВИДКО»|подача 40 хв',
+    'СПОРТЗАЛ|ти вже біжиш!',
+    'КАВА З СОБОЮ|швидша за метро',
+    'WHERE IS MY БУС?|курси англійської',
+    'ВАША РЕКЛАМА|могла б тікати',
+    'ЖК «ДНІПРОВСЬКИЙ»|вид на Мати',
+    'ДОНАТЬ НА ЗСУ|це теж кардіо',
   ];
   const CAR_COLORS = ['red', 'blue', 'white', 'black', 'silver', 'green', 'orange', 'cherry'];
   const KIOSKS = ['press', 'coffee', 'shawarma', 'flowers', 'coffee', 'press'];
@@ -11208,13 +11210,72 @@
     return (plateCache[key] = c);
   }
   // текст білборда — усередині щита спрайта
+  // Round 20: білборд — кольоровий постер: смуга-фон, піктограма, великий заголовок + підпис
+  const AD_STYLE = [
+    { k: 'КРЕДИТ', bg: ['#1f6f5c', '#2c9a7c'], acc: '#ffd23a', icon: 'coin' },
+    { k: 'МАРШРУТКА', bg: ['#c9761a', '#f0a030'], acc: '#fff3c4', icon: 'bus' },
+    { k: 'ЗАТИШНИЙ', bg: ['#3d4d8a', '#5a72c0'], acc: '#ffd2e0', icon: 'house' },
+    { k: 'ГРЕЧКА', bg: ['#b8322a', '#e04a36'], acc: '#ffe066', icon: 'sale' },
+    { k: 'ТАКСІ', bg: ['#1c1c24', '#33333f'], acc: '#ffd23a', icon: 'taxi' },
+    { k: 'СПОРТЗАЛ', bg: ['#5b2a86', '#8040b8'], acc: '#9ef0c0', icon: 'gym' },
+    { k: 'КАВА', bg: ['#5e3a22', '#8a5634'], acc: '#ffe1b0', icon: 'cup' },
+    { k: 'WHERE', bg: ['#1f5fa8', '#3a86d8'], acc: '#ffffff', icon: 'chat' },
+    { k: 'РЕКЛАМА', bg: ['#2a2a34', '#454556'], acc: '#ff6f61', icon: 'star' },
+    { k: 'ДНІПРОВСЬКИЙ', bg: ['#2a6a9a', '#4a9ad0'], acc: '#fff3c4', icon: 'house' },
+    { k: 'ЗСУ', bg: ['#1f57b8', '#2f6fd8'], acc: '#ffd23a', icon: 'heart' },
+  ];
+  function adStyle(t) {
+    for (const a of AD_STYLE) if (t.indexOf(a.k) >= 0) return a;
+    let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0;
+    return AD_STYLE[h % AD_STYLE.length];
+  }
+  function adIcon(g, kind, x, y, acc) {
+    const R2 = (c, a, b, w, h) => { g.fillStyle = c; g.fillRect(x + a, y + b, w, h); };
+    const ink = '#1a1420', wh = '#fbf6ea';
+    if (kind === 'coin') { R2(ink, 2, 1, 8, 10); R2(ink, 1, 2, 10, 8); R2(acc, 2, 2, 8, 8); R2('#e0a820', 3, 8, 7, 1); R2(ink, 5, 3, 2, 6); R2(ink, 4, 4, 4, 1); R2(ink, 4, 7, 4, 1); }
+    else if (kind === 'bus') { R2(ink, 0, 2, 12, 8); R2(acc, 1, 3, 10, 5); R2('#8fd0f0', 2, 4, 3, 2); R2('#8fd0f0', 6, 4, 3, 2); R2(ink, 2, 9, 2, 2); R2(ink, 8, 9, 2, 2); }
+    else if (kind === 'house') { R2(ink, 1, 4, 10, 8); R2(wh, 2, 5, 8, 6); R2(acc, 0, 3, 12, 2); R2(acc, 2, 1, 8, 2); R2(acc, 4, 0, 4, 1); R2('#5a8ad0', 3, 6, 2, 2); R2('#5a8ad0', 7, 6, 2, 2); R2(ink, 5, 9, 2, 3); }
+    else if (kind === 'sale') { R2(ink, 0, 1, 12, 10); R2(acc, 1, 2, 10, 8); R2(ink, 2, 3, 2, 2); R2(ink, 8, 7, 2, 2); for (let i = 0; i < 6; i++) R2(ink, 3 + i, 8 - i, 1, 1); }
+    else if (kind === 'taxi') { R2(ink, 1, 3, 10, 7); R2(acc, 2, 4, 8, 4); R2(ink, 4, 1, 4, 2); R2(acc, 5, 1, 2, 1); R2(ink, 2, 5, 8, 1); R2(ink, 2, 9, 2, 2); R2(ink, 8, 9, 2, 2); }
+    else if (kind === 'gym') { R2(ink, 0, 3, 3, 6); R2(ink, 9, 3, 3, 6); R2(acc, 1, 4, 1, 4); R2(acc, 10, 4, 1, 4); R2(ink, 3, 5, 6, 2); R2(wh, 3, 5, 6, 1); }
+    else if (kind === 'cup') { R2(ink, 1, 3, 8, 9); R2(wh, 2, 4, 6, 7); R2(ink, 9, 5, 2, 4); R2('#8a5634', 2, 4, 6, 2); R2(acc, 3, 0, 1, 2); R2(acc, 5, 1, 1, 2); }
+    else if (kind === 'chat') { R2(ink, 0, 1, 12, 8); R2(wh, 1, 2, 10, 6); R2(ink, 2, 9, 3, 2); R2(ink, 3, 4, 1, 2); R2(ink, 5, 4, 1, 2); R2(ink, 7, 4, 2, 2); }
+    else if (kind === 'heart') { R2(ink, 1, 2, 4, 5); R2(ink, 7, 2, 4, 5); R2(ink, 2, 6, 8, 3); R2(ink, 4, 9, 4, 2); R2(acc, 2, 3, 3, 3); R2(acc, 7, 3, 3, 3); R2(acc, 3, 6, 6, 2); R2(acc, 5, 8, 2, 2); }
+    else { R2(ink, 4, 0, 4, 12); R2(ink, 0, 4, 12, 4); R2(acc, 5, 1, 2, 10); R2(acc, 1, 5, 10, 2); }
+  }
   function boardText(s, w, h) {
-    const key = 'B|' + s.text + '|' + w + '|' + h;
+    const key = 'B2|' + s.text + '|' + w + '|' + h;
     if (plateCache[key]) return plateCache[key];
     const c = G.util.makeCanvas(w, h), g = c.getContext('2d');
-    const lines = wrapText(s.text, w - 4, 7).slice(0, Math.max(1, Math.floor(h / 9)));
-    const y0 = Math.round((h - lines.length * 9) / 2);
-    lines.forEach((l, k) => G.text(g, l, w / 2, y0 + k * 9, { size: 7, color: '#2a1a2e', align: 'center' }));
+    const st = adStyle(s.text);
+    // фон: дві смуги + діагональний акцент
+    g.fillStyle = st.bg[0]; g.fillRect(0, 0, w, h);
+    g.fillStyle = st.bg[1]; g.fillRect(0, 0, w, Math.ceil(h / 2));
+    g.fillStyle = 'rgba(255,255,255,0.10)'; for (let i = 0; i < 6; i++) g.fillRect(w - 26 + i * 3, 0, 2, h);
+    g.fillStyle = st.acc; g.fillRect(0, h - 2, w, 2);
+    // піктограма в «плашці»
+    const ix = 4, iy = Math.max(1, Math.round((h - 2 - 12) / 2));
+    g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(ix - 1, iy - 1, 14, 14);
+    adIcon(g, st.icon, ix, iy, st.acc);
+    // заголовок / підпис (розбиття по «:», «.», «—», «!», «?»)
+    const parts = String(s.text).split('|');
+    let head = parts[0], sub = parts[1] || '';
+    const tx = 21, tw = w - tx - 3;
+    const fit = (t, size) => { while (t.length > 3 && fontMeasure(t, size) > tw) t = t.slice(0, -2) + '…'; return t; };
+    const two = sub && h >= 16;
+    let headLines = [head];
+    if (!two) headLines = wrapText(head, tw, 7).slice(0, Math.max(1, Math.floor((h - 2) / 8)));
+    if (two) {
+      const hs = h >= 24 && fontMeasure(head, 8) <= tw ? 8 : 7, gap = hs + 3;
+      const hy = Math.round((h - 2 - gap - 8) / 2);
+      G.text(g, fit(head, hs), tx, hy, { size: hs, color: '#ffffff', outline: '#1a1420' });
+      G.text(g, fit(sub, 7), tx, hy + gap, { size: 7, color: st.acc, outline: '#1a1420' });
+    } else {
+      const y0 = Math.round((h - 2 - headLines.length * 8) / 2);
+      headLines.forEach((l, k) => G.text(g, fit(l, 7), tx, y0 + k * 8, { size: 7, color: '#ffffff', outline: '#1a1420' }));
+    }
+    // рамка
+    g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, 0, w, 1); g.fillRect(0, 0, 1, h); g.fillRect(w - 1, 0, 1, h);
     return (plateCache[key] = c);
   }
   // вивіски, що малюються в чанку: лише магазини (на лайтбоксі) і таблички
@@ -11396,26 +11457,30 @@
     ctx.restore();
   }
   function boardRect(s) {
-    const spr = extSprite('prop', { variant: 'billboard', w: 6 });
-    const bw = spr ? spr.width : 96, bh = spr ? spr.height : 40;
+    // Round 20: власний щит 96×44 (лице 92×26 + опори), без старого низького спрайта
+    const bw = 112, bh = 44;
     const bx = Math.round(s.tx * T + 8 - bw / 2), by = (s.ty + 1) * T - bh;
-    return { x: bx, y: by, w: bw, h: bh, spr };
+    return { x: bx, y: by, w: bw, h: bh, spr: null };
   }
   function drawBillboard(ctx, s) {
-    const bb = boardRect(s);
-    if (bb.spr) {
-      ctx.drawImage(bb.spr, bb.x, bb.y);
-      // щит — верхня частина спрайта (опори знизу): шукаємо за пропорціями
-      const pw = bb.w - 8, ph = Math.max(12, Math.round(bb.h * 0.62) - 6);
-      ctx.drawImage(boardText(s, pw, ph), bb.x + 4, bb.y + 3);
-      return;
+    const bb = boardRect(s), x = bb.x, y = bb.y;
+    // опори-ферми
+    for (const lx of [x + 26, x + 83]) {
+      rect(ctx, '#2a2c34', lx, y + 28, 4, 16); rect(ctx, '#4a4d58', lx, y + 28, 1, 16);
+      for (let k = 0; k < 3; k++) rect(ctx, '#3a3d48', lx + 1, y + 31 + k * 5, 2, 1);
     }
-    // власний щит: рама, дві опори, підсвітка
-    const x = bb.x, y = bb.y;
-    rect(ctx, '#3a3c44', x + 20, y + 26, 3, 14); rect(ctx, '#3a3c44', x + bb.w - 23, y + 26, 3, 14);
-    rect(ctx, '#5a5c66', x + 20, y + 26, 1, 14); rect(ctx, '#5a5c66', x + bb.w - 23, y + 26, 1, 14);
-    rect(ctx, '#2a2a32', x, y, bb.w, 27); rect(ctx, '#f4f1e6', x + 2, y + 2, bb.w - 4, 23); rect(ctx, '#ffffff', x + 2, y + 2, bb.w - 4, 1);
-    ctx.drawImage(boardText(s, bb.w - 8, 21), x + 4, y + 3);
+    rect(ctx, 'rgba(0,0,0,0.25)', x + 22, y + 43, 70, 2); // тінь від опор
+    // рама
+    rect(ctx, '#1e1e26', x, y, bb.w, 30);
+    rect(ctx, '#3c3e4a', x + 1, y + 1, bb.w - 2, 1);
+    ctx.drawImage(boardText(s, bb.w - 4, 26), x + 2, y + 2);
+    // містки й прожектори зверху
+    rect(ctx, '#2a2c34', x + 4, y + 30, bb.w - 8, 2);
+    for (const lx of [x + 18, x + 54, x + 90]) {
+      rect(ctx, '#2a2c34', lx + 1, y - 3, 1, 3);
+      rect(ctx, '#3a3d48', lx - 1, y - 5, 5, 2);
+      rect(ctx, '#fff1b0', lx, y - 4, 3, 1);
+    }
   }
 
   // ───────────────────────── Ліхтарі (сутності-декор) ─────────────────────────
@@ -11657,7 +11722,7 @@
     for (const p of props) {
       const hh = PROP_H[p.kind];
       const x0 = p.x * T, x1 = (p.x + p.w) * T, yb = (p.y + p.h) * T;
-      if (p.kind === 'billboard') { add({ k: 'board', x: x0 + 8, y: yb - 2, w: 96, elev: 30, top: 44 }, x0, yb); continue; }
+      if (p.kind === 'billboard') { add({ k: 'board', x: x0 + 8, y: yb - 2, w: 112, elev: 30, top: 44 }, x0, yb); continue; }
       if (p.kind === 'motherland') { for (let dx = -14; dx <= 14; dx += 2) add({ k: 'pole', x: x0 + p.w * 8 + dx, y: yb - 40, h: 196 - Math.abs(dx) * 9 }, x0, yb); add({ k: 'pole', x: x0 + p.w * 8 + 22, y: yb - 40, h: 250 }, x0, yb); add({ k: 'box', x0: x0 + 2, x1: x1 - 2, y0: yb - 52, y1: yb - 4, h: 46, cut: [x0 - 4, yb - 256, x1 - x0 + 8, 256] }, x0, yb); continue; }
       if (p.kind === 'flagpole') { add({ k: 'pole', x: x0 + 8, y: yb - 3, h: 56 }, x0, yb); continue; }
       if (!hh) continue;
