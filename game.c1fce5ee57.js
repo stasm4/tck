@@ -8139,18 +8139,6 @@
     v.add(n, b1, b2, g, sq, sg, lfo, lg, rn, rf, rg);
     return d;
   };
-  // Round 23: мопед біля бурси — перегазовка
-  R.moped = (v, t) => {
-    const D = 1.55, lp = filt('lowpass', 1500, 1), g = gain(0);
-    chain(lp, g, v.out); v.add(lp, g);
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.42, t + 0.06); g.gain.setValueAtTime(0.42, t + D - 0.3); g.gain.linearRampToValueAtTime(0, t + D);
-    for (const k of [1, 1.012]) {
-      const x = osc('sawtooth', 70 * k, t);
-      [[0.42, 215], [0.7, 105], [1.08, 250], [D, 62]].forEach((q) => x.frequency.exponentialRampToValueAtTime(q[1] * k, t + q[0]));
-      x.connect(lp); x.stop(t + D + 0.05); v.add(x);
-    }
-    return D + 0.08;
-  };
   R.horn = (v, t, o) => {
     const f = o.low ? 311 : 415;
     const beeps = o.double ? [[0, 0.16], [0.24, 0.32]] : [[0, o.dur || 0.45]];
@@ -29730,8 +29718,7 @@
       steps: [
         { type: 'hold', at: 'atb', label: 'Купи батон в АТБ', hold: 1.2, doing: 'Каса №3 «тимчасово не працює»…' },
         { type: 'hold', at: 'pharmacy', label: 'Купи мамі ліки від тиску', hold: 1.2, doing: 'Фармацевтка шукає аналог…' },
-        { type: 'go', at: 'home', label: 'Занеси все мамі' },
-        { type: 'mini', game: 'search', at: 'home', label: 'ТЦК у квартирі! Сховайся' }],
+        { type: 'go', at: 'home', label: 'Занеси все мамі' }],
       star3: 'side', place: 'home',
       win: ['Мама: «А кефір?»', 'Ти: «Мам, там ТЦК на кожному розі...»', 'Мама: «То й що? Кефір сам себе не купить.»'],
       late: ['Мама вже сама сходила.', 'Мама: «Мене ТЦК не чіпають. Вчися.»'] },
@@ -33740,7 +33727,6 @@
       B.revT -= dt;
       if (B.revT <= 0) {
         B.revT = 5 + rnd() * 5; B.revOn = 1.5;
-        sfx('moped', { x: B.moped.x, y: B.moped.y });
         if (G.items && G.items.fx) for (let i = 0; i < 3; i++) G.after(i * 180, () => { if (B.moped && G.items) G.items.fx('dust', B.moped.x - 20, B.moped.y + 2, { fps: 12, frames: 4 }); }, {});
       }
       B.ladSay -= dt;
