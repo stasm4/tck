@@ -26,7 +26,7 @@
   (GitHub Pages, Netlify, Cloudflare Pages, власний сервер) — достатньо віддавати файли як є.
 * itch.io: «Kind of project: HTML», завантажити tck-game.zip, позначити «This file will be played in the browser»,
   увімкнути «Mobile friendly» (Orientation: Landscape) і «Fullscreen button».
-* Гра не завантажує нічого з інтернету: усе (графіка, звук, сирена) — в index.html.
+* Усі файли гри лежать поруч (index.html, game.*.js, siren.*.m4a), зовнішніх адрес нема.
   Прогрес зберігається в localStorage браузера.
 
 Автори і ліцензії
@@ -38,5 +38,5 @@
   Джерело: https://commons.wikimedia.org/wiki/File:Sound_Sirena_of_Ukraine.ogg
   Ліцензія: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
             https://creativecommons.org/licenses/by-sa/4.0/
-  Зміни: перекодовано в моно AAC 64 кбіт/с і вбудовано в index.html.
+  Зміни: перекодовано в стерео AAC 160 кбіт/с, обрізано до перших 42 с, плавне затухання в кінці.
   Змінений запис поширюється на тих самих умовах CC BY-SA 4.0.
