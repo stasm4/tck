@@ -8201,6 +8201,18 @@
     v.add(n, b1, b2, g, sq, sg, lfo, lg, rn, rf, rg);
     return d;
   };
+  // Round 23: мопед біля бурси — перегазовка
+  R.moped = (v, t) => {
+    const D = 1.55, lp = filt('lowpass', 1500, 1), g = gain(0);
+    chain(lp, g, v.out); v.add(lp, g);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.42, t + 0.06); g.gain.setValueAtTime(0.42, t + D - 0.3); g.gain.linearRampToValueAtTime(0, t + D);
+    for (const k of [1, 1.012]) {
+      const x = osc('sawtooth', 70 * k, t);
+      [[0.42, 215], [0.7, 105], [1.08, 250], [D, 62]].forEach((q) => x.frequency.exponentialRampToValueAtTime(q[1] * k, t + q[0]));
+      x.connect(lp); x.stop(t + D + 0.05); v.add(x);
+    }
+    return D + 0.08;
+  };
   R.horn = (v, t, o) => {
     const f = o.low ? 311 : 415;
     const beeps = o.double ? [[0, 0.16], [0.24, 0.32]] : [[0, o.dur || 0.45]];
@@ -9913,6 +9925,21 @@
     addZone('motherland', I.x0, I.y0, I.x1, I.y1, [px(cx), px(my + 5)], { label: 'Парк Слави' });
   };
 
+  // Round 23: бурса — цегляний корпус із табличкою, двір і лавки; біля входу стоять пацани (84_brawl)
+  TPL.bursa = function (I) {
+    fillR(I.x0, I.y0, I.x1, I.y1, YARD);
+    const w = Math.min(18, I.x1 - I.x0 - 3), x = I.x0 + Math.floor((I.x1 - I.x0 + 1 - w) / 2);
+    const b = bld('khrush', x, I.y0 + 1, w, 7, { doors: [Math.floor(w / 2)], entrance: true, fh: 3, color: 1, name: 'bursa' });
+    const d = b.doors[0];
+    addSign('БУРСА №13', (d.x + 0.5) * T, (b.y + b.h - b.fh) * T + 10, 'plate', { bg: '#2f5f8f', fg: '#ffffff' });
+    prop('bench', d.x - 7, d.fy + 2, 2, 1); prop('bench', d.x - 4, d.fy + 2, 2, 1);
+    hideNear('trash', prop('trash', d.x + 2, d.fy + 1, 1, 1));
+    [[-9, 5], [-5, 6], [9, 6]].forEach((q) => tree(d.x + q[0], d.fy + q[1]));
+    if (I.y1 - I.y0 + 1 >= 19) rowOf('panel', I.x0 + 1, I.y1 - 6, I.x1 - 1, 'n', 6, { fh: 4 });
+    driveways(I); ring(I, 1);
+    addZone('bursa', d.x - 4, d.fy, d.x + 4, d.fy + 2, [px(d.fx), px(d.fy)], { label: 'Бурса' });
+  };
+
   TPL.office = function (I, o) {
     o = o || {};
     fillR(I.x0, I.y0, I.x1, I.y1, PLAZA);
@@ -9930,7 +9957,7 @@
 
   // план районів: [колонка, ряд] → шаблон
   const PLAN = {
-    '0,0': ['home'], '1,0': ['panel'], '2,0': ['garages'], '3,0': ['market'], '4,0': ['towers', { zhk: true, name: 'ЖК «Затишний»' }], '5,0': ['atb'],
+    '0,0': ['home'], '1,0': ['bursa'], '2,0': ['garages'], '3,0': ['market'], '4,0': ['towers', { zhk: true, name: 'ЖК «Затишний»' }], '5,0': ['atb'],
     '0,1': ['panel', { metro: { id: 'A', name: 'Спальна' } }], '1,1': ['panel', { tall: true }], '2,1': ['shops'], '3,1': ['shops', { mosaic: true }], '4,1': ['shops'], '5,1': ['shops'],
     '0,2': ['towers'], '1,2': ['square'], '2,2': ['park'], '4,2': ['church'], '5,2': ['towers', { zhk: true, name: 'ЖК «Дніпровський»' }],
     '0,3': ['np'], '1,3': ['mixed'], '2,3': ['private'], '3,3': ['construction'], '4,3': ['towers', { zhk: true, name: 'ЖК «Комфорт-таун»' }], '5,3': ['panel', { tall: true }],
@@ -27708,7 +27735,7 @@
     comic_ch1: { n: 1, title: 'ГЛАВА 1', sub: 'Тиждень перший', col: '#3c6fb4', pages: [[
       { r: L4[0], from: 'left', bg: 'sky', P: { tod: 'dawn', sx: 40, sy: 44, ground: 104 },
         actors: [{ hero: true, x: 186, feet: 118, s: 3, cup: true }],
-        cap: 'Київ. Андрію 25. У нього є робота в колл-центрі, мама, друг Толік і кава щоранку.' },
+        cap: 'Київ. Андрію 25. У нього є робота в колл-центрі, мама, друг Вася і кава щоранку.' },
       { r: L4[1], from: 'right', bg: 'kiosk',
         actors: [{ port: 'katya', x: 18, y: 36, s: 2 }, { port: HERO, x: 136, y: 40, s: 2 }],
         say: [{ who: 'Катя', t: 'Тобі як завжди? З серденьком?', x: 6, y: 24, w: 118, tail: [60, 52] },
@@ -27754,7 +27781,7 @@
         say: [{ who: 'Майор', t: 'Спершу «Таврія». Тепер — оператор колл-центру?! НІ.', x: 6, y: 4, w: 140, tail: [78, 46] }] },
       { r: L5[4], from: 'bottom', bg: 'cab', P: {},
         actors: [{ port: 'tolik_tck', x: 56, y: 34, s: 2 }],
-        say: [{ who: 'Толік', kind: 'radio', t: 'Андрюхо, це Толік! Мене взяли — водієм до Майора. Буду підказувати по рації.', x: 4, y: 4, w: 144, tail: [100, 50] }],
+        say: [{ who: 'Вася', kind: 'radio', t: 'Андрюхо, це Вася! Мене взяли — водієм до Майора. Буду підказувати по рації.', x: 4, y: 4, w: 144, tail: [100, 50] }],
         title: 'ГЛАВА 3. СЕЗОН ОБЛАВ' },
     ]] },
     comic_ch4: { n: 4, title: 'ГЛАВА 4', sub: 'Майор', col: '#d8443a', pages: [[
@@ -27771,7 +27798,7 @@
         say: [{ who: 'Мама', t: 'Синку, сорочку випрасувала! Щоб тебе впізнали... ой, щоб гарно виглядав.', x: 4, y: 4, w: 144, tail: [76, 60] }] },
       { r: L5[3], from: 'bottom', bg: 'cab', P: { tod: 'night' },
         actors: [{ port: 'tolik_tck', x: 56, y: 34, s: 2 }],
-        say: [{ who: 'Толік', kind: 'radio', t: 'Другий бус веду я. Загублюсь на Окружній. Як завжди.', x: 4, y: 4, w: 140, tail: [100, 50] }] },
+        say: [{ who: 'Вася', kind: 'radio', t: 'Другий бус веду я. Загублюсь на Окружній. Як завжди.', x: 4, y: 4, w: 140, tail: [100, 50] }] },
       { r: L5[4], from: 'bottom', bg: 'sky', P: { tod: 'eve', sx: 120, sy: 34, ground: 96 },
         actors: [{ hero: true, x: 76, feet: 116, s: 3, dir: 'down' }],
         say: [{ t: 'До понеділка ще дожити треба.', x: 12, y: 8, w: 124, tail: [76, 50] }],
@@ -27804,7 +27831,7 @@
           { who: 'Андрій', t: 'Побачення. Я навіть не озираюсь.', x: 228, y: 8, w: 110, right: true, tail: [180, 46] }] },
       { r: L4[2], from: 'left', bg: 'cab', P: {},
         actors: [{ port: 'tolik_tck', x: 120, y: 34, s: 2 }],
-        say: [{ who: 'Толік', t: 'Мене перевели водієм в евакуаційну бригаду. Вперше за два роки я комусь потрібен.', x: 6, y: 6, w: 128, tail: [140, 60] }] },
+        say: [{ who: 'Вася', t: 'Мене перевели водієм в евакуаційну бригаду. Вперше за два роки я комусь потрібен.', x: 6, y: 6, w: 128, tail: [140, 60] }] },
       { r: L4[3], from: 'right', bg: 'phone', P: { title: 'Мама', bgc: '#8a6a7a', msgs: [{ t: 'Синку, а кефір?' }] },
         actors: [{ port: HERO, x: 128, y: 34, s: 2 }],
         say: [{ who: 'Андрій', t: 'Вже біжу, мам. Просто біжу.', x: 222, y: 8, w: 110, right: true, tail: [176, 44] }],
@@ -27815,7 +27842,7 @@
     ['ТЦК', 27, '#f7c948'], ['гра про Андрія, каву і бюрократію', 8, '#e8dcc8'], [''],
     ['У РОЛЯХ', 10, '#f7c948'],
     ['Андрій — оператор колл-центру, 25 років'], ['Катя — бариста з кіоску «Кава»'], ['Галина Степанівна — «теща»'],
-    ['Майор Валерій — мегафон'], ['Толік — водій (тепер легально)'], ['Мама — головна по кефіру'], ['Начальник — гаряча лінія'],
+    ['Майор Валерій — мегафон'], ['Вася — водій (тепер легально)'], ['Мама — головна по кефіру'], ['Начальник — гаряча лінія'],
     ['Батюшка — свічки за бронь'], ['Буси ТЦК — у ролі самих себе'], ['Голуби Києва — у ролі голубів'], [''],
     ['МУЗИКА І ЗВУКИ', 10, '#f7c948'], ['Музика — Web Audio, наживо в браузері'],
     ['Сирена цивільної оборони: запис BogdanKravhenko143452435,'], ['Wikimedia Commons, ліцензія CC BY-SA 4.0'], [''],
@@ -27976,7 +28003,7 @@
   }
   for (const id in COMICS) SCENES[id] = comicScene(id);
 
-  // ═══════════════ G.story: прогрес сюжету, рація Майора/Толіка, репліки NPC ═══════════════
+  // ═══════════════ G.story: прогрес сюжету, рація Майора/Васі, репліки NPC ═══════════════
   // G.story.seen(id) / markSeen(id) / resetSeen()   — переглянуті комікси (G.save 'story')
   // G.story.comicFor(mission) → 'comic_chN' | null   — комікс перед першою місією глави (ще не бачений)
   // G.story.wantsFinale(mission) → bool              — місія 15 кампанії
@@ -27989,13 +28016,13 @@
       5: ['major', 'Андрію, чув, ти тепер курʼєр. Привези мені шаурму. Прямо в бус.'],
       6: ['major', 'Квіти? Кому квіти, Андрію? Я все одно дізнаюсь.'],
       7: ['major', 'Гарне світло сьогодні. Для фото на повістку — ідеальне.'],
-      8: ['major', 'Кажуть, сьогодні з дому вийде якийсь Толік. Я дуже чекаю.'],
-      9: ['tolik', 'Андрюхо, це Толік. Біля церкви блокпост. Чекай, поки вимкнуть світло.'],
+      8: ['major', 'Кажуть, сьогодні з дому вийде якийсь Вася. Я дуже чекаю.'],
+      9: ['tolik', 'Андрюхо, це Вася. Біля церкви блокпост. Чекай, поки вимкнуть світло.'],
       10: ['major', 'Курсова з мобілізації? Можу проконсультувати. Особисто.'],
       11: ['major', 'Шаурмист — наш позаштатний. Гарного ранку, Андрію.'],
       12: ['major', 'Холодець для Галини? Вона завжди любила холодне. Як і її серце.'],
       13: ['major', 'Ніч, світла нема. А я тебе все одно бачу. У мене павербанк.'],
-      14: ['tolik', 'Толік на звʼязку. Майор зʼїв три пиріжки і злий. Обережно.'],
+      14: ['tolik', 'Вася на звʼязку. Майор зʼїв три пиріжки і злий. Обережно.'],
       15: ['major', 'Сквер. Я тут. Мегафон заряджений. Приходь, Андрію.'],
     },
     chase: [
@@ -28006,7 +28033,7 @@
       ['major', 'Хлопці, він у сорочці! Не переплутайте з офіціантом.'],
     ],
     chaseT: [
-      ['tolik', 'Пссс, це Толік! Наш бус за рогом. Ліворуч не йди.'],
+      ['tolik', 'Пссс, це Вася! Наш бус за рогом. Ліворуч не йди.'],
       ['tolik', 'Я знову «заблукав». Майор думає, що я не знаю Київ. Я й не знаю.'],
     ],
     escape: [
@@ -28023,7 +28050,7 @@
       blackout: ['major', 'Світло вимкнули. А мій ліхтарик — ні.'],
       rain: ['major', 'Дощ. Сорочка мокра. Тебе видно ще краще.'],
       checkpoint: ['major', 'На твоєму маршруті блокпост. Випадково. Абсолютно випадково.'],
-      raid: ['tolik', 'Облава біля метро! Толік попереджав. Толік молодець.'],
+      raid: ['tolik', 'Облава біля метро! Вася попереджав. Вася молодець.'],
     },
   };
   const PRIEST_STORY = {
@@ -28115,7 +28142,7 @@
       R_(ctx, CL.ink, x + 3, y + 3, 32, 32);
       if (pimg) ctx.drawImage(pimg, 8, 5, 30, 30, x + 4, y + 4, 30, 30);
       if (m.t < 0.35) for (let i = 0; i < 6; i++) R_(ctx, 'rgba(200,255,200,0.5)', x + 4, y + 4 + ((i * 7 + Math.floor(m.t * 60) * 3) % 30), 30, 1);
-      txt(ctx, (m.who === 'tolik' ? 'ТОЛІК' : 'МАЙОР') + ' · рація', x + 40, y + 2, { size: 7, color: m.who === 'tolik' ? '#93c25b' : '#f7c948' });
+      txt(ctx, (m.who === 'tolik' ? 'ВАСЯ' : 'МАЙОР') + ' · рація', x + 40, y + 2, { size: 7, color: m.who === 'tolik' ? '#93c25b' : '#f7c948' });
       if (Math.floor(G.realTime * 4) % 2) R_(ctx, '#ff6050', x + B.w - 8, y + 4, 3, 3);
       let left = Math.floor(m.t * 40);
       lines.forEach((l, i) => { if (left > 0) txt(ctx, l.slice(0, left), x + 40, y + 13 + i * 11, { size: 8, color: '#e4f4dc' }); left -= l.length + 1; });
@@ -29614,6 +29641,7 @@
     church_front: { t: [153, 77.4], label: 'Церква' },
     motherland: { zone: 'motherland', label: 'Батьківщина-Мати' },
     office: { zone: 'office', label: 'Колл-центр' },
+    bursa: { zone: 'bursa', label: 'Бурса' },
     metroA: { zone: 'metro', zid: 'A', label: 'Метро «Спальна»' },
     metroB: { zone: 'metro', zid: 'B', label: 'Метро «Ділова»' },
     park: { zone: 'park', label: 'Парк' },
@@ -29799,18 +29827,18 @@
       star3: 'fast', place: 'motherland',
       win: ['47 лайків.', 'Коментар від «tck_kyiv_official»: «Гарне фото. Де ти зараз?»', 'Акаунт приватний. Назавжди.'],
       late: ['Сонце сіло, фото темні.', 'Підписав «нуар». 12 лайків.'] },
-    { tier: 4, title: 'Зустріти Толіка', short: 'Толік', weekday: 'Вівторок', start: 10 * 60 + 40, slack: 20, sides: 1,
-      brief: 'Толік не виходив з дому два роки, а Майор, здається, про це знає. Зустрінь друга біля метро і доведи до скверу.',
+    { tier: 4, title: 'Зустріти Васю', short: 'Вася', weekday: 'Вівторок', start: 10 * 60 + 40, slack: 20, sides: 1,
+      brief: 'Вася не виходив з дому два роки, а Майор, здається, про це знає. Зустрінь друга біля бурси і доведи до скверу.',
       steps: [
-        { type: 'meet', at: 'metroA', label: 'Зустрінь Толіка біля метро «Спальна»' },
-        { type: 'escort', at: 'fountain_sq', label: 'Доведи Толіка до фонтану' },
-        { type: 'hold', at: 'coffee_sq', label: 'Купіть каву на двох', hold: 1.0, doing: 'Толік: «А шо, кава вже 70 гривень?!»' }],
+        { type: 'meet', at: 'bursa', label: 'Зустрінь Васю біля бурси' },
+        { type: 'escort', at: 'fountain_sq', label: 'Доведи Васю до фонтану' },
+        { type: 'hold', at: 'coffee_sq', label: 'Купіть каву на двох', hold: 1.0, doing: 'Вася: «А шо, кава вже 70 гривень?!»' }],
       star3: 'noHit', place: 'square',
-      win: ['Толік: «Ну, нормально погуляли.»', '«Наступного разу — через два роки.»', 'Ти: «Домовились.»'],
-      late: ['Толік: «Я ж казав, не треба було виходити.»', 'Але кава смачна.'] },
+      win: ['Вася: «Ну, нормально погуляли.»', '«Наступного разу — через два роки.»', 'Ти: «Домовились.»'],
+      late: ['Вася: «Я ж казав, не треба було виходити.»', 'Але кава смачна.'] },
     // ── Глава 3 ──
     { tier: 5, title: 'Блокпост біля церкви', short: 'Блокпост', weekday: 'Середа', start: 21 * 60 + 30, slack: 18,
-      brief: 'Майор — тещин колишній, тепер це особисте. Дорогу до церкви перекрив блокпост; Толік по рації радить чекати відключення світла.',
+      brief: 'Майор — тещин колишній, тепер це особисте. Дорогу до церкви перекрив блокпост; Вася по рації радить чекати відключення світла.',
       steps: [
         { type: 'stealth', at: 'church_front', label: 'Прослизни повз блокпост до церкви' },
         { type: 'hold', at: 'church_front', label: 'Постав свічку за бронь', hold: 2, doing: 'Отче наш… і бронь нам дай днесь…' }],
@@ -29857,7 +29885,7 @@
       win: ['Дід: «Онучок! А генератор полагодиш?»', 'Колл-центр без світла, але з тобою. Дзвінки — теж.', 'Начальник: «Ти чого такий мокрий?»'],
       late: ['Ліки дід отримав.', 'Роботу ти — ні.'] },
     { tier: 6, title: 'Курʼєр-марафон', short: 'Марафон', weekday: 'Субота', start: 16 * 60, slack: 14,
-      brief: 'Останні вихідні перед зустріччю з Майором. Три замовлення через усе місто, злива, блокпости — і Толік на рації.',
+      brief: 'Останні вихідні перед зустріччю з Майором. Три замовлення через усе місто, злива, блокпости — і Вася на рації.',
       steps: [
         { type: 'hold', at: 'bakery', label: 'Забери круасани', hold: 0.8, doing: 'Круасани ще гарячі…' },
         { type: 'deliver', at: 't_e', label: 'Круасани → ЖК біля церкви', tip: 30, factor: 1.25 },
@@ -30106,7 +30134,7 @@
     for (let dx = -hw; dx <= hw; dx += 8) { const tt = W.typeAt ? W.typeAt(x + dx, y) : ''; if (tt === 'road' || (W.isWalkable && !W.isWalkable(Math.floor((x + dx) / T), Math.floor(y / T)))) return false; }
     return true;
   }
-  // round 8: місце для NPC місії (роздавачі побічних, Толік, кіт): лише тротуар/площа/двір, не ближче 1 тайла до дороги,
+  // round 8: місце для NPC місії (роздавачі побічних, Вася, кіт): лише тротуар/площа/двір, не ближче 1 тайла до дороги,
   // 2 тайлів до зебри, не на вході/метро/паркуванні, без крон і будинків над головою, і з досяжним маршрутом
   const NPC_OK = { sidewalk: 1, plaza: 1, yard: 1 };
   function npcTileOk(tx, ty) {
@@ -30282,7 +30310,7 @@
       const q = poi(S.steps[mi].at);
       if (q) {
         const fp = npcSpot(q.x + 12, q.y + 14, 0, 70);
-        const f = new QuestNpc(fp.x, fp.y, 'man', { follow: true, skin: 2, name: 'Толік' });
+        const f = new QuestNpc(fp.x, fp.y, 'man', { follow: true, skin: 2, name: 'Вася' });
         f.friend = true;
         S.friend = f; S.ents.push(f); G.addEntity(f);
       }
@@ -30771,7 +30799,7 @@
     if (!S.inited) init();
     S.t += dt;
     if (S.flash > 0) S.flash -= dt;
-    if (G.story && G.story.update) G.story.update(dt); // round 14: рація Майора/Толіка (72_cutscenes)
+    if (G.story && G.story.update) G.story.update(dt); // round 14: рація Майора/Васі (72_cutscenes)
     for (const e of S.ents) if (e.alive) e.update(dt);
     updateEvents(dt);
     updateCheckpoints();
@@ -30852,7 +30880,7 @@
         if (f) {
           const d = Math.hypot(p.x - f.x, p.y - f.y);
           s.lag = d > 170;
-          if (s.lag && !s.lagWarn) { s.lagWarn = true; toast('Толік відстав! Повернись за ним.', 2200); say(f, 'Почекай! Я в тапках!', 2000, 'shout'); }
+          if (s.lag && !s.lagWarn) { s.lagWarn = true; toast('Вася відстав! Повернись за ним.', 2200); say(f, 'Почекай! Я в тапках!', 2000, 'shout'); }
           if (!s.lag && d < 60) s.lagWarn = false;
           if (d > 420) { s.farT = (s.farT || 0) + dt; if (s.farT > 6) { const r = randomWalkable(p.x, p.y, 70, 120); f.x = r.x; f.y = r.y; f.path = null; s.farT = 0; say(f, 'Я дворами, дворами!', 2000); } } else s.farT = 0;
           s.talkT = (s.talkT || 4) - dt;
@@ -30941,7 +30969,7 @@
       for (const q of s.points) if (!q.got) { const d = p ? Math.hypot(q.x - p.x, q.y - p.y) : 0; if (d < bd) { bd = d; best = q; } }
       if (best) return { x: best.x, y: best.y, label: best.name || s.label };
     }
-    if ((s.type === 'meet' || (s.type === 'escort' && s.lag)) && S.friend) return { x: S.friend.x, y: S.friend.y, label: 'Толік' };
+    if ((s.type === 'meet' || (s.type === 'escort' && s.lag)) && S.friend) return { x: S.friend.x, y: S.friend.y, label: 'Вася' };
     if (s.type === 'survive' || s.type === 'boss') {
       const q = poi(s.next);
       return q ? { x: q.x, y: q.y, label: q.label } : null;
@@ -31390,7 +31418,7 @@
     }
     if (s.type === 'escort' && S.friend) {
       const lag = s.lag;
-      u.text(ctx, lag ? 'Толік відстав!' : 'Толік поруч', x, y, { size: 8, color: lag ? '#ff6050' : '#93c25b' });
+      u.text(ctx, lag ? 'Вася відстав!' : 'Вася поруч', x, y, { size: 8, color: lag ? '#ff6050' : '#93c25b' });
       return y + 10;
     }
     if (s.type === 'stealth') {
@@ -31785,7 +31813,7 @@
 
   // точки старту по всьому місту (POI з 82_missions — завжди на прохідному тайлі)
   const SPOTS = ['press_prosp', 'coffee_sq', 'shawarma_kiosk', 'flowers_kiosk', 'icecream', 'pharmacy', 'bakery', 'barber', 'notary', 'second',
-    'ilovekyiv', 'fountain_sq', 'church_front', 't_sq2', 't_s1', 't_m1', 't_m2', 't_e', 'house1', 'keys', 'optics', 'flowers_shop'];
+    'ilovekyiv', 'fountain_sq', 'church_front', 't_sq2', 't_s1', 't_m1', 't_m2', 't_e', 'house1', 'keys', 'optics', 'flowers_shop', 'bursa'];
   const STARTS = [6 * 60 + 10, 7 * 60 + 30, 9 * 60 + 15, 11 * 60 + 40, 13 * 60 + 20, 15 * 60 + 50, 17 * 60 + 45, 19 * 60 + 30, 21 * 60 + 10, 22 * 60 + 40, 0 * 60 + 30];
   const WEEKDAYS = ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', "Пʼятниця", 'Субота'];
   function weekdayOf(key) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key || ''); if (!m) return 'Вівторок'; return WEEKDAYS[new Date(+m[1], +m[2] - 1, +m[3]).getDay()]; }
@@ -33693,7 +33721,7 @@
     if (G.juice && G.juice.addCombo) G.juice.addCombo('near', d.x, d.y);
   });
   G.events.on('run:start', () => {
-    B.grab = null; B.nextGrab = 0; B.drone = null; B.nets = []; B.civT = 18 + rnd() * 10; B.droneT = 18 + rnd() * 12; B.blockT = 8; B.doorCd = 0; B.hinted = false;
+    B.grab = null; B.nextGrab = 0; B.drone = null; B.nets = []; B.civT = 18 + rnd() * 10; B.droneT = 18 + rnd() * 12; B.blockT = 8; B.doorCd = 0; B.hinted = false; B.lads = null; B.revT = 2; B.ladSay = 3; B.tripT = 0;
   });
   G.events.on('run:end', () => { B.endGrab(); B.drone = null; B.nets = []; });
 
@@ -33714,6 +33742,76 @@
     }
   }
 
+  // ─── Пацани біля бурси: стоять, лузають насіння, газують мопедом; ТЦК ставлять підніжку ───
+  const LAD_LINES = ['Є закурить?', 'Брат, ти з якого району?', 'Чьо такий бистрий?', 'ТЦК? Не, не бачили.', 'Сєрий, газуй!', 'Насіння будеш?', 'Пари нема, стипендії теж.'];
+  const LAD_SPOTS = [[46, 12, 0], [64, 8, 1], [84, 14, 0], [54, 30, 1], [74, 34, 0]];
+  function drawLad(ctx) {
+    const n = this, img = G.sprites.get('player', { skin: n.sk, dir: n.fd, frame: 0 });
+    if (!img) return;
+    const w = img.width, h = img.height, x = Math.round(n.x - w / 2), y = Math.round(n.y + 4 - h);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(Math.round(n.x), Math.round(n.y + 3), 7, 3, 0, 0, Math.PI * 2); ctx.fill();
+    if (n.squat) { // на кортах: верх цілий, ноги стиснуті
+      const k = Math.round(h * 0.62);
+      ctx.drawImage(img, 0, 0, w, k, x, y + 7, w, k);
+      ctx.drawImage(img, 0, k, w, h - k, x - 2, y + 7 + k, w + 4, h - k - 7);
+    } else ctx.drawImage(img, x, y);
+    const hy = y + (n.squat ? 7 : 0); // кепка
+    ctx.fillStyle = '#17161c'; ctx.fillRect(x + Math.floor(w / 2) - 5, hy + 1, 10, 4); ctx.fillRect(x + Math.floor(w / 2) + (n.fd === 'left' ? -8 : 3), hy + 4, 5, 2);
+  }
+  function drawMoped(ctx) {
+    const n = this, x = Math.round(n.x), y = Math.round(n.y) + (B.revOn > 0 ? Math.floor(G.realTime * 30) % 2 : 0);
+    const R2 = (c, a, b, w, h) => { ctx.fillStyle = c; ctx.fillRect(x + a, y + b, w, h); };
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, Math.round(n.y) + 5, 14, 3, 0, 0, Math.PI * 2); ctx.fill();
+    R2('#17161c', -13, -2, 8, 8); R2('#17161c', 6, -2, 8, 8); R2('#5c5a66', -11, 0, 4, 4); R2('#5c5a66', 8, 0, 4, 4); // колеса
+    R2('#c8302a', -8, -7, 17, 6); R2('#e4574a', -8, -7, 17, 2); R2('#2a2632', -9, -10, 10, 3); // корпус і сидіння
+    R2('#9aa0a8', 8, -14, 2, 9); R2('#2a2632', 6, -15, 7, 2); R2('#fde98f', 12, -9, 3, 3); // кермо, фара
+    R2('#6a6470', -16, 1, 7, 2); // вихлоп
+  }
+  function updateLads(dt, p) {
+    const W = G.world;
+    if (!B.lads && W && W.zones && G.npcs && G.npcs.spawn) {
+      const z = W.zones.find((q) => q.name === 'bursa');
+      B.lads = [];
+      if (z && z.target) {
+        const ok = (x, y) => W.isWalkable(Math.floor(x / 16), Math.floor(y / 16));
+        const tx = z.target.x, ty = z.target.y, skins = ['sport', 'sport', 'courier', 'sport', 'boxer'];
+        LAD_SPOTS.forEach((q, i) => {
+          let x = tx + q[0], y = ty + q[1];
+          for (let k = 0; k < 6 && !ok(x, y); k++) { x += 8; y += 4; }
+          if (!ok(x, y) || B.lads.some((o) => Math.hypot(o.x - x, o.y - y) < 12)) return;
+          const n = G.npcs.spawn('man', x, y, 'idle'); if (!n) return;
+          n.lad = true; n.sk = skins[i]; n.fd = i % 2 ? 'left' : 'right'; n.squat = !!q[2]; n.draw = drawLad; n.update = function () {}; B.lads.push(n);
+        });
+        if (ok(tx + 104, ty + 22)) { const m = G.npcs.spawn('man', tx + 104, ty + 22, 'idle'); if (m) { m.lad = true; m.draw = drawMoped; m.update = function () {}; B.moped = m; } }
+      }
+    }
+    if (!B.lads || !B.lads.length) return;
+    const c = B.lads[0], near = Math.hypot(c.x - p.x, c.y - p.y) < 300;
+    B.revOn = Math.max(0, (B.revOn || 0) - dt);
+    if (near && B.moped) {
+      B.revT -= dt;
+      if (B.revT <= 0) {
+        B.revT = 5 + rnd() * 5; B.revOn = 1.5;
+        sfx('moped', { x: B.moped.x, y: B.moped.y });
+        if (G.items && G.items.fx) for (let i = 0; i < 3; i++) G.after(i * 180, () => { if (B.moped && G.items) G.items.fx('dust', B.moped.x - 20, B.moped.y + 2, { fps: 12, frames: 4 }); }, {});
+      }
+      B.ladSay -= dt;
+      if (B.ladSay <= 0) { B.ladSay = 4 + rnd() * 4; bubble(pick(B.lads), pick(LAD_LINES), 1500, { style: 'say' }); }
+    }
+    B.tripT = Math.max(0, (B.tripT || 0) - dt);
+    if (B.tripT <= 0) for (const t of tcks()) {
+      if (t.state !== 'chase' || t.stun > 0) continue;
+      const l = B.lads.find((n) => Math.hypot(n.x - t.x, n.y - t.y) < 26);
+      if (!l) continue;
+      B.tripT = 10;
+      hitT(t, { damage: 15, stun: 2.4, kx: t.x - l.x, ky: 120, source: 'throw', x: l.x, y: l.y });
+      bubble(l, pick(['Куди прешся, дядя?', 'Ой, не помітив…', 'Ногу не бачиш?']), 1400);
+      pop('ПІДНІЖКА!', t.x, t.y - 26, { size: 11, color: '#ffe14a', life: 1, rise: 14, big: true });
+      sfx('hit', { x: t.x, y: t.y });
+      break;
+    }
+  }
+
   // ─── ТЦК у цивільному ───
   const CIV = ['Хвилиночку, громадянине…', 'Чоловіче, а можна вас?', 'Перепрошую, котра година?'];
   function updateCivil(dt, p) {
@@ -33722,7 +33820,7 @@
     B.civT = 3;
     let n = null;
     for (const q of G.npcs.list) {
-      if (!q.alive || q.hidden || (q.variant !== 'man' && q.variant !== 'citizen' && q.variant !== 'courier') || q.role === 'crowd') continue;
+      if (!q.alive || q.hidden || q.lad || (q.variant !== 'man' && q.variant !== 'citizen' && q.variant !== 'courier') || q.role === 'crowd') continue;
       const d = Math.hypot(q.x - p.x, q.y - p.y);
       if (d > 55 && d < 120) { n = q; break; }
     }
@@ -33835,6 +33933,7 @@
     const p = P();
     if (!p || p.caught || G.state !== 'play' || !G.run || G.run.ended || inStub()) return;
     B.doorCd = Math.max(0, B.doorCd - dt);
+    updateLads(dt, p);
     updateCars(dt); updateCivil(dt, p); updateDrone(dt, p); updateNets(dt, p); updateBlock(dt, p);
     B.envT -= dt;
     if (B.envT <= 0) {
@@ -33955,7 +34054,7 @@
           MG.phT = 0;
           const c = MG.todo.shift();
           if (c === undefined) { nextSearch(false); return; }
-          MG.checked.push(c);
+          MG.checked.push(c); MG.lastX = SPOTS[c].x;
           sfx('door', { pitch: 0.8 });
           if (c === MG.sel) { MG.hits++; MG.stamp = 0.9; sfx('door_slam'); nextSearch(true); }
         }
@@ -33967,109 +34066,148 @@
     }
   };
   function startCheck() {
-    MG.phase = 'check'; MG.phT = 0;
+    MG.phase = 'check'; MG.phT = 0; MG.lastX = -24;
     const n = MG.round === 0 ? 1 : 2, others = [0, 1, 2, 3].filter((i) => i !== MG.heard);
     MG.todo = [MG.heard];
     for (let k = 1; k < n; k++) MG.todo.push(others.splice(Math.floor(rnd() * others.length), 1)[0]);
     MG.msg = 'ТЦК обшукує квартиру…';
   }
   function nextSearch(found) { MG.phase = 'res'; MG.phT = 0; MG.msg = found ? 'Знайшли! Ледь вирвався.' : 'Пронесло…'; if (!found) sfx('pickup'); }
+  const RC = (ctx, c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
   function stampDraw(ctx, u) {
     if (MG.stamp <= 0) return;
-    ctx.save(); ctx.translate(VW() / 2, 120); ctx.rotate(-0.2);
-    ctx.strokeStyle = '#d8302a'; ctx.lineWidth = 4; ctx.strokeRect(-110, -24, 220, 48);
+    const k = Math.min(1, (0.9 - MG.stamp) / 0.14), sc = 2.4 - 1.4 * k;
+    RC(ctx, 'rgba(216,48,42,' + (0.22 * (1 - k)).toFixed(3) + ')', 0, 0, VW(), VH());
+    ctx.save(); ctx.translate(VW() / 2, 112); ctx.rotate(-0.2); ctx.scale(sc, sc);
+    ctx.strokeStyle = '#d8302a'; ctx.lineWidth = 4; ctx.strokeRect(-104, -22, 208, 44); ctx.lineWidth = 1; ctx.strokeRect(-99, -17, 198, 34);
     u.text(ctx, 'ПРИДАТНИЙ', 0, -11, { size: 24, align: 'center', color: '#d8302a' });
     ctx.restore();
   }
-  function person(ctx, x, y, coat, head, cap) {
-    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 14, y + 58, 28, 4);
-    ctx.fillStyle = '#2a2632'; ctx.fillRect(x - 9, y + 40, 8, 20); ctx.fillRect(x + 1, y + 40, 8, 20);
-    ctx.fillStyle = coat; ctx.fillRect(x - 13, y + 12, 26, 32);
-    ctx.fillStyle = head; ctx.fillRect(x - 8, y - 4, 16, 16);
-    ctx.fillStyle = cap; ctx.fillRect(x - 9, y - 8, 18, 6);
-    ctx.fillStyle = '#1a0e20'; ctx.fillRect(x - 4, y + 3, 2, 2); ctx.fillRect(x + 3, y + 3, 2, 2);
+  function bigSprite(ctx, key, opts, cx, feet, sc) {
+    let img = null;
+    try { img = G.sprites.get(key, opts); } catch (e) { img = null; }
+    if (!img || !img.width) return false;
+    const w = img.width * sc, h = img.height * sc;
+    RC(ctx, 'rgba(0,0,0,0.25)', cx - 15, feet - 2, 30, 4);
+    ctx.imageSmoothingEnabled = false; ctx.drawImage(img, Math.round(cx - w / 2), Math.round(feet - h), Math.round(w), Math.round(h));
+    return true;
+  }
+  function doctor(ctx, x, y, away, r) { // погруддя лікаря за столом; away — дивиться в папірці
+    RC(ctx, '#f4f1e6', x - 17, y + 16, 34, 40); RC(ctx, '#d8d4c8', x - 1, y + 16, 2, 40); RC(ctx, '#d8d4c8', x - 17, y + 16, 3, 40);
+    RC(ctx, '#f3c39b', x - 10, y - 4 + (away ? 3 : 0), 20, 20); RC(ctx, '#e0ab84', x - 10, y + 12 + (away ? 3 : 0), 20, 4);
+    RC(ctx, '#f4f1e6', x - 12, y - 11 + (away ? 3 : 0), 24, 9); RC(ctx, '#d8302a', x - 1, y - 9 + (away ? 3 : 0), 3, 6); RC(ctx, '#d8302a', x - 3, y - 7 + (away ? 3 : 0), 7, 2);
+    if (away) { RC(ctx, '#1a0e20', x - 7, y + 7, 5, 1); RC(ctx, '#1a0e20', x + 2, y + 7, 5, 1); }
+    else { RC(ctx, '#1a0e20', x - 8, y + 1, 7, 6); RC(ctx, '#1a0e20', x + 1, y + 1, 7, 6); RC(ctx, '#bfe6f0', x - 7, y + 2, 5, 4); RC(ctx, '#bfe6f0', x + 2, y + 2, 5, 4); RC(ctx, '#1a0e20', x - 5, y + 3, 2, 2); RC(ctx, '#1a0e20', x + 4, y + 3, 2, 2); }
+    RC(ctx, '#3a3a44', x - 9, y + 18, 2, 18); RC(ctx, '#3a3a44', x + 7, y + 18, 2, 18); RC(ctx, '#3a3a44', x - 9, y + 35, 18, 2); RC(ctx, '#9aa0a8', x - 2, y + 36, 5, 5);
+    if (r === 0) { RC(ctx, '#d8d4c8', x - 7, y - 16 + (away ? 3 : 0), 14, 6); RC(ctx, '#fde98f', x - 2, y - 15 + (away ? 3 : 0), 4, 4); } // лобове дзеркало ЛОРа
+  }
+  function drawVlk(ctx, u) {
+    const W = VW(), ox = OX(), I = MG, r = Math.min(I.round, VLK.length - 1), D = VLK[r], R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h);
+    const zone = 0.2 - r * 0.03, away = I.phase === 'play' && Math.abs(I.x - 0.5) < zone;
+    ctx.save();
+    if (I.stamp > 0.55) ctx.translate(Math.round(Math.sin(G.realTime * 80) * 3), 0);
+    // стіна, кахель, лінолеум, лампа
+    R('#d3dfd8', -4, 0, W + 8, 118); R('#b4ccc3', -4, 118, W + 8, 80); R('#8fa89e', -4, 116, W + 8, 3);
+    for (let k = 0; k < W + 8; k += 20) R('rgba(255,255,255,0.2)', k, 119, 1, 79);
+    for (let k = 138; k < 198; k += 20) R('rgba(255,255,255,0.2)', -4, k, W + 8, 1);
+    R('#8c9a8f', -4, 198, W + 8, VH() - 198); R('#6c7a70', -4, 198, W + 8, 3);
+    for (let k = -4, q = 0; k < W + 8; k += 24, q++) R(q % 2 ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', k, 201, 24, VH() - 201);
+    R('#efece0', W / 2 - 60, 0, 120, 5); R('#fffbe8', W / 2 - 56, 5, 112, 3); R('rgba(255,250,220,0.10)', W / 2 - 110, 8, 220, 110);
+    // вікно з ґратами
+    R('#7c8a82', ox + 12, 34, 76, 66); R('#9fd0ea', ox + 16, 38, 68, 58); R('#c6e4f2', ox + 16, 38, 68, 22); R('#8796a8', ox + 22, 66, 18, 30); R('#73829a', ox + 44, 58, 24, 38);
+    for (let k = 0; k < 4; k++) R('#59626e', ox + 26 + k * 16, 38, 2, 58); R('#59626e', ox + 16, 66, 68, 2);
+    // плакат кабінету
+    R('#fbf8f0', ox + 104, 38, 58, 70); R('#2a2030', ox + 104, 38, 58, 2);
+    if (r === 0) { R('#e98fae', ox + 122, 50, 22, 40); R('#fbf8f0', ox + 128, 58, 10, 24); R('#e98fae', ox + 131, 64, 6, 12); u.text(ctx, 'ВУХО', ox + 133, 94, { size: 7, align: 'center', color: '#2a2030' }); }
+    else if (r === 1) [[12, 6], [9, 5], [6, 6], [4, 7], [3, 8]].forEach((q, i) => { for (let k = 0; k < q[1]; k++) R('#2a2030', ox + 133 - (q[1] * (q[0] / 2 + 1)) / 2 + k * (q[0] / 2 + 1), 46 + i * 11, Math.max(2, q[0] / 3), Math.max(2, q[0] / 2)); });
+    else { R('#d8d4c8', ox + 126, 44, 14, 14); R('#2a2030', ox + 129, 49, 3, 3); R('#2a2030', ox + 134, 49, 3, 3); R('#d8d4c8', ox + 132, 58, 3, 28); for (let k = 0; k < 4; k++) R('#d8d4c8', ox + 122, 62 + k * 5, 22, 2); R('#d8d4c8', ox + 126, 86, 3, 18); R('#d8d4c8', ox + 137, 86, 3, 18); }
+    // годинник, двері ВИХІД
+    R('#2a2030', ox + 228, 40, 22, 22); R('#fbf8f0', ox + 230, 42, 18, 18); R('#2a2030', ox + 238, 44, 2, 8); R('#2a2030', ox + 238, 50, 7, 2);
+    R('#5e4228', ox + 428, 74, 46, 124); R('#7a5a3c', ox + 432, 78, 38, 120); R('#f7c948', ox + 434, 134, 4, 6);
+    R('#2c7a3a', ox + 431, 60, 40, 12); u.text(ctx, 'ВИХІД', ox + 451, 62, { size: 7, align: 'center', color: '#e8ffe8' });
+    // лікар за столом
+    doctor(ctx, ox + 345, 92, away, r);
+    R('#5e4228', ox + 268, 150, 150, 9); R('#7a5a3c', ox + 268, 148, 150, 3); R('#5e4228', ox + 276, 159, 10, 39); R('#5e4228', ox + 400, 159, 10, 39);
+    R('#fbf8f0', ox + 318 , 142, 54, 7); R('#d8d4c8', ox + 322, 144, 44, 1); R('#d8302a', ox + 386, 136, 8, 12); R('#4a3020', ox + 388, 130, 4, 6);
+    // герой просувається до виходу
+    const passed = I.round - (I.phase === 'res' && I.msg.indexOf('Прослизнув') < 0 ? 0 : 0), hx = I.phase === 'end' && I.hits === 0 ? Math.min(450, 250 + I.phT * 130) : 56 + Math.min(3, passed) * 62;
+    const pl = P();
+    if (!bigSprite(ctx, 'player', { skin: pl ? pl.skin : 'office', dir: 'right', frame: I.phase === 'res' ? 1 : 0 }, ox + hx, 198, 3)) person(ctx, ox + hx, 140, '#fbf6ea', '#f3c39b', '#5b3426');
+    ctx.restore();
+    // шапка, питання, штампи
+    u.panel(ctx, W / 2 - 108, 8, 216, 20, { fill: '#2a2030' });
+    u.text(ctx, 'ВЛК · кабінет: ' + D.who + ' (' + (r + 1) + '/3)', W / 2, 12, { size: 8, align: 'center', color: '#fde98f' });
+    for (let k = 0; k < 3; k++) { const on = k < I.hits; RC(ctx, on ? '#d8302a' : 'rgba(26,14,32,0.5)', ox + 412 + k * 18, 11, 14, 14); if (on) u.text(ctx, 'П', ox + 419 + k * 18, 13, { size: 8, align: 'center', color: '#fff' }); }
+    u.panel(ctx, ox + 240, 36, 180, 38, { fill: '#fbf6ea', border: '#2a1a2e' });
+    RC(ctx, '#fbf6ea', ox + 342, 73, 10, 3); RC(ctx, '#2a1a2e', ox + 344, 76, 6, 2);
+    u.text(ctx, D.q, ox + 330, 42, { size: 8, align: 'center', color: '#2a1a2e' });
+    u.text(ctx, 'Ти: ' + D.ex, ox + 330, 56, { size: 8, align: 'center', color: '#932c33' });
+    // шкала
+    const bx = W / 2 - 120, by = 216, bw = 240;
+    RC(ctx, '#2a2030', bx - 3, by - 3, bw + 6, 18); RC(ctx, '#d8443a', bx, by, bw, 12); RC(ctx, '#e4665a', bx, by, bw, 3);
+    RC(ctx, '#5e9846', bx + bw * (0.5 - zone), by, bw * zone * 2, 12); RC(ctx, '#7ab85e', bx + bw * (0.5 - zone), by, bw * zone * 2, 3);
+    if (I.phase === 'play') { RC(ctx, '#1a0e20', bx + bw * I.x - 3, by - 6, 6, 24); RC(ctx, '#fff', bx + bw * I.x - 2, by - 5, 4, 22); }
+    u.text(ctx, I.msg || (away ? 'ЗАРАЗ! Дивиться в папірці!' : 'Тапни, поки лікар дивиться в папірці'), W / 2, 240, { size: 8, align: 'center', color: away && !I.msg ? '#1f5a2a' : '#1a0e20' });
+    stampDraw(ctx, u);
+  }
+  function drawSearch(ctx, u) {
+    const W = VW(), H = VH(), ox = OX(), I = MG, R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h), t = G.realTime;
+    // шпалери, плінтус, підлога
+    R('#8a7460', 0, 0, W, 198); for (let k = 0; k < W; k += 24) R('rgba(255,240,210,0.07)', k, 0, 12, 198);
+    for (let k = 12; k < W; k += 48) for (let q = 14; q < 190; q += 34) R('rgba(60,40,28,0.16)', k + 4, q, 4, 4);
+    R('#3e2c20', 0, 192, W, 7); R('#5c4a3c', 0, 199, W, H - 199);
+    for (let k = 0; k < W; k += 40) R('rgba(0,0,0,0.14)', k, 199, 1, H - 199); for (let k = 216; k < H; k += 18) R('rgba(0,0,0,0.08)', 0, k, W, 1);
+    // килим із візерунком
+    R('#5a1f1c', ox + 108, 203, 264, 20); R('#8a3a30', ox + 112, 205, 256, 16); for (let k = 0; k < 16; k++) R(k % 2 ? '#c8a050' : '#5a1f1c', ox + 118 + k * 16, 211, 8, 4);
+    // лампа, картини між меблями
+    R('#3a3036', W / 2 - 1, 0, 2, 26); R('#c8a050', W / 2 - 16, 26, 32, 10); R('#fde98f', W / 2 - 10, 36, 20, 3);
+    [[92, '#4a7a9a'], [204, '#7a8a4a'], [314, '#9a5a4a']].forEach((q) => { R('#3a2616', ox + q[0], 92, 26, 30); R(q[1], ox + q[0] + 3, 95, 20, 24); R('rgba(255,255,255,0.25)', ox + q[0] + 3, 110, 20, 2); });
+    for (let i = 0; i < 4; i++) {
+      const sp = SPOTS[i], x = ox + sp.x, sel = I.sel === i, chk = I.checked.indexOf(i) >= 0;
+      if (sel) R('rgba(253,233,143,0.28)', x - 40, 60, 80, 138);
+      if (i === 0) { // шафа
+        R('#2e1e12', x - 33, 64, 66, 134); R('#7a5636', x - 30, 68, 60, 126); R('#946c48', x - 30, 68, 60, 3); R('#2e1e12', x - 1, 68, 2, 126);
+        R('#5e4228', x - 25, 78, 19, 44); R('#5e4228', x + 6, 78, 19, 44); R('#5e4228', x - 25, 130, 19, 54); R('#5e4228', x + 6, 130, 19, 54); R('#f7c948', x - 6, 126, 3, 8); R('#f7c948', x + 3, 126, 3, 8);
+        if (chk) { R('#16100a', x + 1, 68, 29, 126); R('#c84a3a', x + 7, 76, 7, 44); R('#3f6fa0', x + 17, 76, 8, 52); }
+      } else if (i === 1) { // ліжко
+        R('#4a3020', x - 36, 108, 7, 90); R('#4a3020', x + 29, 128, 7, 70); R('#3a2618', x - 36, 150, 72, 10);
+        R('#eef0f4', x - 29, 128, 24, 16); R('#d8dce4', x - 29, 140, 24, 4); R('#4f7fb0', x - 6, 122, 35, 28); R('#6a9ac8', x - 6, 122, 35, 4); for (let k = 0; k < 3; k++) R('#3f6a98', x + 2 + k * 11, 128, 4, 18);
+        R('#120c08', x - 29, 160, 58, 30); R('#3a2618', x - 29, 190, 58, 8);
+        if (chk) R('#4f7fb0', x + 6, 150, 23, 32);
+      } else if (i === 2) { // балкон
+        R('#e8e4d8', x - 31, 64, 62, 134); R('#6fb0dc', x - 26, 70, 52, 122); R('#a8d8f0', x - 26, 70, 52, 40); R('#7c8ea4', x - 22, 118, 16, 32); R('#6c7e94', x + 2, 110, 20, 40);
+        R('#59626e', x - 26, 150, 52, 3); for (let k = -23; k < 26; k += 9) R('#59626e', x + k, 150, 2, 42); R('#e8e4d8', x - 1, 70, 2, 122); R('#f7c948', x + 6, 130, 3, 8);
+        if (chk) R('rgba(30,20,30,0.35)', x - 26, 70, 26, 122);
+      } else { // ванна
+        R('#e8e4d8', x - 33, 64, 66, 134); R('#bcd0d8', x - 29, 68, 58, 126);
+        for (let q = 68; q < 150; q += 12) R('rgba(255,255,255,0.4)', x - 29, q, 58, 1); for (let k = -29; k < 29; k += 12) R('rgba(255,255,255,0.4)', x + k, 68, 1, 82);
+        R('#fbf8f0', x - 29, 150, 58, 36); R('#d8d4c8', x - 29, 150, 58, 4); R('#d8d4c8', x - 27, 186, 8, 8); R('#d8d4c8', x + 19, 186, 8, 8);
+        R('#9aa0a8', x + 16, 132, 4, 20); R('#9aa0a8', x + 8, 132, 12, 3); R('#7fb8d8', x + 8, 135, 2, 16);
+        if (chk) R('rgba(30,20,30,0.3)', x - 29, 68, 58, 82);
+      }
+      u.panel(ctx, x - 27, 44, 54, 14, { fill: sel ? '#fde98f' : 'rgba(26,14,32,0.92)', border: '#1a0e20', hi: false });
+      u.text(ctx, sp.n, x, 47, { size: 8, align: 'center', color: sel ? '#1a0e20' : '#fbf6ea' });
+      if (chk) u.text(ctx, 'ПЕРЕВІРИЛИ', x, 100, { size: 7, align: 'center', color: '#fde98f', outline: '#1a0e20' });
+      if (I.phase === 'choose' && I.heard === i) { const k = (t * 2.5) % 1; ctx.save(); ctx.strokeStyle = 'rgba(253,233,143,' + (0.9 - k * 0.9).toFixed(2) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, 34, 3 + k * 9, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); ctx.restore(); }
+    }
+    if (I.phase === 'check' || I.phase === 'res') {
+      R('rgba(10,8,24,0.45)', 0, 0, W, H);
+      if (I.sel >= 0 && I.phase === 'check') { const x = ox + SPOTS[I.sel].x, blink = Math.floor(t * 3) % 5 ? 1 : 0; if (blink) { R('#fbf8f0', x - 7, 138, 5, 4); R('#fbf8f0', x + 2, 138, 5, 4); R('#1a0e20', x - 5, 139, 2, 2); R('#1a0e20', x + 4, 139, 2, 2); } }
+      const to = I.phase === 'check' && I.todo.length ? SPOTS[I.todo[0]].x : I.lastX, k = I.phase === 'check' ? Math.min(1, I.phT / 0.75) : 1, tx = ox + I.lastX + (to - I.lastX) * k;
+      // ліхтарик
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,240,190,0.28)'; ctx.beginPath(); ctx.moveTo(tx + 6, 158); ctx.lineTo(ox + to - 36, 70); ctx.lineTo(ox + to + 36, 70); ctx.closePath(); ctx.fill(); ctx.restore();
+      if (!bigSprite(ctx, 'tck', { type: 'rude', dir: 'right', frame: k < 1 ? Math.floor(t * 8) % 4 : 0 }, tx, 205, 3)) person(ctx, tx, 145, '#6b7142', '#f3c39b', '#474b2d');
+    }
+    u.panel(ctx, W / 2 - 112, 8, 224, 20, { fill: '#2a2030' });
+    u.text(ctx, 'ОБШУК КВАРТИРИ · раунд ' + Math.min(I.round + 1, 3) + '/3', W / 2, 12, { size: 8, align: 'center', color: '#fde98f' });
+    if (I.phase === 'choose') { R('#2a2030', W / 2 - 112, 28, 224, 4); R('#f7c948', W / 2 - 112, 28, 224 * Math.max(0, 1 - I.phT / 3.5), 4); }
+    u.panel(ctx, W / 2 - 172, 232, 344, 20, { fill: 'rgba(26,14,32,0.92)' });
+    u.text(ctx, I.msg, W / 2, 237, { size: 8, align: 'center', color: '#fbf6ea' });
+    if (I.stamp > 0) R('rgba(216,48,42,' + (0.3 * I.stamp).toFixed(3) + ')', 0, 0, W, H);
   }
   S.draw = function (ctx) {
-    const u = G.ui.gfx, W = VW(), H = VH(), ox = OX(), I = MG;
-    ctx.fillStyle = I.game === 'vlk' ? '#c9d6cf' : '#8a7460'; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = I.game === 'vlk' ? '#9fb3aa' : '#5c4a3c'; ctx.fillRect(0, 200, W, H - 200);
-    ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(0, 198, W, 3);
-    if (I.game === 'vlk') {
-      const r = Math.min(I.round, VLK.length - 1), D = VLK[r];
-      u.panel(ctx, W / 2 - 110, 8, 220, 22, { fill: '#2a2030' });
-      u.text(ctx, 'ВЛК · кабінет: ' + D.who + ' (' + (r + 1) + '/3)', W / 2, 13, { size: 8, align: 'center', color: '#fde98f' });
-      const R = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
-      // стіна: кахель до половини, таблиця Сивцева, плакат, двері-втеча
-      R('#b8cfc6', 0, 118, W, 80); R('#8fa89e', 0, 116, W, 3);
-      for (let k = 0; k < W; k += 20) R('rgba(255,255,255,0.18)', k, 119, 1, 79);
-      for (let k = 118; k < 198; k += 20) R('rgba(255,255,255,0.18)', 0, k, W, 1);
-      R('#fbf8f0', ox + 170, 46, 44, 62); R('#2a2030', ox + 170, 46, 44, 2);
-      [[14, 6], [10, 5], [7, 6], [5, 7], [3, 8]].forEach((r, i) => { for (let k = 0; k < r[1]; k++) R('#2a2030', ox + 192 - (r[1] * (r[0] / 2 + 1)) / 2 + k * (r[0] / 2 + 1) - r[0] / 4, 52 + i * 10, Math.max(2, r[0] / 3), Math.max(2, r[0] / 2)); });
-      R('#6a4a34', ox + 8, 72, 58, 126); R('#8a6448', ox + 12, 76, 50, 122); R('#f7c948', ox + 54, 136, 4, 6); u.text(ctx, 'ВИХІД', ox + 37, 84, { size: 7, align: 'center', color: '#fde98f' });
-      // лікар за столом
-      person(ctx, ox + 345, 104, '#f4f1e6', '#f3c39b', '#e8e4d8');
-      R('#d8302a', ox + 343, 96, 4, 2); R('#d8302a', ox + 344, 95, 2, 4); // хрестик на шапочці
-      R('#3a3a44', ox + 339, 118, 2, 14); R('#3a3a44', ox + 351, 118, 2, 14); R('#3a3a44', ox + 339, 131, 14, 2); // стетоскоп
-      R('#1a0e20', ox + 339, 106, 7, 1); R('#1a0e20', ox + 346, 106, 7, 1); // окуляри
-      R('#5e4228', ox + 268, 152, 154, 8); R('#7a5a3c', ox + 268, 150, 154, 3); R('#5e4228', ox + 276, 160, 10, 38); R('#5e4228', ox + 404, 160, 10, 38);
-      R('#fbf8f0', ox + 300, 145, 26, 6); R('#d8302a', ox + 372, 140, 8, 10); R('#4a3020', ox + 374, 134, 4, 6); // папери й печатка
-      // герой
-      const pl = P(), img = pl && G.sprites && G.sprites.get ? G.sprites.get('player', { skin: pl.skin, dir: 'right', frame: 0 }) : null;
-      if (img && img.width) { const sc = 3, iw = img.width * sc, ih = img.height * sc; R('rgba(0,0,0,0.25)', ox + 110 - 14, 196, 28, 4); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, Math.round(ox + 110 - iw / 2), 198 - ih, iw, ih); }
-      else person(ctx, ox + 110, 140, '#fbf6ea', '#f3c39b', '#5b3426');
-      u.panel(ctx, ox + 230, 50, 220, 34, { fill: '#fbf6ea', border: '#2a1a2e' });
-      u.text(ctx, D.q, ox + 340, 56, { size: 8, align: 'center', color: '#2a1a2e' });
-      u.text(ctx, 'Ти: ' + D.ex, ox + 340, 68, { size: 8, align: 'center', color: '#932c33' });
-      const bx = W / 2 - 110, by = 222, bw = 220, zone = 0.2 - r * 0.03;
-      ctx.fillStyle = '#2a2030'; ctx.fillRect(bx - 2, by - 2, bw + 4, 16);
-      ctx.fillStyle = '#d8443a'; ctx.fillRect(bx, by, bw, 12);
-      ctx.fillStyle = '#5e9846'; ctx.fillRect(bx + bw * (0.5 - zone), by, bw * zone * 2, 12);
-      if (I.phase === 'play') { ctx.fillStyle = '#fff'; ctx.fillRect(Math.round(bx + bw * I.x) - 2, by - 4, 4, 20); }
-      u.text(ctx, I.msg || 'Тапни, коли повзунок у зеленому — прослизни повз лікаря!', W / 2, 244, { size: 8, align: 'center', color: '#1a0e20' });
-      stampDraw(ctx, u);
-    } else if (I.game === 'search') {
-      u.panel(ctx, W / 2 - 120, 8, 240, 22, { fill: '#2a2030' });
-      u.text(ctx, 'ОБШУК КВАРТИРИ · раунд ' + Math.min(I.round + 1, 3) + '/3', W / 2, 13, { size: 8, align: 'center', color: '#fde98f' });
-      // кімната: шпалери, плінтус, підлога, килим
-      for (let k = 0; k < W; k += 24) { ctx.fillStyle = 'rgba(255,240,210,0.06)'; ctx.fillRect(k, 0, 12, 198); }
-      ctx.fillStyle = '#3e2c20'; ctx.fillRect(0, 194, W, 6);
-      for (let k = 0; k < W; k += 40) { ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(k, 200, 1, H - 200); }
-      ctx.fillStyle = '#7a2f2a'; ctx.fillRect(ox + 110, 204, 260, 16); ctx.fillStyle = '#9a4a3a'; ctx.fillRect(ox + 116, 207, 248, 10);
-      const R = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
-      for (let i = 0; i < 4; i++) {
-        const sp = SPOTS[i], x = ox + sp.x, sel = I.sel === i, chk = I.checked.indexOf(i) >= 0;
-        if (sel) { R('rgba(253,233,143,0.25)', x - 40, 60, 80, 142); }
-        if (i === 0) { // шафа
-          R('#3a2616', x - 32, 66, 64, 132); R('#7a5636', x - 29, 69, 58, 126); R('#8e6846', x - 29, 69, 58, 3);
-          R('#3a2616', x - 1, 69, 2, 126); R('#f7c948', x - 7, 126, 3, 8); R('#f7c948', x + 4, 126, 3, 8);
-          R('#5e4228', x - 24, 80, 18, 34); R('#5e4228', x + 6, 80, 18, 34);
-          if (chk) { R('#1a120c', x + 1, 69, 28, 126); R('#c84a3a', x + 8, 80, 8, 40); R('#3f6fa0', x + 18, 80, 8, 46); }
-        } else if (i === 1) { // ліжко
-          R('#4a3020', x - 36, 136, 72, 8); R('#4a3020', x - 36, 112, 6, 86); R('#4a3020', x + 30, 128, 6, 70);
-          R('#dfe4ea', x - 30, 128, 22, 14); R('#4f7fb0', x - 8, 124, 38, 22); R('#6a9ac8', x - 8, 124, 38, 4);
-          R('#2a1c14', x - 30, 146, 60, 40); R('#4a3020', x - 30, 186, 60, 12);
-          if (chk) { R('#4f7fb0', x + 8, 150, 26, 30); }
-        } else if (i === 2) { // балкон
-          R('#e8e4d8', x - 30, 66, 60, 132); R('#6fb0dc', x - 25, 72, 50, 120); R('#a8d8f0', x - 25, 72, 50, 40);
-          R('#59626e', x - 25, 150, 50, 3); for (let k = -22; k < 25; k += 9) R('#59626e', x + k, 150, 2, 42);
-          R('#e8e4d8', x - 1, 72, 2, 120); R('#f7c948', x + 6, 130, 3, 8);
-          if (chk) R('rgba(30,20,30,0.35)', x - 25, 72, 25, 120);
-        } else { // ванна
-          R('#e8e4d8', x - 32, 66, 64, 132); R('#bcd0d8', x - 28, 70, 56, 124);
-          for (let yy = 70; yy < 150; yy += 12) R('rgba(255,255,255,0.35)', x - 28, yy, 56, 1);
-          R('#fbf8f0', x - 28, 150, 56, 36); R('#d8d4c8', x - 28, 150, 56, 4); R('#d8d4c8', x - 28, 186, 8, 8); R('#d8d4c8', x + 20, 186, 8, 8);
-          R('#9aa0a8', x + 16, 134, 4, 18); R('#9aa0a8', x + 8, 134, 12, 3);
-          if (chk) R('rgba(30,20,30,0.3)', x - 28, 70, 56, 80);
-        }
-        u.panel(ctx, x - 26, 44, 52, 14, { fill: sel ? '#fde98f' : 'rgba(26,14,32,0.9)', border: '#1a0e20', hi: false });
-        u.text(ctx, sp.n, x, 47, { size: 8, align: 'center', color: sel ? '#1a0e20' : '#fbf6ea' });
-        if (chk) u.text(ctx, 'ПЕРЕВІРИЛИ', x, 106, { size: 7, align: 'center', color: '#fde98f', outline: '#1a0e20' });
-      }
-      if (I.phase === 'check' && I.checked.length) person(ctx, ox + SPOTS[I.checked[I.checked.length - 1]].x, 138, '#6b7142', '#f3c39b', '#474b2d');
-      u.panel(ctx, W / 2 - 170, 228, 340, 20, { fill: 'rgba(26,14,32,0.9)' });
-      u.text(ctx, I.msg, W / 2, 233, { size: 8, align: 'center', color: '#fbf6ea' });
-      if (I.stamp > 0) { ctx.fillStyle = 'rgba(216,48,42,0.25)'; ctx.fillRect(0, 0, W, H); }
-    }
+    const u = G.ui.gfx;
+    if (MG.game === 'vlk') drawVlk(ctx, u); else if (MG.game === 'search') drawSearch(ctx, u);
   };
 })();
 
