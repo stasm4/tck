@@ -29995,6 +29995,11 @@
       offer: 'Брате, я з самоката впав. Віднеси замовлення, бо мене звільнять!', label: 'Віднеси замовлення за курʼєра', thanks: 'Клієнт: «Ви не схожі на свою фотографію.» Чайові твої.', effect: null },
   ];
 
+  // Round 26: завдання біля бурси — доступне в кожній місії з 2-ї (не обовʼязкове)
+  const REVO = { id: 'revo', variant: 'man', name: 'Вован з бурси', dest: 'atb', ret: true, reward: 40, hot: true,
+    offer: 'Брат, збігай в АТБ за рево. Нас там уже знають.', label: 'Принеси пацанам рево з АТБ',
+    thanks: 'Ровний пацан! Якщо що — ми тебе не бачили.', effect: 'disguise' };
+
   // ═══════════════════════════ Стан забігу ═══════════════════════════
   let S = null;
   const BASE_SIGHT = (G.tck && G.tck.C) ? { p: G.tck.C.SIGHT_PATROL, c: G.tck.C.SIGHT_CHASE } : null;
@@ -30236,6 +30241,7 @@
     let want = d.sides || 0;
     if (!want && d.n >= 3 && rnd() < 0.35) want = 1;
     if (want) placeSides(want);
+    if (d.n >= 2) placeRevo();
     // події
     for (const e of d.events || []) {
       if (rnd() > (e.chance == null ? 1 : e.chance)) continue;
@@ -30301,8 +30307,23 @@
       S.sides.push({ def: sd, giver, state: 'offer', dest: null, cat: null });
     }
   }
+  function placeRevo() {
+    const W = G.world, z = W.zones && W.zones.find((q) => q.name === 'bursa');
+    if (!z || !z.target) return;
+    const q = snap(z.target.x + 30, z.target.y + 34, 4);
+    const g = new QuestNpc(q.x, q.y, 'man', { mark: '!', skin: 1 });
+    g.sk = 'sport'; g.fd = 'right'; g.ph = 1.1; g.lad = true;
+    const base = g.draw;
+    if (G.brawl && G.brawl.drawLad) g.draw = function (ctx) {
+      G.brawl.drawLad.call(this, ctx);
+      if (this.mark && G.text) G.text(ctx, this.mark, Math.round(this.x), Math.round(this.y) - 34 + Math.round(Math.sin(G.realTime * 5) * 2), { size: 12, align: 'center', color: '#ffe14a', outline: '#1a0e20' });
+    }; else g.draw = base;
+    G.addEntity(g); S.ents.push(g);
+    S.sides.push({ def: REVO, giver: g, state: 'offer', dest: null, cat: null });
+  }
   function sideDest(sd, giver) {
     const W = G.world;
+    if (sd.dest === 'atb') { const q = poi('atb'); return q ? Object.assign({}, q, { label: 'АТБ' }) : null; }
     const near = (list, minD, maxD) => {
       const c = list.filter((q) => { const dd = Math.hypot(q.x - giver.x, q.y - giver.y); return dd >= minD && dd <= maxD; });
       if (c.length) return c[Math.floor(rnd() * c.length)];
@@ -30870,6 +30891,10 @@
         if (Math.hypot(p.x - sq.dest.x, p.y - sq.dest.y) < 20 && !p.hidden) {
           if (sq.cat) { sq.cat.alive = false; say(p, 'Кс-кс-кс… Барсику, до мене!', 1600); }
           sfx('pickup');
+          if (sq.def.hot) {
+            toast('Касирка: «Паспорт?» А в черзі — ТЦК. Тікай до пацанів!', 3000);
+            if (G.tck && G.tck.forceChase && G.bus && !(typeof globalThis !== 'undefined' && globalThis.__stub)) { G.tck.forceChase('revo'); G.bus.spawnDrop(130, 320, { crew: 2 }); }
+          }
           if (sq.def.ret) { sq.state = 'return'; g.mark = '?'; toast('Повернись до: ' + sq.def.name, 2200); }
           else sideDone(sq);
         }
@@ -33659,7 +33684,7 @@
     if (G.juice && G.juice.addCombo) G.juice.addCombo('near', d.x, d.y);
   });
   G.events.on('run:start', () => {
-    B.grab = null; B.nextGrab = 0; B.drone = null; B.nets = []; B.droneT = 18 + rnd() * 12; B.blockT = 8; B.doorCd = 0; B.hinted = false; B.lads = null; B.revT = 2; B.ladSay = 3; B.tripT = 0;
+    B.grab = null; B.nextGrab = 0; B.drone = null; B.nets = []; B.droneT = 18 + rnd() * 12; B.blockT = 8; B.doorCd = 0; B.hinted = false; B.lads = null; B.ladSay = 3; B.tripT = 0;
   });
   G.events.on('run:end', () => { B.endGrab(); B.drone = null; B.nets = []; });
 
@@ -33681,7 +33706,7 @@
   }
 
   // ─── Пацани біля бурси: стоять, лузають насіння, газують мопедом; ТЦК ставлять підніжку ───
-  const LAD_LINES = ['Є закурить?', 'Брат, ти з якого району?', 'Чьо такий бистрий?', 'ТЦК? Не, не бачили.', 'Сєрий, газуй!', 'Насіння будеш?', 'Пари нема, стипендії теж.'];
+  const LAD_LINES = ['Рево будеш?', 'Брат, ти з якого району?', 'Чьо такий бистрий?', 'ТЦК? Не, не бачили.', 'Ще по одній — і на пару.', 'Насіння будеш?', 'Стипендії нема, зате рево є.', 'Скинемось на рево?'];
   const LAD_SPOTS = [[46, 12, 0], [64, 8, 1], [84, 14, 0], [54, 30, 1], [74, 34, 0]];
   function drawLad(ctx) {
     const n = this, img = G.sprites.get('player', { skin: n.sk, dir: n.fd, frame: 0 });
@@ -33693,18 +33718,21 @@
       ctx.drawImage(img, 0, 0, w, k, x, y + 7, w, k);
       ctx.drawImage(img, 0, k, w, h - k, x - 2, y + 7 + k, w + 4, h - k - 7);
     } else ctx.drawImage(img, x, y);
+    // банка рево: час від часу підносить до рота
+    const sip = Math.sin(G.realTime * 0.9 + (n.ph || 0)) > 0.86, side = n.fd === 'left' ? -1 : 1, cx = Math.round(n.x) + side * 6, cy = y + (n.squat ? 7 : 0) + (sip ? 5 : 13);
+    ctx.fillStyle = '#1f6fd8'; ctx.fillRect(cx - 1, cy, 4, 6); ctx.fillStyle = '#ff8a2a'; ctx.fillRect(cx - 1, cy + 2, 4, 2); ctx.fillStyle = '#d8dce4'; ctx.fillRect(cx - 1, cy, 4, 1);
     const hy = y + (n.squat ? 7 : 0); // кепка
     ctx.fillStyle = '#17161c'; ctx.fillRect(x + Math.floor(w / 2) - 5, hy + 1, 10, 4); ctx.fillRect(x + Math.floor(w / 2) + (n.fd === 'left' ? -8 : 3), hy + 4, 5, 2);
   }
-  function drawMoped(ctx) {
-    const n = this, x = Math.round(n.x), y = Math.round(n.y) + (B.revOn > 0 ? Math.floor(G.realTime * 30) % 2 : 0);
-    const R2 = (c, a, b, w, h) => { ctx.fillStyle = c; ctx.fillRect(x + a, y + b, w, h); };
-    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, Math.round(n.y) + 5, 14, 3, 0, 0, Math.PI * 2); ctx.fill();
-    R2('#17161c', -13, -2, 8, 8); R2('#17161c', 6, -2, 8, 8); R2('#5c5a66', -11, 0, 4, 4); R2('#5c5a66', 8, 0, 4, 4); // колеса
-    R2('#c8302a', -8, -7, 17, 6); R2('#e4574a', -8, -7, 17, 2); R2('#2a2632', -9, -10, 10, 3); // корпус і сидіння
-    R2('#9aa0a8', 8, -14, 2, 9); R2('#2a2632', 6, -15, 7, 2); R2('#fde98f', 12, -9, 3, 3); // кермо, фара
-    R2('#6a6470', -16, 1, 7, 2); // вихлоп
+  function drawStash(ctx) { // ящик рево і порожні банки
+    const n = this, x = Math.round(n.x), y = Math.round(n.y), R2 = (c, a, b, w, h) => { ctx.fillStyle = c; ctx.fillRect(x + a, y + b, w, h); };
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 5, 16, 3, 0, 0, Math.PI * 2); ctx.fill();
+    R2('#14549e', -13, -8, 26, 13); R2('#1f6fd8', -13, -8, 26, 3); R2('#ff8a2a', -13, 1, 26, 2);
+    for (let k = 0; k < 5; k++) { R2('#d8dce4', -11 + k * 5, -11, 3, 3); R2('#1f6fd8', -11 + k * 5, -10, 3, 2); }
+    if (G.text) G.text(ctx, 'РЕВО', x, y - 6, { size: 7, align: 'center', color: '#ffffff' });
+    [[-22, 6], [18, 3], [24, 8], [-17, 11]].forEach((q, i) => { R2('#1f6fd8', q[0], q[1], i % 2 ? 6 : 4, i % 2 ? 3 : 5); R2('#d8dce4', q[0], q[1], 1, i % 2 ? 3 : 5); });
   }
+  B.drawLad = drawLad;
   function updateLads(dt, p) {
     const W = G.world;
     if (!B.lads && W && W.zones && G.npcs && G.npcs.spawn) {
@@ -33718,20 +33746,14 @@
           for (let k = 0; k < 6 && !ok(x, y); k++) { x += 8; y += 4; }
           if (!ok(x, y) || B.lads.some((o) => Math.hypot(o.x - x, o.y - y) < 12)) return;
           const n = G.npcs.spawn('man', x, y, 'idle'); if (!n) return;
-          n.lad = true; n.sk = skins[i]; n.fd = i % 2 ? 'left' : 'right'; n.squat = !!q[2]; n.draw = drawLad; n.update = function () {}; B.lads.push(n);
+          n.lad = true; n.ph = i * 2.3; n.sk = skins[i]; n.fd = i % 2 ? 'left' : 'right'; n.squat = !!q[2]; n.draw = drawLad; n.update = function () {}; B.lads.push(n);
         });
-        if (ok(tx + 104, ty + 22)) { const m = G.npcs.spawn('man', tx + 104, ty + 22, 'idle'); if (m) { m.lad = true; m.draw = drawMoped; m.update = function () {}; B.moped = m; } }
+        if (ok(tx + 100, ty + 24)) { const m = G.npcs.spawn('man', tx + 100, ty + 24, 'idle'); if (m) { m.lad = true; m.draw = drawStash; m.update = function () {}; } }
       }
     }
     if (!B.lads || !B.lads.length) return;
     const c = B.lads[0], near = Math.hypot(c.x - p.x, c.y - p.y) < 300;
-    B.revOn = Math.max(0, (B.revOn || 0) - dt);
-    if (near && B.moped) {
-      B.revT -= dt;
-      if (B.revT <= 0) {
-        B.revT = 5 + rnd() * 5; B.revOn = 1.5;
-        if (G.items && G.items.fx) for (let i = 0; i < 3; i++) G.after(i * 180, () => { if (B.moped && G.items) G.items.fx('dust', B.moped.x - 20, B.moped.y + 2, { fps: 12, frames: 4 }); }, {});
-      }
+    if (near) {
       B.ladSay -= dt;
       if (B.ladSay <= 0) { B.ladSay = 4 + rnd() * 4; bubble(pick(B.lads), pick(LAD_LINES), 1500, { style: 'say' }); }
     }
