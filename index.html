@@ -28,12 +28,9 @@
     touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
   }
-  #boot { position: fixed; inset: 0; z-index: 20; background: #1a0e20; color: #fde98f; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font: bold 16px/1.4 monospace; padding: 0 20px; }
-  #boot h1 { margin: 0 0 18px; font: bold clamp(30px, 8vw, 54px)/1.1 monospace; color: #ff5a4a; text-shadow: 3px 3px 0 #000; letter-spacing: 2px; }
-  #boot .bar { width: min(280px, 70vw); height: 12px; border: 3px solid #fde98f; overflow: hidden; margin-bottom: 14px; }
-  #boot .bar i { display: block; width: 35%; height: 100%; background: #ff5a4a; animation: bootbar 1.1s ease-in-out infinite alternate; }
-  @keyframes bootbar { from { margin-left: 0; } to { margin-left: 65%; } }
-  #boot small { color: #b4abb2; font-weight: normal; font-size: 13px; }
+  #boot { position: fixed; inset: 0; z-index: 20; background: #2a1a3e; }
+  #bootc { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  #bootmsg { position: absolute; left: 0; right: 0; bottom: max(5vh, 14px); text-align: center; color: #fde98f; font: bold clamp(14px, 3.4vmin, 20px)/1.3 monospace; text-shadow: 2px 2px 0 #1a0e20; padding: 0 16px; transition: opacity .25s; }
   canvas#game { display: block; image-rendering: pixelated; image-rendering: crisp-edges; outline: none; cursor: default; touch-action: none; }
   /* зонд для safe-area (00_core читає його padding) */
   #sa { position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
@@ -61,11 +58,72 @@
 </style>
 </head>
 <body>
-<div id="boot"><h1>ТИ В РОЗШУКУ</h1><div class="bar"><i></i></div><span id="bootmsg">Завантажується…</span><small>На повільному інтернеті це може зайняти до хвилини</small></div>
+<div id="boot"><canvas id="bootc" width="240" height="135"></canvas><div id="bootmsg">Прогріваємо бусик…</div></div>
+<script>
+(function () { // заставка завантаження: вечірній Київ пропливає, герой тікає, за ним їде бус
+  var c = document.getElementById('bootc'), g = c.getContext('2d'), H = 135, W = 240, t0 = performance.now();
+  var msg = document.getElementById('bootmsg');
+  var tips = ['Прогріваємо бусик…', 'Шукаємо твої документи…', 'Катя малює серденько на каві…', 'Рахуємо бабусь у черзі…', 'Заряджаємо самокати…', 'Майор налаштовує мегафон…', 'Мама питає, чи ти поїв…', 'Вася вперше за два роки вдягає штани…'];
+  var tip = 0, tipT = setInterval(function () {
+    if (window.__bootFail) { clearInterval(tipT); return; }
+    msg.style.opacity = 0;
+    setTimeout(function () { if (window.__bootFail) return; tip = (tip + 1) % tips.length; msg.textContent = tips[tip]; msg.style.opacity = 1; }, 250);
+  }, 2400);
+  function fit() { var w = window.innerWidth || 800, h = window.innerHeight || 450; W = Math.max(160, Math.round(H * w / h)); c.width = W; c.height = H; }
+  fit(); window.addEventListener('resize', fit);
+  function R(col, x, y, w, h) { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), w, h); }
+  function hash(n) { var s = Math.sin(n * 91.3 + 7.1) * 43758.5; return s - Math.floor(s); }
+  function city(off, base, bw, hmin, hvar, col, lit, dark, seed) {
+    var first = Math.floor(off / bw), n = Math.ceil(W / bw) + 2;
+    for (var i = 0; i < n; i++) {
+      var id = first + i, x = id * bw - off, h = hmin + Math.floor(hash(id + seed) * hvar), w = bw - 2 - Math.floor(hash(id * 3 + seed) * 5);
+      R(col, x, base - h, w, h);
+      for (var wy = base - h + 3; wy < base - 3; wy += 5) for (var wx = 2; wx < w - 3; wx += 4) R(hash(id * 7 + wx * 13 + wy * 3 + seed) < 0.3 ? lit : dark, x + wx, wy, 2, 3);
+    }
+  }
+  function hero(x, y, t) {
+    var f = Math.floor(t * 11) % 2, b = Math.round(Math.abs(Math.sin(t * 17)));
+    y -= b;
+    R('rgba(0,0,0,.28)', x - 4, y + 1 + b, 11, 2);
+    R('#232330', x + (f ? -2 : 3), y - 5, 3, 5); R('#232330', x + (f ? 3 : -1), y - 6, 3, 4); R('#15151c', x + (f ? -3 : 3), y - 1, 4, 1);
+    R('#f7f3ea', x - 1, y - 13, 7, 8); R('#d8443a', x + 3, y - 12, 2, 6);
+    R('#f3c39b', x + (f ? 5 : -3), y - 11, 2, 4); R('#f3c39b', x, y - 20, 7, 7); R('#5b3426', x - 1, y - 21, 8, 3); R('#5b3426', x - 1, y - 19, 2, 3); R('#1a0e20', x + 5, y - 17, 1, 2);
+  }
+  function van(x, y, t) {
+    var b = Math.floor(t * 8) % 2;
+    y -= b;
+    R('rgba(0,0,0,.3)', x - 1, y + b + 1, 46, 2);
+    R('#3f4a2c', x, y - 21, 42, 18); R('#5a6a3a', x + 3, y - 24, 30, 4); R('#6f7f47', x + 5, y - 19, 8, 4); R('#2f3a24', x + 16, y - 16, 9, 5); R('#6f7f47', x + 28, y - 11, 7, 4);
+    R('#a9d6e8', x + 33, y - 20, 8, 7); R('#a9d6e8', x + 21, y - 20, 9, 5); R('#fde98f', x + 41, y - 9, 2, 3);
+    R('#17161c', x + 6, y - 4, 8, 5); R('#17161c', x + 30, y - 4, 8, 5); R(Math.floor(t * 14) % 2 ? '#6a6872' : '#3a3842', x + 9, y - 2, 2, 2); R(Math.floor(t * 14) % 2 ? '#6a6872' : '#3a3842', x + 33, y - 2, 2, 2);
+    for (var i = 0; i < 3; i++) { var k = (t * 2 + i / 3) % 1; g.fillStyle = 'rgba(220,210,200,' + (0.35 * (1 - k)).toFixed(2) + ')'; g.fillRect(Math.round(x - 3 - k * 16), Math.round(y - 2 - k * 4), 2 + Math.round(k * 2), 2); }
+  }
+  function frame(now) {
+    if (!document.getElementById('boot')) { clearInterval(tipT); window.removeEventListener('resize', fit); return; }
+    var t = (now - t0) / 1000, sky = ['#2a1a3e', '#3d2550', '#5a3060', '#8a4a66', '#c06a5e', '#e8935a', '#f4b86a'];
+    for (var i = 0; i < sky.length; i++) R(sky[i], 0, i * 13, W, 14);
+    for (var s = 0; s < 26; s++) { if (hash(s * 11) * 40 < 30) R('rgba(255,248,220,' + (0.35 + 0.35 * Math.sin(t * 1.5 + s)).toFixed(2) + ')', hash(s) * W, hash(s + 50) * 34, 1, 1); }
+    R('#fde98f', W * 0.68 - 12, 60, 24, 24); R('#fff3c4', W * 0.68 - 9, 63, 18, 18);
+    for (var k = 0; k < 4; k++) { var cx = ((k * 83 - t * 3) % (W + 60) + W + 60) % (W + 60) - 40; R('rgba(255,190,150,.55)', cx, 20 + k * 11, 36 + k * 6, 3); R('rgba(255,190,150,.35)', cx + 8, 17 + k * 11, 18, 3); }
+    city(t * 5, 92, 22, 16, 22, '#5a3a68', '#d8a060', '#4a2f5a', 1);
+    city(t * 13, 96, 30, 22, 34, '#2e2138', '#f7c948', '#3e2f4a', 9);
+    R('#6a5a70', 0, 96, W, 7); R('#8c8494', 0, 96, W, 1);
+    var lo = t * 46, per = 56, f2 = Math.floor(lo / per);
+    for (var j = 0; j < Math.ceil(W / per) + 2; j++) { var lx = (f2 + j) * per - lo; R('#2a2632', lx, 70, 2, 28); R('#2a2632', lx, 70, 11, 2); R('#fde98f', lx + 8, 72, 4, 2); g.fillStyle = 'rgba(255,205,120,.09)'; g.beginPath(); g.moveTo(lx + 8, 74); g.lineTo(lx + 1, 97); g.lineTo(lx + 19, 97); g.closePath(); g.fill(); }
+    R('#3e3a48', 0, 103, W, 26); R('#8c8494', 0, 103, W, 1); R('#2e2a36', 0, 128, W, 2);
+    var d = (t * 62) % 32; for (var x = -d; x < W; x += 32) R('#efe4d2', x, 115, 16, 2);
+    R('#45293f', 0, 130, W, 5);
+    van(W * 0.16 + Math.sin(t * 0.8) * 7, 125, t);
+    hero(W * 0.62, 112, t);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
 <canvas id="game" tabindex="0"></canvas>
 <div id="sa"></div>
 <div id="rotate"><div class="ph"></div>Поверни телефон<small>гра — лише в альбомній орієнтації</small></div>
 <div id="fshint" role="note"><b>Для повного екрана:</b> ⋯ → Відкрити в Safari, або Поділитися → На початковий екран<span class="x" aria-label="Закрити">✕</span></div>
-<script src="game.4ccea6e0a5.js" onerror="var m=document.getElementById('bootmsg');if(m)m.textContent='Не вдалося завантажити. Перевір інтернет і онови сторінку.'"></script>
+<script src="game.4ccea6e0a5.js" onerror="window.__bootFail=1;var m=document.getElementById('bootmsg');if(m)m.textContent='Не вдалося завантажити. Перевір інтернет і онови сторінку.'"></script>
 </body>
 </html>
