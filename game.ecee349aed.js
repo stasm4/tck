@@ -9616,6 +9616,7 @@
   };
 
   function placeMetro(m, x, y) {
+    for (let i = props.length - 1; i >= 0; i--) { const q = props[i]; if (q.x < x + 5 && q.x + q.w > x && q.y < y + 3 && q.y + q.h > y) props.splice(i, 1); } // Round 25: лавка не заходить у вхід метро
     const b = bld('metro', x, y, 5, 3, { doors: [2], metroDoor: true, name: m.name });
     const d = b.doors[0];
     b.sign = addSign('М ' + m.name, (x + 2.5) * T, 0, 'name', { b });
@@ -9657,7 +9658,7 @@
     }
     hideNear('trash', prop('trash', I.x0 + 1, I.y0 + 2, 2, 1));
     hideNear('kiosk', prop('kiosk', I.x0 + 5, I.y0 + 5, 2, 2, { opaque: true, type: 'shawarma' })); // round 7: впритул до стіни АТБ
-    locker(I.x1 - 3, I.y0 + 3);
+    locker(b.x + b.w - 3, b.y + b.h); // Round 25: перед фасадом (раніше потрапляв на дах)
     addZone('atb', d.x - 3, d.fy, d.x + 3, d.fy + 1, [px(d.fx), px(d.fy)], { label: 'АТБ' });
   };
 
@@ -24063,7 +24064,7 @@
     for (let i = 0; i < dl.length && i < 3; i++) U.text(ctx, dl[i], 22, 168 + i * U.lineH(8), { size: 8, color: '#e8dcc8' });
     U.text(ctx, 'Бонус: ' + (s.bonusText || 'суто косметичний') + (s.bonusText ? ' (лише Андрію)' : ''), 22, 204, { size: 8, color: '#8fc7e4' });
     if (!s.unlocked) U.text(ctx, 'Умова: ' + (s.cond || '?'), 22, 218, { size: 8, color: '#ef8a3b' });
-    else U.text(ctx, s.id === eq ? 'Одягнено' : 'Enter / клік — одягти', 22, 218, { size: 8, color: s.id === eq ? '#93c25b' : '#fbf6ea' });
+    else U.text(ctx, s.id === eq ? 'Одягнено' : (isTouch() ? 'Торкнись — одягти' : 'Enter / клік — одягти'), 22, 218, { size: 8, color: s.id === eq ? '#93c25b' : '#fbf6ea' });
     // права панель: превʼю, що крутиться
     U.panel(ctx, 314, 34, 154, 200, { fill: 'rgba(58,46,68,0.95)' });
     U.rect(ctx, 'rgba(0,0,0,0.25)', 320, 40, 142, 150);
@@ -24077,7 +24078,7 @@
     U.text(ctx, s.unlocked ? (s.name || s.id) : 'Закрито', 391, 198, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
     U.text(ctx, s.unlocked ? (s.id === eq ? '✓ на тобі' : 'можна одягти') : (s.cond || ''), 391, 212, { size: 8, align: 'center', color: s.unlocked ? '#93c25b' : '#ef8a3b' });
     U.button(ctx, backRect, 'Назад', WD.backFocus, { size: 8 });
-    U.text(ctx, 'Esc — меню', VW() - 6, VH() - 12, { size: 8, align: 'right', color: 'rgba(255,255,255,0.5)' });
+    if (!isTouch()) U.text(ctx, 'Esc — меню', VW() - 6, VH() - 12, { size: 8, align: 'right', color: 'rgba(255,255,255,0.5)' });
     G.ui.drawOverlay(ctx);
   };
 
@@ -24241,18 +24242,20 @@
   S.controls.draw = function (ctx) {
     U.rect(ctx, '#2a1e34', 0, 0, VW(), VH());
     U.text(ctx, 'КЕРУВАННЯ', VW() / 2, 10, { size: 18, align: 'center', color: '#fde98f', shadow: true });
-    U.panel(ctx, 40, 34, 400, CTRL.length * CTRL_H + 8);
-    for (let i = 0; i < CTRL.length; i++) {
+    const CT = isTouch() ? TOUCH_CTRL : CTRL; // Round 25: на телефоні — кнопки, а не клавіатура
+    U.panel(ctx, 40, 34, 400, CT.length * CTRL_H + 8);
+    for (let i = 0; i < CT.length; i++) {
       const y = 39 + i * CTRL_H;
-      const kw = U.measure(CTRL[i][0], 8) + 8;
+      const kw = U.measure(CT[i][0], 8) + 8;
       U.panel(ctx, 200 - kw, y - 1, kw, 11, { fill: '#45293f', border: '#8c8494' });
-      U.text(ctx, CTRL[i][0], 200 - kw / 2, y + 1, { size: 8, align: 'center', color: '#fbf6ea' });
-      U.text(ctx, CTRL[i][1], 210, y + 1, { size: 8, color: '#e8dcc8' });
+      U.text(ctx, CT[i][0], 200 - kw / 2, y + 1, { size: 8, align: 'center', color: '#fbf6ea' });
+      U.text(ctx, CT[i][1], 210, y + 1, { size: 8, color: '#e8dcc8' });
     }
-    const ty = 34 + CTRL.length * CTRL_H + 12;
+    const ty = 34 + CT.length * CTRL_H + 12;
     U.panel(ctx, 40, ty, 400, 236 - ty, { fill: 'rgba(58,46,68,0.9)' });
     let y = ty + 5;
-    for (const tip of TIPS) {
+    for (const tip0 of TIPS) {
+      const tip = isTouch() ? tip0.replace(/^На телефоні: .*$/, 'Смітник перекидається РИВКОМ — шкірки під ноги ТЦК.').replace('E — поїхати, C — стрибок', 'ДІЯ — поїхати, РИВОК — стрибок') : tip0;
       for (const l of U.wrap(tip, 380, 8)) { U.text(ctx, l, 50, y, { size: 8, color: '#b4abb2' }); y += U.lineH(8); }
       y += 3;
     }
@@ -24537,11 +24540,12 @@
     ['стік ліворуч', 'рух; до краю — біг'],
     ['УДАР', 'удар / штовхнути'],
     ['РИВОК', 'ривок уперед (рятує від захвату)'],
-    ['E', 'сховатися / метро / самокат'],
+    ['ДІЯ', 'сховатися / метро / самокат'],
     ['КИНУТИ', 'кинути предмет'],
     ['ВМІННЯ', 'вміння героя'],
     ['біжи на лавку', 'перестрибнути — автоматично'],
     ['кнопка паузи', 'пауза (праворуч угорі)'],
+    ['швидко тапай', 'вирватись, коли ТЦК схопив'],
   ];
   function pmRects() {
     const x = PMX();
@@ -24942,7 +24946,7 @@
           }
         } else if (blink) u.tri(ctx, BOX.x + BOX.w - 12, BOX.y + BOX.h - 10, 'down', 4, '#fde98f');
       }
-      u.text(ctx, typing ? 'Enter — дописати' : (n.choices ? '↑↓ / 1–4 + Enter' : 'Enter — далі'), BOX.x + BOX.w - 8, BOX.y + BOX.h - 12, { size: 8, align: 'right', color: '#6e5a72' });
+      u.text(ctx, (G.touch && G.touch.active) ? (typing ? 'торкнись — дописати' : (n.choices ? 'торкнись варіанту' : 'торкнись — далі')) : typing ? 'Enter — дописати' : (n.choices ? '↑↓ / 1–4 + Enter' : 'Enter — далі'), BOX.x + BOX.w - 8, BOX.y + BOX.h - 12, { size: 8, align: 'right', color: '#6e5a72' });
       if (G.ui.drawOverlay) G.ui.drawOverlay(ctx);
     },
 
@@ -27240,8 +27244,8 @@
     }
     // підказки
     if (c.prompt) {
-      if (Math.floor(G.realTime * 2) % 2 === 0) u.text(ctx, 'Enter — далі', W - 18, (cap ? y : H) - 12, { size: 8, align: 'right', color: '#fde98f', shadow: true });
-    } else if (c.T > 0.6) u.text(ctx, 'Enter — пропустити', W - 6, 4, { size: 8, align: 'right', color: 'rgba(255,255,255,0.4)' });
+      if (Math.floor(G.realTime * 2) % 2 === 0) u.text(ctx, (G.touch && G.touch.active) ? 'торкнись — далі' : 'Enter — далі', W - 18, (cap ? y : H) - 12, { size: 8, align: 'right', color: '#fde98f', shadow: true });
+    } else if (c.T > 0.6 && !(G.touch && G.touch.active)) u.text(ctx, 'Enter — пропустити', W - 6, 4, { size: 8, align: 'right', color: 'rgba(255,255,255,0.4)' });
   }
   function drawTitle(ctx, c) {
     if (c.titleT == null) return;
@@ -27685,7 +27689,7 @@
         say: [{ t: 'Ну, поїхали.', x: 92, y: 26, w: 90, tail: [74, 52] }],
         title: 'ГЛАВА 1. ТИЖДЕНЬ ПЕРШИЙ' },
     ]] },
-    comic_ch2: { n: 2, title: 'ГЛАВА 2', sub: 'Город-герой', col: '#5e9846', pages: [[
+    comic_ch2: { n: 2, title: 'ГЛАВА 2', sub: 'Місто-герой', col: '#5e9846', pages: [[
       { r: L4[0], from: 'left', bg: 'office', P: { board: 'hunt' },
         actors: [{ port: 'major_shout', x: 128, y: 30, s: 2 }],
         cap: 'Вівторок. Обʼєкт утік.',
@@ -28259,7 +28263,7 @@
       // спалах
       if (c.flash > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, c.flash); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, VW(), VH()); ctx.restore(); }
       if (c.sc.ownHint) { /* сцена малює підказки сама */ }
-      else if (c.prompt && Math.floor(G.realTime * 2) % 2 === 0) u.text(ctx, 'Enter — далі', VW() / 2, VH() - 18, { size: 8, align: 'center', color: '#b4abb2' });
+      else if (c.prompt && Math.floor(G.realTime * 2) % 2 === 0) u.text(ctx, (G.touch && G.touch.active) ? 'торкнись — далі' : 'Enter — далі', VW() / 2, VH() - 18, { size: 8, align: 'center', color: '#b4abb2' });
       else if (c.sc.skippable && c.T > 0.6 && !c.prompt && !(G.touch && G.touch.active)) u.text(ctx, 'Enter — пропустити', VW() - 6, VH() - 12, { size: 8, align: 'right', color: 'rgba(255,255,255,0.35)' });
     },
     SCENES,
@@ -29694,7 +29698,7 @@
   // events: [{type, at:[min,max] с від старту, chance}]
   const CHAPTERS = [
     { n: 1, title: 'Тиждень перший', from: 1, to: 4, gate: 0 },
-    { n: 2, title: 'Город-герой', from: 5, to: 8, gate: 6 },
+    { n: 2, title: 'Місто-герой', from: 5, to: 8, gate: 6 },
     { n: 3, title: 'Сезон облав', from: 9, to: 12, gate: 15 },
     { n: 4, title: 'Майор', from: 13, to: 15, gate: 24 },
   ];
@@ -31575,9 +31579,9 @@
       drawStarIcon(ctx, 70, py + 45, 1, true); u.text(ctx, clock(m.start) + '→' + clock(m.deadline), 80, py + 45, { size: 8, color: '#b4abb2' });
       drawStarIcon(ctx, 150, py + 45, 1, true); u.text(ctx, STAR3[d.star3] || '', 160, py + 45, { size: 8, color: '#b4abb2' });
       u.text(ctx, d.weekday + ', ' + dayPart(m.start).replace('ранку', 'ранок').replace('дня', 'день').replace('вечора', 'вечір').replace('ночі', 'ніч') + ' · кроків: ' + d.steps.length + (d.events && d.events.length ? ' · події: ' + d.events.length : '') + (best != null ? ' · рекорд ' + clock(best) : ''), 16, py + 58, { size: 8, color: '#8c8494' });
-      if (open) u.text(ctx, 'Enter — грати', VW - 16, py + 58, { size: 8, align: 'right', color: Math.floor(MSel.t * 2) % 2 ? '#fde98f' : '#93c25b' });
+      if (open) u.text(ctx, (G.touch && G.touch.active) ? 'тапни ще раз — грати' : 'Enter — грати', VW - 16, py + 58, { size: 8, align: 'right', color: Math.floor(MSel.t * 2) % 2 ? '#fde98f' : '#93c25b' });
     }
-    u.text(ctx, 'Esc — меню', VW - 8, 22, { size: 8, align: 'right', color: 'rgba(255,255,255,0.45)' });
+    if (!(G.touch && G.touch.active)) u.text(ctx, 'Esc — меню', VW - 8, 22, { size: 8, align: 'right', color: 'rgba(255,255,255,0.45)' });
     if (G.ui) G.ui.drawOverlay(ctx);
   };
 
@@ -33550,8 +33554,11 @@
     },
     startGrab(t, dmg, net) {
       const p = P();
-      const need = net ? 5 : t && t.type === 'rude' ? 6 : t && t.type === 'tired' ? 4 : 5;
-      B.grab = { t, T: net ? 1.4 : 1.6, need, taps: 0, dmg, t0: G.realTime, net: !!net };
+      // Round 25: чим далі, тим важче вирватись (раніше швидке тапання давало повну невразливість)
+      const lv = Math.min(4, Math.floor(level() / 3));
+      const near = tcks().filter((o) => o !== t && Math.hypot(o.x - p.x, o.y - p.y) < 44).length; // чим більше ТЦК навколо, тим важче
+      const need = (net ? 5 : t && t.type === 'rude' ? 6 : t && t.type === 'tired' ? 4 : 5) + lv + Math.min(4, near * 2);
+      B.grab = { t, T: 1.5, need, taps: 0, dmg, t0: G.realTime, net: !!net, cost: 4 + Math.floor(level() / 2) + 3 * near };
       if (t) { t.grabbing = true; t.face(p.x, p.y); }
       if (G.juice && G.juice.slowmo) G.juice.slowmo(0.4, 260);
       shake(2.5, 180);
@@ -33578,8 +33585,10 @@
     endGrab() { const g = B.grab; if (g && g.t) g.t.grabbing = false; B.grab = null; },
     winGrab(p, g) {
       B.endGrab();
-      p.invuln = Math.max(p.invuln, 1);
-      B.nextGrab = G.realTime + 3;
+      p.invuln = Math.max(p.invuln, 0.7);
+      B.nextGrab = G.realTime + 1.2;
+      p.hp = Math.max(1, p.hp - (g.cost || 4)); // вирватись теж не безкоштовно
+      p.energy = Math.max(0, p.energy - 15);
       if (g.t) {
         const dx = g.t.x - p.x, dy = g.t.y - p.y, d = Math.hypot(dx, dy) || 1;
         hitT(g.t, { damage: 12, stun: 2.2, kx: dx / d * 220, ky: dy / d * 220, source: 'punch', x: p.x, y: p.y });
