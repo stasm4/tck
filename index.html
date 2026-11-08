@@ -1198,6 +1198,7 @@
     const st = G.state;
     const rec = { kind: 'tap', btn: null, cx: t.clientX, cy: t.clientY };
     T.touches[id] = rec;
+    if (st === 'play' && G.brawl && G.brawl.grab) { rec.kind = 'none'; pulse('attack'); return; } // Round 22: захват — тап будь-де
     if (st === 'play') {
       if (inR(lx, ly, PAUSE(), 6)) { rec.kind = 'pause'; pulse('pause'); return; }
       layout();
@@ -1452,6 +1453,7 @@
     if (b.id === 'throw') opt.dim = !p.inventory;
     if (b.id === 'dash') { opt.dim = p.dashCd > 0; opt.cd = p.dashCd > 0 && p.dashCdMax ? p.dashCd / p.dashCdMax : 0; }
     if (b.id === 'use') opt.hint = !!p.hint;
+    if (b.id === 'attack') opt.hint = !!(G.brawl && G.brawl.grab);
     if (b.id === 'ability') { const H = G.heroes; opt.dim = !!(H && H.ab && H.ab.cd > 0); opt.cd = H && H.ab && H.ab.cd > 0 ? H.ab.cd / Math.max(0.1, H.ab.cdMax || 1) : 0; opt.hint = !!(H && H.ab && H.ab.t > 0); }
     return opt;
   }
@@ -16785,6 +16787,7 @@
       if ((this.caught || this.riding || this.hidden) && this.scoot) this.dismount(this.caught ? 'grab' : 'key');
       if (this.caught) { this.vx = this.vy = 0; this.kvx = this.kvy = 0; this.moving = this.running = false; this._regen(dt, false); this._visibility(dt); return; }
 
+      if (G.brawl && G.brawl.grab && G.brawl.tickGrab(this)) { this._regen(dt, false); this._visibility(dt); return; } // Round 22: захват
       if (this.riding) { this._updateRide(dt); this._regen(dt, false); this._visibility(dt); return; }
 
       // ── перескок у польоті: керування вимкнене ──
@@ -17135,6 +17138,8 @@
     // ───────── удар ─────────
     _resolvePunch() {
       const range = CFG.PUNCH_RANGE, cosHalf = Math.cos((CFG.PUNCH_ARC / 2) * Math.PI / 180);
+      // Round 22: серія — 3 влучні удари поспіль (вікно 0.85 с), третій — кидок
+      const chain = G.realTime - (this.comboAt || -9) < 0.85 ? ((this.comboN || 0) % 3) + 1 : 1, fin = chain === 3;
       const mul = bonus('punch', 1);
       const fl = Math.hypot(this.fx, this.fy) || 1;
       const fx = this.fx / fl, fy = this.fy / fl;
@@ -17149,16 +17154,20 @@
         if (d > 6 && (dx * fx + dy * fy) / d < cosHalf) continue;
         const nx = d > 0.01 ? dx / d : fx, ny = d > 0.01 ? dy / d : fy;
         const ok = applyHit(e, {
-          damage: CFG.PUNCH_DMG * mul, stun: CFG.PUNCH_STUN,
-          kx: nx * CFG.PUNCH_KNOCK * mul, ky: ny * CFG.PUNCH_KNOCK * mul,
+          damage: CFG.PUNCH_DMG * mul * (fin ? 1.6 : 1), stun: fin ? 3 : CFG.PUNCH_STUN,
+          kx: nx * CFG.PUNCH_KNOCK * mul * (fin ? 2.2 : 1), ky: ny * CFG.PUNCH_KNOCK * mul * (fin ? 2.2 : 1),
           source: 'punch', x: this.x, y: this.y,
         });
         if (ok) {
           hits++;
+          if (fin && G.brawl) G.brawl.strike(e, nx, ny);
           if (G.items && G.items.fx) G.items.fx('hit', e.x, e.y - 12, { fps: 16, frames: 2 });
         }
       }
+      this.comboN = hits ? chain : 0; this.comboAt = hits ? G.realTime : -9;
       if (hits) {
+        this.punchCd = Math.min(this.punchCd, fin ? 0.5 : 0.24);
+        if (chain > 1 && G.juice && G.juice.pop) G.juice.pop(fin ? 'КИДОК!' : '×2', this.x, this.y - 30, { size: fin ? 12 : 9, color: fin ? '#ff8a5a' : '#ffe14a', life: 0.7, rise: 12, big: fin });
         this.stats.punchHits += hits;
         shake(2.5 + Math.min(2, hits), 160);
         if (G.juice && G.juice.hitStop) G.juice.hitStop(hits > 1 ? 4 : 3);
@@ -18730,24 +18739,12 @@
       active: { id: 'hack', name: 'Хакнути', cd: 20, dur: 6, desc: 'Двері найближчого буса заклинює на 6 с — ніхто не вийде.' },
       stats: { speed: 3, stamina: 3, dash: 3, stealth: 3, power: 2 }, bonus: { punch: 0.85 }, flags: { radar: true },
       unlock: { kind: 'mission', need: 4, label: 'Пройди місію 4', price: 250 } },
-    { id: 'olya', name: 'Оля', full: 'Студентка Оля', skin: 'h_olya', portrait: 'h_olya',
-      desc: 'Вигляд на 18, студентський у кишені. ТЦК не певні, чи вона взагалі їхня.',
-      passive: 'Розчиняється в натовпі, у сховку сидить на 3 с довше. Удар слабкий.',
-      active: { id: 'student', name: 'Студак', cd: 20, dur: 3, desc: 'ТЦК поруч 3 с чухають потилицю: «Їй точно є 18?..»' },
-      stats: { speed: 3, stamina: 3, dash: 3, stealth: 5, power: 1 }, bonus: { punch: 0.7, crowdHide: 0.35 }, flags: { crowd: true, hide: 3 },
-      unlock: { kind: 'escScore', need: 2000, label: 'Очки ВТЕЧІ', price: 300 } },
     { id: 'vitya', name: 'Вітя', full: 'Спортсмен Вітя', skin: 'h_vitya', portrait: 'h_vitya',
       desc: 'КМС з паркуру з Оболоні. Лавки для нього — сходинки.',
       passive: 'Перестрибує низьке з ходу на повній швидкості, ривок ×1.4. Але яскравий — помітніший.',
       active: { id: 'parkour', name: 'Паркур', cd: 16, dur: 4, desc: '4 с перелітає паркани, машини й подвійні перешкоди.' },
       stats: { speed: 4, stamina: 4, dash: 5, stealth: 1, power: 3 }, bonus: { dash: 1.4, energy: 1.1 }, flags: { autoVault: true, vis: 1.15 },
       unlock: { kind: 'vaults', need: 40, label: 'Перескоки', price: 350 } },
-    { id: 'galya', name: 'Баба Галя', full: 'Баба Галя', skin: 'h_galya', portrait: 'h_galya',
-      desc: 'Сусідка з третього. Бачила і не таких. Торба з картоплею — завжди з собою.',
-      passive: 'ТЦК її не хапають — стають і сперечаються. Але повільна, і троє впритул таки скрутять.',
-      active: { id: 'bag', name: 'Торба', cd: 14, dur: 0, desc: 'Торбою з картоплею по колу: відкидає й оглушує всіх ТЦК поруч.' },
-      stats: { speed: 1, stamina: 2, dash: 1, stealth: 4, power: 4 }, bonus: { speed: 0.82, dash: 0.7, energy: 0.9, punch: 1.25, recognizeDelay: 0.8 }, flags: { argue: true },
-      unlock: { kind: 'knockouts', need: 15, label: 'Нокаути', price: 450 } },
   ];
   const BY = {};
   for (const h of LIST) BY[h.id] = h;
@@ -19660,6 +19657,7 @@
 
     uChase(dt, p) {
       if (!p) { this.vx = this.vy = 0; return; }
+      if (this.grabbing) { this.vx = this.vy = 0; this.grabAnim = 0.2; return; } // Round 22: тримає гравця / кидає сітку
       if (!M.chaseActive) { this.setState('give_up'); return; }
       // загубили (ніхто не бачить > 1 с) → пошук
       if (!M.footSeen && M.lostT > 1) { this.setState('search'); return; } // Round 16: лише пішіх (бус без екіпажу не «тримає» погоню)
@@ -19702,7 +19700,7 @@
       }
       this.moveTo(tx, ty, sp, dt);
       // захват
-      if (d < C.GRAB_R && !p.hidden && this.grabCd <= 0) {
+      if (d < C.GRAB_R && !p.hidden && this.grabCd <= 0 && !(G.brawl && G.brawl.grab)) {
         this.grabCd = this.P.grabCd;
         this.grabAnim = 0.35;
         if (M.holdCd <= 0) { M.holdT = C.HOLD_T; M.holdCd = C.HOLD_CD + C.HOLD_T; }
@@ -19710,7 +19708,7 @@
         // Round 12 (режими): гравець навіть не пробує тікати (стоїть > 3 с у погоні) — скрутили одразу
         if (mission().mode && M.standT > 3 && !p.caught && typeof p.catch === 'function') { say(this, 'Все, приїхали.', 1400); p.catch(this.type); return; }
         // Round 12 (режими): гравець не тікає (стоїть > 1.5 с) — «Ввічливий» теж скручує
-        if (this.P.firstStrike || M.provoked || (mission().mode && M.standT > 1.5)) { hurtPlayer(this.P.hit, this); if (G.rng.next() < 0.4) this.talk('grab', true); }
+        if (this.P.firstStrike || M.provoked || (mission().mode && M.standT > 1.5)) { if (G.brawl && G.brawl.tryGrab(this, this.P.hit)) { this.talk('grab', true); return; } hurtPlayer(this.P.hit, this); if (G.rng.next() < 0.4) this.talk('grab', true); }
         else if (G.rng.next() < 0.5) this.talk('grab', true);
       }
       if (this.lineCd <= 0 && G.rng.next() < dt * 1.5) this.talk('chase');
@@ -28421,8 +28419,6 @@
     { id: 'courier', name: "Кур'єр", kind: 'escapes', need: 3, desc: 'Жовта куртка і короб. Доставка за 15 хвилин або втеча безкоштовно.', bonusText: '+10% швидкості',
       reaction: 'Шо, доставочка? Документики теж доставиш?' },
     { id: 'it', name: 'Айтішник', kind: 'escapes', need: 5, desc: 'Худі, ноут під пахвою, навушники. Бронь? Яка бронь?' },
-    { id: 'granny', name: 'Бабуся', kind: 'escapes', need: 8, desc: 'Хустка і торби. Ніхто не перевіряє бабусь.', bonusText: 'ТЦК впізнають на 2 с повільніше',
-      reaction: 'Гм... Бабусю, ви тут хлопця не бачили?' },
     { id: 'student', name: 'Студент', kind: 'escapes', need: 12, desc: 'Рюкзак, конспекти, вигляд на 18.',
       reaction: 'Скільки тобі? Не бреши, я бачу щетину.' },
     { id: 'ninja', name: 'Ніндзя з Троєщини', kind: 'escapes', need: 20, desc: 'Чорний костюм, пов\'язка. Тінь маршрутки 548.',
@@ -29758,13 +29754,15 @@
       steps: [
         { type: 'hold', at: 'atb', label: 'Купи батон в АТБ', hold: 1.2, doing: 'Каса №3 «тимчасово не працює»…' },
         { type: 'hold', at: 'pharmacy', label: 'Купи мамі ліки від тиску', hold: 1.2, doing: 'Фармацевтка шукає аналог…' },
-        { type: 'go', at: 'home', label: 'Занеси все мамі' }],
+        { type: 'go', at: 'home', label: 'Занеси все мамі' },
+        { type: 'mini', game: 'search', at: 'home', label: 'ТЦК у квартирі! Сховайся' }],
       star3: 'side', place: 'home',
       win: ['Мама: «А кефір?»', 'Ти: «Мам, там ТЦК на кожному розі...»', 'Мама: «То й що? Кефір сам себе не купить.»'],
       late: ['Мама вже сама сходила.', 'Мама: «Мене ТЦК не чіпають. Вчися.»'] },
     { tier: 3, title: 'Черга в Новій пошті', short: 'Нова пошта', weekday: "Пʼятниця", start: 17 * 60 + 10, slack: 16,
       brief: 'У ТЦК уже знають твою сорочку. Пʼятниця, вечір, посилка чекає, а дорогою — блокпост і злива. Обійди їх.',
-      steps: [{ type: 'hold', at: 'np', label: 'Відстій чергу в Новій пошті', hold: 3, doing: 'Перед тобою 6 бабусь і чоловік з шиною…' }],
+      steps: [{ type: 'hold', at: 'np', label: 'Відстій чергу в Новій пошті', hold: 3, doing: 'Перед тобою 6 бабусь і чоловік з шиною…' },
+        { type: 'mini', game: 'vlk', at: 'np', label: 'ВЛК просто в черзі! Прослизни повз лікарів' }],
       events: [{ type: 'checkpoint', at: [2, 4], chance: 1 }, { type: 'rain', at: [6, 10], chance: 1 }],
       star3: 'noHit', place: 'nova_poshta',
       win: ['Посилка твоя.', 'Всередині — чохол на телефон, замовлений пів року тому.', 'Воно того варте.'],
@@ -29786,7 +29784,7 @@
       brief: 'Мама Каті кличе на день народження і вже називає тебе зятем. Букет — не хризантеми! Посеред дороги — тривога.',
       steps: [
         { type: 'hold', at: 'flowers_shop', label: 'Купи букет (не хризантеми!)', hold: 1.2, doing: 'Флористка: «Вам на свято чи на похорон?»' },
-        { type: 'go', at: 'tesha', label: 'Дійди до тещі' }],
+        { type: 'scoot', at: 'tesha', label: 'Втечи самокатом до тещі, поки не сів' }],
       events: [{ type: 'air_raid', at: [14, 22], chance: 1 }],
       star3: 'noPunch', place: 'mother_in_law',
       win: ['Теща: «Ну нарешті, зятю! Де ти був?»', 'Ти: «Краще не питайте.»', 'Торт «Київський» — твій.'],
@@ -30462,6 +30460,11 @@
     }
     if (s.type === 'escort' && S.friend) { S.friend.following = true; S.friend.mark = null; }
     if (s.type === 'survive') startSurvive(s);
+    if (s.type === 'scoot' && p && G.heroes && !p.scoot) { // Round 22: самокат під ноги, погоня, батарея на межі
+      const r = G.heroes.spawnRental('scooter', p.x + 8, p.y + 4, { state: 'parked', battery: 30, free: true });
+      if (r) G.heroes.tryMount(p, r);
+      if (G.tck && G.tck.forceChase && G.bus && !(typeof globalThis !== 'undefined' && globalThis.__stub)) { G.tck.forceChase('scoot'); G.bus.spawnDrop(130, 320, { crew: 2 }); }
+    }
     if (s.type === 'boss') startBoss(s);
     if (s.type === 'stealth') { s.spottedHere = false; toast('Чат «Де ТЦК Київ»: бус ТЦК чатує біля дороги! Не попадись водію на очі.', 3200); }
   }
@@ -30544,8 +30547,15 @@
     s.left = s.dur;
     if (!p || !G.tck) return;
     // Майор приїжджає власним бусом і виходить першим
+    spawnMajorBus();
+    if (G.tck.setWanted) G.tck.setWanted(3);
+    s.bus2 = 15; // другий бус Майора — через 15 с
+    s.megaT = 0.6;
+    return bossRest(s);
+  }
+  function spawnMajorBus() {
     spawnPursuers(3, 110, 200, ['rude', 'polite', 'tired'], (mj, i) => {
-      if (i !== 0) return;
+      if (i !== 0 || S.major) return;
       mj.isMajor = true;
       mj.maxHp = mj.hp = Math.round(140 * ((S.m && S.m.tckHp) || 1));
       mj.speed = Math.min(mj.speed, 74);
@@ -30553,9 +30563,8 @@
       S.major = mj;
       say(mj, 'ГРОМАДЯНИНЕ! ВИ ОТОЧЕНІ!', 2200, 'shout');
     });
-    if (G.tck.setWanted) G.tck.setWanted(3);
-    s.bus2 = 15; // другий бус Майора — через 15 с
-    s.megaT = 0.6;
+  }
+  function bossRest(s) {
     if (G.ui && G.ui.bigText) G.ui.bigText('МАЙОР!', 1600, { color: '#f7c948', size: 30 });
     if (G.camera && G.camera.shake) G.camera.shake(4, 400);
     sfx('shout', { deep: true });
@@ -30782,7 +30791,15 @@
       return inR(q);
     };
     switch (s.type) {
-      case 'go': case 'stealth': {
+      case 'mini': {
+        const q = poi(s.at);
+        if (reached(q) && !p.hidden && !p.riding && !s.started) {
+          s.started = true;
+          if (G.minigames) G.minigames.start(s.game, (r) => { if (r.clean) toast('Чисто! Ні одного штампа.', 2000); completeStep(); }); else completeStep();
+        }
+        break;
+      }
+      case 'go': case 'stealth': case 'scoot': {
         if (reached(poi(s.at))) completeStep();
         break;
       }
@@ -30858,6 +30875,8 @@
       case 'boss': {
         s.left -= dt;
         const mj = S.major;
+        // Round 22: бус Майора не зміг стати в кадрі (нема місця) — через 12 с приїжджає інший
+        if (!mj && !S.majorKo) { s.retry = (s.retry == null ? 12 : s.retry) - dt; if (s.retry <= 0) { s.retry = 12; spawnMajorBus(); } }
         if (s.bus2 != null) { s.bus2 -= dt; if (s.bus2 <= 0) { s.bus2 = null; if (G.bus && G.bus.spawnNear) { try { G.bus.spawnNear(240, 460); toast('Майор викликав ще один бус!', 2000); } catch (e) { /* */ } } } }
         if (mj && mj.alive && !mj.ko) {
           s.megaT -= dt;
@@ -32246,7 +32265,16 @@
       if (fc) { const pl = pathLen(p, fc); g = Object.assign({}, fc, { pathLen: pl.len < 1e8 ? pl.len : Math.hypot(fc.x - p.x, fc.y - p.y), path: pl.path }); }
       S.forceGoalFn = null;
     }
-    S.goal = g;
+    S.goal = g; S.goalAlt = null; S.altTaken = false;
+    // Round 22: ВТЕЧА з 2-ї хвилі — друга точка: ближча, але із засідкою, очки ×2
+    if (g && p && S.mode !== 'daily' && n >= 2 && !S.forceMods && !S.noAlt) {
+      const gd = Math.hypot(g.x - p.x, g.y - p.y);
+      const C = goalCands().filter((c) => { const d = Math.hypot(c.x - p.x, c.y - p.y); return c.id !== g.id && d >= 170 && d <= gd * 0.8 && Math.hypot(c.x - g.x, c.y - g.y) > 130 && !(S.goalPrev && Math.hypot(c.x - S.goalPrev.x, c.y - S.goalPrev.y) < 100); });
+      for (let tries = 0; tries < 5 && C.length; tries++) {
+        const c = C.splice(Math.floor(S.rngGoal() * C.length), 1)[0], pl = pathLen(p, c);
+        if (pl.len < g.pathLen * 0.9) { S.goalAlt = Object.assign({}, c, { pathLen: pl.len, path: pl.path }); break; }
+      }
+    }
     // утримання на точці: дочекатися потяга / таксі / домофона (з кожною хвилею довше)
     S.holdNeed = S.mode === 'daily' ? 2.5 : Math.min(4, 1.5 + 0.3 * (n - 1));
     S.holdT = 0; S.holdIn = false;
@@ -32268,11 +32296,12 @@
     spawnPickups();
     // засідка біля точки евакуації (з 2-ї хвилі; щоденна — з 3-ї точки): бус стоїть біля бордюру, екіпаж усередині
     S.ambush = null;
-    if (g && G.bus && G.bus.spawnPost && n >= (S.mode === 'daily' ? 3 : 2) && G.rng.next() < Math.min(0.8, 0.3 + 0.1 * n)) {
+    const amb = S.goalAlt || g; // Round 22: якщо є ризикована точка — засідка завжди там, а довга дорога чиста
+    if (amb && G.bus && G.bus.spawnPost && n >= (S.mode === 'daily' ? 3 : 2) && (S.goalAlt || G.rng.next() < Math.min(0.8, 0.3 + 0.1 * n))) {
       G.after(1500, () => {
-        if (!S || S.goal !== g || S.cleared || !G.run || G.run.ended) return;
-        const r = G.bus.spawnPost(g.x, g.y, { crew: crewFor(), ttl: Math.max(20, S.waveDur), maxD: 200 });
-        if (r) { S.ambush = r.bus; toast('Чат «Де ТЦК Київ»: біля ' + (g.short || 'цілі') + ' стоїть бус ТЦК!', 3000); }
+        if (!S || (S.goal !== amb && S.goalAlt !== amb) || S.cleared || !G.run || G.run.ended) return;
+        const r = G.bus.spawnPost(amb.x, amb.y, { crew: crewFor(), ttl: Math.max(20, S.waveDur), maxD: 200 });
+        if (r) { S.ambush = r.bus; toast(S.goalAlt === amb ? 'Золота точка ×2 ближче, але там бус ТЦК!' : 'Чат «Де ТЦК Київ»: біля ' + (amb.short || 'цілі') + ' стоїть бус ТЦК!', 3000); }
       }, {});
     }
     if (p && !first) {
@@ -32352,6 +32381,7 @@
     S.cleared = true; S.clearT = 0; S.evacs++;
     const n = S.wave, left = Math.max(0, S.waveDur - S.waveT);
     addScore('evac', 300 + 100 * n, g, 'ЕВАКУАЦІЯ +' + (300 + 100 * n), '#93c25b', 14);
+    if (S.altTaken) G.after(500, () => { if (S) addScore('risk', 300 + 100 * n, { x: g.x, y: g.y + 42 }, 'РИЗИК ×2! +' + (300 + 100 * n), '#f7c948', 13); }, { real: true });
     if (left > 0) G.after(350, () => { if (S) addScore('time', left * 15 * n, { x: g.x, y: g.y + 14 }, 'ШВИДКО! +' + Math.round(left * 15 * n), '#8fc7e4', 12); }, { real: true });
     if (S.povistka) G.after(700, () => { if (!S) return; const add = Math.round(S.waveScore); addScore('risk', add, { x: g.x, y: g.y + 28 }, 'ПОВІСТКА ×2! +' + add, '#ff6050', 12); }, { real: true });
     S.waveLog.push({ wave: n, t: Math.round(S.waveT * 10) / 10, dur: S.waveDur, late: S.late, goal: g.kind, mods: S.mods.join('+'), contactAt: S.firstChase[n], dropAt: S.firstDrop[n] });
@@ -32777,6 +32807,7 @@
       else if (S.panicT > 0) { S.panicT -= pur ? dt : 1; if (S.panicT <= 0 && G.audio.current === 'panic') G.audio.music(pur ? 'chase' : 'calm'); }
     }
     // точка евакуації
+    if (S.goalAlt && !p.hidden && !p.riding && Math.hypot(p.x - S.goalAlt.x, p.y - S.goalAlt.y) < 28) { S.goal = S.goalAlt; S.goalAlt = null; S.altTaken = true; S.holdT = 0; S.holdIn = false; big('РИЗИК ×2!', 900, { color: '#f7c948', size: 18 }); }
     const g = S.goal;
     const inGoal = g && !p.hidden && !p.riding && Math.hypot(p.x - g.x, p.y - g.y) < 28;
     if (inGoal) {
@@ -32987,11 +33018,11 @@
   const PANEL = { w: 96, h: 58, x: () => VW() - 96 - 4, y: 40 };
   function goalDist() { const p = G.player, g = S && S.goal; return p && g ? Math.hypot(g.x - p.x, g.y - p.y) : 0; }
   // маркер цілі: на екрані — кільце + прапорець; поза — стрілка біля краю з відстанню
-  function drawGoal(ctx, u) {
-    const g = S.goal; if (!g || S.cleared) return;
+  function drawGoal(ctx, u, alt) {
+    const g = alt ? S.goalAlt : S.goal; if (!g || S.cleared) return;
     const q = G.camera.toScreen(g.x, g.y), t = G.realTime;
     const on = q.x > 8 && q.y > 8 && q.x < VW() - 8 && q.y < VH() - 8;
-    const col = S.late ? '#ff6050' : '#93c25b';
+    const col = alt ? '#f7c948' : S.late ? '#ff6050' : '#93c25b';
     if (on) {
       const r = 9 + Math.sin(t * 6) * 2;
       ctx.save(); ctx.globalAlpha = 0.85;
@@ -32999,7 +33030,7 @@
       ctx.beginPath(); ctx.ellipse ? ctx.ellipse(Math.round(q.x), Math.round(q.y), r * 1.4, r * 0.7, 0, 0, Math.PI * 2) : ctx.arc(Math.round(q.x), Math.round(q.y), r, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
       // утримання: дуга прогресу + що відбувається
-      if (S.holdT > 0) {
+      if (S.holdT > 0 && !alt) {
         const k = Math.min(1, S.holdT / Math.max(0.1, S.holdNeed));
         ctx.save();
         ctx.strokeStyle = '#1a0e20'; ctx.lineWidth = 5;
@@ -33012,7 +33043,7 @@
       }
       const by = Math.round(q.y - 30 + Math.sin(t * 5) * 3);
       u.tri(ctx, Math.round(q.x), by + 12, 'down', 5, col);
-      const lab = g.short ? String(g.short).toUpperCase() : 'СЮДИ';
+      const lab = (alt ? '×2 ' : '') + (g.short ? String(g.short).toUpperCase() : 'СЮДИ');
       const lw = u.measure(lab, 8) + 8;
       u.panel(ctx, Math.round(q.x - lw / 2), by - 4, lw, 13, { fill: 'rgba(26,14,32,0.85)', border: col });
       u.text(ctx, lab, Math.round(q.x), by - 2, { size: 8, align: 'center', color: '#fbf6ea' });
@@ -33029,7 +33060,7 @@
     ctx.fillStyle = '#1a0e20'; ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(-7, -8); ctx.lineTo(-3, 0); ctx.lineTo(-7, 8); ctx.closePath(); ctx.fill();
     ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-5, -6); ctx.lineTo(-2, 0); ctx.lineTo(-5, 6); ctx.closePath(); ctx.fill();
     ctx.restore();
-    const dtxt = Math.round(goalDist() / 16 * 2) + ' м';
+    const dtxt = (alt ? '×2 ' : '') + Math.round(Math.hypot(g.x - G.player.x, g.y - G.player.y) / 16 * 2) + ' м';
     const tx = U2.clamp(ax - Math.cos(ang) * 20, 24, VW() - 24), ty = U2.clamp(ay - Math.sin(ang) * 16 - 4, 6, VH() - 14);
     u.text(ctx, dtxt, Math.round(tx), Math.round(ty), { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
   }
@@ -33088,6 +33119,7 @@
     if (!u) return;
     if (S && G.player) {
       drawThreats(ctx);
+      if (S.goalAlt) drawGoal(ctx, u, true);
       drawGoal(ctx, u);
       drawPops(ctx, u);
       const w = PANEL.w, h = PANEL.h, x = PANEL.x(), y = PANEL.y;
@@ -33519,6 +33551,529 @@
 })();
 
 
+/* ===== 84_brawl.js ===== */
+// 84_brawl.js — Round 22: живіша погоня.
+// G.brawl.grab      — поточний захват (null | {t, T, need, taps, dmg, t0, net}); під час захвату гравець стоїть і тапає УДАР
+// G.brawl.tryGrab(tck, dmg) → bool — почати захват замість звичайної шкоди; в headless вимкнено (G.cfg.fullBrawl = true — увімкнути)
+// Місто як зброя: двері підʼїзду (бʼють ТЦК поруч), ривок у смітник (шкірки під ноги), авто збивають ТЦК з ніг.
+// Вороги: ТЦК у цивільному (перехожий у натовпі), дрон із гучномовцем, сітка, бус упоперек вулиці.
+// G.minigames.start(game, cb) — міні-ігри 'vlk' / 'search' (сцена 'mini'); cb({clean, hits}).
+(function () {
+  const G = window.G;
+  const inStub = () => typeof globalThis !== 'undefined' && globalThis.__stub && !G.cfg.fullBrawl;
+  const P = () => G.player;
+  const sfx = (n, o) => { try { if (G.audio && G.audio.sfx) G.audio.sfx(n, o); } catch (e) { /* */ } };
+  const pop = (t, x, y, o) => { if (G.juice && G.juice.pop) G.juice.pop(t, x, y, o || {}); };
+  const bubble = (e, t, ms, o) => { if (G.ui && G.ui.bubble) G.ui.bubble(e, t, ms || 1500, o || { style: 'shout' }); };
+  const toast = (t, ms) => { if (G.ui && G.ui.toast) G.ui.toast(t, ms || 2200); };
+  const shake = (a, ms) => { if (G.camera && G.camera.shake) G.camera.shake(a, ms); };
+  const rnd = () => G.rng.next();
+  const pick = (a) => a[Math.floor(rnd() * a.length)];
+  const tcks = () => (G.tck && G.tck.list ? G.tck.list : []).filter((t) => t && t.alive !== false && !t.ko);
+  const mission = () => (G.run && G.run.mission) || {};
+  // рівень небезпеки: місія n або хвиля + 2 (ВТЕЧА)
+  function level() {
+    const m = mission();
+    if (m.mode) return ((G.modes && G.modes.state && G.modes.state.wave) || 1) + 2;
+    return (G.run && G.run.day) || 1;
+  }
+  const raid = () => !!(G.missions && G.missions.state && G.missions.state.ev && G.missions.state.ev.air_raid);
+  const capLeft = () => { const c = mission().tckCap; return c ? c - tcks().length : 99; };
+  const hitT = (t, o) => G.applyHit && G.applyHit(t, o);
+
+  const B = G.brawl = {
+    grab: null, nextGrab: 0, drone: null, nets: [], civT: 20, droneT: 25, blockT: 10, doorCd: 0, hinted: false, envT: 0,
+    tryGrab(t, dmg) {
+      if (inStub()) return false;
+      const p = P();
+      if (!p || B.grab || G.state !== 'play' || G.realTime < B.nextGrab) return false;
+      if (p.caught || p.hidden || p.riding || p.vault || p.scoot || p.invuln > 0 || p.dodging || p.hp <= 0) return false;
+      B.startGrab(t, dmg, false);
+      return true;
+    },
+    startGrab(t, dmg, net) {
+      const p = P();
+      const need = net ? 5 : t && t.type === 'rude' ? 6 : t && t.type === 'tired' ? 4 : 5;
+      B.grab = { t, T: net ? 1.4 : 1.6, need, taps: 0, dmg, t0: G.realTime, net: !!net };
+      if (t) { t.grabbing = true; t.face(p.x, p.y); }
+      if (G.juice && G.juice.slowmo) G.juice.slowmo(0.4, 260);
+      shake(2.5, 180);
+      sfx('punch', { x: p.x, y: p.y, pitch: 0.7 });
+      bubble(p, net ? 'Сітка?! Серйозно?!' : pick(['Пусти!', 'Руки геть!', 'Та відчепись!', 'Я на роботу!']), 900);
+    },
+    // викликає 50_player щокроку; true — гравець у захваті (рух вимкнено)
+    tickGrab(p) {
+      const g = B.grab;
+      if (!g) return false;
+      p.vx = p.vy = 0; p.kvx = p.kvy = 0; p.moving = p.running = false;
+      if (p.caught || (g.t && (g.t.alive === false || g.t.ko))) { B.endGrab(); return false; }
+      const I = G.input;
+      if (I.pressed('attack') || I.pressed('dash')) {
+        I.consume('attack'); I.consume('dash');
+        g.taps++;
+        sfx('click', { vol: 0.5, pitch: 0.8 + g.taps * 0.12 });
+        shake(1, 60);
+      }
+      if (g.taps >= g.need) { B.winGrab(p, g); return false; }
+      if (G.realTime - g.t0 >= g.T) { B.loseGrab(p, g); return false; }
+      return true;
+    },
+    endGrab() { const g = B.grab; if (g && g.t) g.t.grabbing = false; B.grab = null; },
+    winGrab(p, g) {
+      B.endGrab();
+      p.invuln = Math.max(p.invuln, 1);
+      B.nextGrab = G.realTime + 3;
+      if (g.t) {
+        const dx = g.t.x - p.x, dy = g.t.y - p.y, d = Math.hypot(dx, dy) || 1;
+        hitT(g.t, { damage: 12, stun: 2.2, kx: dx / d * 220, ky: dy / d * 220, source: 'punch', x: p.x, y: p.y });
+      }
+      pop('ВИРВАВСЯ!', p.x, p.y - 34, { size: 12, color: '#93c25b', life: 1.1, rise: 16, big: true });
+      if (G.juice && G.juice.nearMiss) G.juice.nearMiss('grab', p.x, p.y, g.t);
+      sfx('punch', { x: p.x, y: p.y });
+      G.events.emit('brawl:escaped', { net: g.net });
+    },
+    loseGrab(p, g) {
+      B.endGrab();
+      B.nextGrab = G.realTime + 2.5;
+      const src = g.t || p;
+      p.hurt(g.net ? g.dmg : Math.round(g.dmg * 1.5 + 4), { x: src.x, y: src.y + 1, source: 'tck', type: g.t ? g.t.type : 'net', knock: 120 });
+      if (!p.caught && g.t && G.rng.next() < 0.6) bubble(g.t, pick(['Попався!', 'Не смикайся!', 'Куди зібрався?']), 1000);
+    },
+    // Кидок ТЦК у напарників (третій удар серії)
+    strike(e, nx, ny) {
+      for (const o of tcks()) {
+        if (o === e) continue;
+        const dx = o.x - e.x, dy = o.y - e.y, along = dx * nx + dy * ny, side = Math.abs(dx * ny - dy * nx);
+        if (along < 0 || along > 70 || side > 18) continue;
+        G.after(90 + along * 2, () => {
+          if (o.alive === false || o.ko) return;
+          hitT(o, { damage: 14, stun: 1.8, kx: nx * 150, ky: ny * 150, source: 'punch', x: e.x, y: e.y });
+          pop('СТРАЙК!', o.x, o.y - 26, { size: 11, color: '#ffe14a', life: 0.9, rise: 12, big: true });
+          sfx('hit', { x: o.x, y: o.y });
+        }, {});
+      }
+    },
+  };
+
+  // ─── Місто як зброя ───
+  G.events.on('player:hide', (d) => {
+    if (!d || d.type !== 'entrance' || B.doorCd > 0 || inStub()) return;
+    let n = 0;
+    for (const t of tcks()) {
+      const dx = t.x - d.x, dy = t.y - d.y, l = Math.hypot(dx, dy);
+      if (l > 52) continue;
+      hitT(t, { damage: 10, stun: 2, kx: dx / (l || 1) * 160, ky: dy / (l || 1) * 160, source: 'throw', x: d.x, y: d.y });
+      n++;
+    }
+    if (n) { B.doorCd = 7; pop('БАХ! ДВЕРІ!', d.x, d.y - 34, { size: 12, color: '#ffe14a', life: 1, rise: 14, big: true }); sfx('door_slam', { x: d.x, y: d.y }); shake(3, 180); }
+  });
+  function trashNear(x, y, r) {
+    const list = G.world && G.world.props; if (!list) return null;
+    let best = null, bd = r;
+    for (const q of list) {
+      if (q.kind !== 'trash' || (q._tip || 0) > G.realTime) continue;
+      const cx = (q.x + q.w / 2) * 16, cy = (q.y + q.h / 2) * 16, d = Math.hypot(cx - x, cy - y);
+      if (d < bd) { bd = d; best = { q, cx, cy }; }
+    }
+    return best;
+  }
+  G.events.on('player:dash', (d) => {
+    if (!d || !G.items || inStub()) return;
+    const h = trashNear(d.x + (d.dx || 0) * 14, d.y + (d.dy || 0) * 14, 30);
+    if (!h) return;
+    h.q._tip = G.realTime + 18;
+    for (let i = 0; i < 3; i++) {
+      const a = Math.atan2(d.y - h.cy, d.x - h.cx) + (i - 1) * 0.8, x = d.x + Math.cos(a) * 14, y = d.y + Math.sin(a) * 14;
+      const it = G.items.spawn('banana_peel', x, y);
+      if (it) it.armed = 0.25;
+    }
+    pop('ПЕРЕКИНУВ СМІТНИК!', h.cx, h.cy - 26, { size: 10, color: '#ffe14a', life: 1, rise: 14, big: true });
+    sfx('hit', { x: h.cx, y: h.cy, pitch: 0.6 });
+    shake(2.5, 150);
+    if (G.juice && G.juice.addCombo) G.juice.addCombo('near', d.x, d.y);
+  });
+  G.events.on('run:start', () => {
+    B.grab = null; B.nextGrab = 0; B.drone = null; B.nets = []; B.civT = 18 + rnd() * 10; B.droneT = 18 + rnd() * 12; B.blockT = 8; B.doorCd = 0; B.hinted = false;
+  });
+  G.events.on('run:end', () => { B.endGrab(); B.drone = null; B.nets = []; });
+
+  function updateCars(dt) {
+    const cars = G.traffic && G.traffic.list; if (!cars) return;
+    for (const t of tcks()) {
+      if (t.state !== 'chase' || (t._carT || 0) > G.realTime) continue;
+      for (const c of cars) {
+        if (!c.alive || (c.v || 0) < 25) continue;
+        const dx = t.x - c.x, dy = t.y - c.y, d = Math.hypot(dx, dy);
+        if (d > 21) continue;
+        t._carT = G.realTime + 3;
+        hitT(t, { damage: 30, stun: 2.6, kx: dx / (d || 1) * 260, ky: dy / (d || 1) * 260, source: 'throw', x: c.x, y: c.y });
+        pop('БАМПЕР!', t.x, t.y - 26, { size: 11, color: '#ff8a5a', life: 1, rise: 14, big: true });
+        sfx('horn', { x: c.x, y: c.y });
+        break;
+      }
+    }
+  }
+
+  // ─── ТЦК у цивільному ───
+  const CIV = ['Хвилиночку, громадянине…', 'Чоловіче, а можна вас?', 'Перепрошую, котра година?'];
+  function updateCivil(dt, p) {
+    B.civT -= dt;
+    if (B.civT > 0 || level() < 5 || p.hidden || p.riding || raid() || capLeft() <= 0 || !G.npcs) return;
+    B.civT = 3;
+    let n = null;
+    for (const q of G.npcs.list) {
+      if (!q.alive || q.hidden || (q.variant !== 'man' && q.variant !== 'citizen' && q.variant !== 'courier') || q.role === 'crowd') continue;
+      const d = Math.hypot(q.x - p.x, q.y - p.y);
+      if (d > 55 && d < 120) { n = q; break; }
+    }
+    if (!n) return;
+    B.civT = 24 + rnd() * 14;
+    bubble(n, pick(CIV), 1000, { style: 'say' });
+    G.after(900, () => {
+      if (!n.alive || !G.run || G.run.ended || !G.tck || G.state !== 'play') return;
+      const x = n.x, y = n.y; n.alive = false;
+      const t = G.tck.spawnGroup(x, y, 1, ['sly'], { state: 'chase', origin: 'bus', exact: true })[0];
+      if (G.items && G.items.fx) G.items.fx('dust', x, y, { fps: 14, frames: 4 });
+      if (t) { bubble(t, 'Я в цивільному! Документики!', 1500); if (G.tck.spot) G.tck.spot(t, 'tck', true); }
+      sfx('whistle_fab', { x, y });
+    }, {});
+  }
+
+  // ─── Дрон із гучномовцем ───
+  const DRONE = ['ОБʼЄКТ ВИЯВЛЕНО!', 'ГРОМАДЯНИНЕ, ВАС ЗНІМАЄ КАМЕРА!', 'ПОСМІХНІТЬСЯ, БУС ВЖЕ ЇДЕ!', 'НЕ БІЖІТЬ, ЦЕ НЕЗРУЧНО!'];
+  function updateDrone(dt, p) {
+    let d = B.drone;
+    if (!d) {
+      B.droneT -= dt;
+      if (B.droneT > 0 || level() < 7 || raid() || p.hidden || p.riding) return;
+      B.droneT = 3;
+      const r = G.camera.rect();
+      B.drone = d = { x: r.x + r.w + 20, y: p.y - 60, life: 15, contact: 0, hp: 2, say: 0.4, fall: 0, off: rnd() * 6 };
+      toast('Над тобою дрон! Сховайся або збий його ударом.', 2400);
+      return;
+    }
+    if (d.fall > 0) { d.fall -= dt; if (d.fall <= 0) B.drone = null; return; }
+    d.life -= dt;
+    const leaving = d.life <= 0 || p.hidden;
+    const tx = leaving ? p.x + 500 : p.x + Math.sin(G.realTime + d.off) * 26, ty = leaving ? p.y - 300 : p.y - 16;
+    const dx = tx - d.x, dy = ty - d.y, l = Math.hypot(dx, dy) || 1, sp = Math.min(leaving ? 170 : 135, l * 3);
+    d.x += dx / l * sp * dt; d.y += dy / l * sp * dt;
+    if (leaving && l < 60 || (leaving && Math.hypot(d.x - p.x, d.y - p.y) > 420)) { B.drone = null; B.droneT = 26 + rnd() * 14; return; }
+    d.say -= dt;
+    if (d.say <= 0 && !leaving) { d.say = 3.4; bubble({ x: d.x, y: d.y - 20 }, pick(DRONE), 1400, { style: 'shout' }); }
+    if (!leaving && Math.hypot(d.x - p.x, d.y - p.y) < 90) {
+      d.contact += dt;
+      if (d.contact >= 4.5) {
+        d.contact = 0;
+        if (G.tck && G.tck.forceChase && !G.tck.chaseActive) G.tck.forceChase('drone');
+        if (G.bus && capLeft() > 0) G.bus.spawnDrop(110, 320, { crew: 2 });
+      }
+    }
+    if (G.items) for (const pr of G.items.projectiles) if (Math.hypot(pr.x - d.x, pr.y - (d.y)) < 16) { B.hitDrone(2); break; }
+  }
+  B.hitDrone = function (dmg) {
+    const d = B.drone; if (!d || d.fall > 0) return;
+    d.hp -= dmg; sfx('hit', { x: d.x, y: d.y, pitch: 1.5 }); shake(1.5, 90);
+    if (d.hp > 0) { pop('ЩЕ РАЗ!', d.x, d.y - 28, { size: 9, color: '#ffe14a', life: 0.7, rise: 10 }); return; }
+    d.fall = 0.5; B.droneT = 30 + rnd() * 15;
+    pop('ДРОН ЗБИТО!', d.x, d.y - 28, { size: 12, color: '#93c25b', life: 1.1, rise: 14, big: true });
+    if (G.modes && G.modes.active && G.modes.addScore) G.modes.addScore('drone', 200, d, null);
+    if (G.items && G.items.fx) G.items.fx('hit', d.x, d.y, { fps: 16, frames: 2 });
+  };
+  G.events.on('player:punch', (e) => { const d = B.drone; if (d && e && Math.hypot(d.x - e.x, d.y - 8 - e.y) < 40) B.hitDrone(1); });
+
+  // ─── Сітка ───
+  function updateNets(dt, p) {
+    const lvl = level();
+    for (const t of tcks()) {
+      if (t._netChk === undefined) { t._netChk = 1; t.netter = lvl >= 5 && t.type !== 'sprinter' && t.type !== 'driver' && rnd() < 0.22; t.netCd = 2 + rnd() * 2; }
+      if (!t.netter || t.state !== 'chase' || t.stun > 0) { if (t.netWind) { t.netWind = 0; t.grabbing = false; } continue; }
+      t.netCd -= dt;
+      const d = Math.hypot(p.x - t.x, p.y - t.y);
+      if (t.netWind > 0) {
+        t.netWind -= dt;
+        if (t.netWind <= 0) {
+          t.netWind = 0; t.grabbing = false;
+          const lx = p.x + (p.vx || 0) * 0.2, ly = p.y + (p.vy || 0) * 0.2, l = Math.hypot(lx - t.x, ly - t.y) || 1;
+          B.nets.push({ x: t.x, y: t.y - 8, vx: (lx - t.x) / l * 190, vy: (ly - t.y) / l * 190, life: 0.95, a: 0 });
+          sfx('shout', { x: t.x, y: t.y });
+        }
+      } else if (t.netCd <= 0 && d > 55 && d < 130 && !p.hidden && !B.grab && G.world.lineOfSight && G.world.lineOfSight(t.x, t.y - 6, p.x, p.y - 6)) {
+        t.netCd = 6 + rnd() * 3; t.netWind = 0.55; t.grabbing = true;
+        bubble(t, 'Сітка пішла!', 800);
+      }
+    }
+    for (let i = B.nets.length - 1; i >= 0; i--) {
+      const n = B.nets[i];
+      n.x += n.vx * dt; n.y += n.vy * dt; n.a += dt * 6; n.life -= dt;
+      if (Math.hypot(n.x - p.x, n.y - (p.y - 6)) < 13 && !p.hidden && !p.riding) {
+        B.nets.splice(i, 1);
+        if (p.dodging || p.invuln > 0 || p.vault) { if (G.juice && G.juice.nearMiss) G.juice.nearMiss('dash', p.x, p.y); }
+        else if (!B.grab && !p.caught) B.startGrab(null, 8, true);
+        continue;
+      }
+      if (n.life <= 0) B.nets.splice(i, 1);
+    }
+  }
+
+  // ─── Бус упоперек вулиці ───
+  function updateBlock(dt, p) {
+    B.blockT -= dt;
+    if (B.blockT > 0 || level() < 6 || !G.bus || !G.tck || !G.tck.chaseActive || raid()) return;
+    B.blockT = 2;
+    const sp = Math.hypot(p.vx || 0, p.vy || 0);
+    for (const b of G.bus.list) {
+      if (!b.alive || b.crew <= 0 || b.mode !== 'chase' || b.speed < 30 || (b.blockCd || 0) > 0 || !G.bus.inCam(b.x, b.y, 0)) continue;
+      if (sp > 20 && ((b.x - p.x) * p.vx + (b.y - p.y) * p.vy) < 0) continue; // лише попереду гравця
+      b.startBlock();
+      if (b.mode === 'block') { B.blockT = 15 + rnd() * 8; bubble(b, 'Перекриваємо!', 1200); }
+      break;
+    }
+  }
+
+  B.update = function (dt) {
+    const p = P();
+    if (!p || p.caught || G.state !== 'play' || !G.run || G.run.ended || inStub()) return;
+    B.doorCd = Math.max(0, B.doorCd - dt);
+    updateCars(dt); updateCivil(dt, p); updateDrone(dt, p); updateNets(dt, p); updateBlock(dt, p);
+    B.envT -= dt;
+    if (B.envT <= 0) {
+      B.envT = 0.4;
+      if (!B.hinted && G.tck && G.tck.chaseActive && trashNear(p.x, p.y, 48)) { B.hinted = true; toast('РИВОК у смітник — шкірки під ноги ТЦК!', 2600); }
+    }
+  };
+
+  // ─── Малювання: дрон і сітки — у шарі світу; смуга захвату — у HUD ───
+  function drawDrone(ctx, d) {
+    const t = G.realTime, x = Math.round(d.x), fallK = d.fall > 0 ? (0.5 - d.fall) * 60 : 0, y = Math.round(d.y - 22 + Math.sin(t * 5 + d.off) * 2 + fallK);
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(x, Math.round(d.y + 6), 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#23222a'; ctx.fillRect(x - 12, y - 1, 24, 2);
+    ctx.fillStyle = '#3a3942'; ctx.fillRect(x - 5, y - 3, 10, 7); ctx.fillStyle = '#55545e'; ctx.fillRect(x - 5, y - 3, 10, 1);
+    ctx.fillStyle = Math.floor(t * 6) % 2 ? '#ff4a3a' : '#7a1a14'; ctx.fillRect(x - 1, y + 4, 2, 2);
+    ctx.fillStyle = '#d8d4c8'; ctx.fillRect(x + 5, y + 1, 4, 3); // гучномовець
+    const w = Math.floor(t * 30) % 2 ? 7 : 4;
+    ctx.fillStyle = 'rgba(210,220,235,0.75)'; ctx.fillRect(x - 12 - w / 2, y - 3, w, 1); ctx.fillRect(x + 12 - w / 2, y - 3, w, 1);
+    ctx.restore();
+  }
+  function drawNet(ctx, n) {
+    ctx.save(); ctx.translate(Math.round(n.x), Math.round(n.y)); ctx.rotate(n.a);
+    ctx.strokeStyle = '#d8d0a8'; ctx.lineWidth = 1;
+    const r = 9;
+    for (let k = -r; k <= r; k += 6) { ctx.beginPath(); ctx.moveTo(k, -r); ctx.lineTo(k, r); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-r, k); ctx.lineTo(r, k); ctx.stroke(); }
+    ctx.restore();
+  }
+  function wrap() {
+    const ui = G.ui; if (!ui || ui._brawlW) return;
+    ui._brawlW = true;
+    const dw = ui.drawWorld;
+    ui.drawWorld = function (ctx) {
+      if (dw) dw.call(this, ctx);
+      for (const n of B.nets) drawNet(ctx, n);
+      if (B.drone) drawDrone(ctx, B.drone);
+      for (const t of tcks()) if (t.netter && t.state === 'chase') { ctx.fillStyle = t.netWind > 0 ? '#ffe14a' : '#d8d0a8'; ctx.fillRect(Math.round(t.x) - 3, Math.round(t.y) - 30, 6, 3); }
+    };
+    const dh = ui.drawHUD;
+    ui.drawHUD = function (ctx) {
+      if (dh) dh.call(this, ctx);
+      const g = B.grab, p = P(), u = ui.gfx;
+      if (!g || !p || !u) return;
+      const q = G.camera.toScreen(p.x, p.y), w = 86, x = Math.round(G.util.clamp(q.x - w / 2, 4, G.cfg.VIEW_W - w - 4)), y = Math.round(G.util.clamp(q.y - 62, 24, G.cfg.VIEW_H - 40));
+      const blink = Math.floor(G.realTime * 10) % 2 === 0, touch = G.touch && G.touch.active;
+      u.panel(ctx, x, y, w, 28, { fill: 'rgba(30,14,28,0.92)', border: blink ? '#ffe14a' : '#ff6050' });
+      u.text(ctx, g.net ? 'ЗАПЛУТАВСЯ!' : (touch ? 'ТАПАЙ!' : 'ТИСНИ ПРОБІЛ!'), x + w / 2, y + 3, { size: 8, align: 'center', color: '#fde98f', shadow: true });
+      u.bar(ctx, x + 5, y + 14, w - 10, 5, g.taps / g.need, '#93c25b', '#2a2030');
+      u.bar(ctx, x + 5, y + 21, w - 10, 3, Math.max(0, 1 - (G.realTime - g.t0) / g.T), '#ff6050', '#2a2030');
+    };
+  }
+  G.events.on('run:start', wrap);
+
+  // ═══════════════════════════ Міні-ігри (сцена 'mini') ═══════════════════════════
+  if (G.STATES.indexOf('mini') < 0) G.STATES.push('mini');
+  const S = G.scenes.mini = { enter() {}, exit() {}, update() {}, draw() {} };
+  const MG = { game: null, cb: null, t: 0 };
+  const VLK = [
+    { who: 'ЛОР', q: 'Чуєш мене? Скажи «а».', ex: '«Я глухий!»', a: 'Почув же. Придатний.' },
+    { who: 'ОКУЛІСТ', q: 'Скільки пальців?', ex: '«Я сліпий!»', a: 'Два — то й досить. Придатний.' },
+    { who: 'ХІРУРГ', q: 'Ноги є? Руки є?', ex: '«Спина болить!»', a: 'Бігти ж зміг. Придатний.' },
+  ];
+  const SPOTS = [{ n: 'ШАФА', x: 40 }, { n: 'ЛІЖКО', x: 150 }, { n: 'БАЛКОН', x: 260 }, { n: 'ВАННА', x: 370 }];
+  const VW = () => G.cfg.VIEW_W, VH = () => G.cfg.VIEW_H;
+  const OX = () => Math.round((VW() - 480) / 2);
+  function finish() {
+    const cb = MG.cb, res = { hits: MG.hits, clean: MG.hits === 0 };
+    MG.game = null; MG.cb = null;
+    G.setState('play');
+    const p = P();
+    if (p) { p.invuln = Math.max(p.invuln || 0, 2); if (res.hits) p.hp = Math.max(10, p.hp - 10 * res.hits); }
+    if (cb) cb(res);
+  }
+  G.minigames = {
+    start(game, cb) {
+      if (inStub()) { if (cb) cb({ hits: 0, clean: true }); return; }
+      Object.assign(MG, { game, cb, t: 0, hits: 0, round: 0, phase: 'play', phT: 0, sel: -1, stamp: 0, x: 0, msg: '', checked: [] });
+      if (game === 'search') searchRound();
+      G.setState('mini');
+    },
+  };
+  function searchRound() {
+    MG.phase = 'choose'; MG.phT = 0; MG.sel = -1; MG.checked = [];
+    const heard = Math.floor(rnd() * 4);
+    MG.heard = heard;
+    MG.msg = 'Скрип біля: ' + SPOTS[heard].n + '. Куди сховаєшся?';
+  }
+  const tap = () => { const I = G.input; const m = I.mouse; return { any: I.pressed('confirm') || I.pressed('attack') || m.clicked, m }; };
+  S.update = function (dt, real) {
+    MG.t += real; MG.phT += real;
+    if (MG.stamp > 0) MG.stamp -= real;
+    const T = tap(), I = G.input;
+    if (MG.game === 'vlk') {
+      if (MG.phase === 'play') {
+        const v = 1 + MG.round * 0.35;
+        MG.x = 0.5 + 0.5 * Math.sin(MG.phT * 3.4 * v);
+        if (T.any) {
+          const zone = 0.2 - MG.round * 0.03, ok = Math.abs(MG.x - 0.5) < zone;
+          if (ok) { MG.msg = 'Прослизнув, поки лікар дивився в папірці!'; sfx('pickup'); }
+          else { MG.hits++; MG.stamp = 0.9; MG.msg = VLK[MG.round].a; sfx('door_slam'); shake(0, 0); }
+          MG.phase = 'res'; MG.phT = 0;
+        }
+      } else if (MG.phase === 'res' && MG.phT > 1.5) {
+        MG.round++;
+        if (MG.round >= VLK.length) { MG.phase = 'end'; MG.phT = 0; MG.msg = MG.hits === 0 ? 'Лікарі нічого не помітили. +60 грн' : 'Штампів: ' + MG.hits + '. Втік через вікно коридору.'; if (MG.hits === 0 && G.progress && G.progress.addMoney) G.progress.addMoney(60); }
+        else { MG.phase = 'play'; MG.phT = 0; MG.msg = ''; }
+      } else if (MG.phase === 'end' && MG.phT > 2) finish();
+    } else if (MG.game === 'search') {
+      if (MG.phase === 'choose') {
+        if (I.pressed('left')) MG.sel = Math.max(0, (MG.sel < 0 ? 1 : MG.sel) - 1);
+        if (I.pressed('right')) MG.sel = Math.min(3, MG.sel + 1);
+        const ox = OX();
+        if (T.m.clicked) for (let i = 0; i < 4; i++) if (T.m.x >= ox + SPOTS[i].x - 34 && T.m.x <= ox + SPOTS[i].x + 34 && T.m.y > 44 && T.m.y < 204) MG.sel = i, MG.go = true;
+        if (MG.sel >= 0 && (MG.go || I.pressed('confirm') || I.pressed('attack'))) { MG.go = false; startCheck(); }
+        else if (MG.phT > 3.5) { MG.sel = MG.sel < 0 ? 0 : MG.sel; startCheck(); }
+      } else if (MG.phase === 'check') {
+        if (MG.phT > 0.9) {
+          MG.phT = 0;
+          const c = MG.todo.shift();
+          if (c === undefined) { nextSearch(false); return; }
+          MG.checked.push(c);
+          sfx('door', { pitch: 0.8 });
+          if (c === MG.sel) { MG.hits++; MG.stamp = 0.9; sfx('door_slam'); nextSearch(true); }
+        }
+      } else if (MG.phase === 'res' && MG.phT > 1.5) {
+        MG.round++;
+        if (MG.round >= 3) { MG.phase = 'end'; MG.phT = 0; MG.msg = MG.hits === 0 ? 'Не знайшли. «Мабуть, переїхав.» +60 грн' : 'Знаходили ' + MG.hits + ' раз. Вискочив через балкон.'; if (MG.hits === 0 && G.progress && G.progress.addMoney) G.progress.addMoney(60); }
+        else searchRound();
+      } else if (MG.phase === 'end' && MG.phT > 2) finish();
+    }
+  };
+  function startCheck() {
+    MG.phase = 'check'; MG.phT = 0;
+    const n = MG.round === 0 ? 1 : 2, others = [0, 1, 2, 3].filter((i) => i !== MG.heard);
+    MG.todo = [MG.heard];
+    for (let k = 1; k < n; k++) MG.todo.push(others.splice(Math.floor(rnd() * others.length), 1)[0]);
+    MG.msg = 'ТЦК обшукує квартиру…';
+  }
+  function nextSearch(found) { MG.phase = 'res'; MG.phT = 0; MG.msg = found ? 'Знайшли! Ледь вирвався.' : 'Пронесло…'; if (!found) sfx('pickup'); }
+  function stampDraw(ctx, u) {
+    if (MG.stamp <= 0) return;
+    ctx.save(); ctx.translate(VW() / 2, 120); ctx.rotate(-0.2);
+    ctx.strokeStyle = '#d8302a'; ctx.lineWidth = 4; ctx.strokeRect(-110, -24, 220, 48);
+    u.text(ctx, 'ПРИДАТНИЙ', 0, -11, { size: 24, align: 'center', color: '#d8302a' });
+    ctx.restore();
+  }
+  function person(ctx, x, y, coat, head, cap) {
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 14, y + 58, 28, 4);
+    ctx.fillStyle = '#2a2632'; ctx.fillRect(x - 9, y + 40, 8, 20); ctx.fillRect(x + 1, y + 40, 8, 20);
+    ctx.fillStyle = coat; ctx.fillRect(x - 13, y + 12, 26, 32);
+    ctx.fillStyle = head; ctx.fillRect(x - 8, y - 4, 16, 16);
+    ctx.fillStyle = cap; ctx.fillRect(x - 9, y - 8, 18, 6);
+    ctx.fillStyle = '#1a0e20'; ctx.fillRect(x - 4, y + 3, 2, 2); ctx.fillRect(x + 3, y + 3, 2, 2);
+  }
+  S.draw = function (ctx) {
+    const u = G.ui.gfx, W = VW(), H = VH(), ox = OX(), I = MG;
+    ctx.fillStyle = I.game === 'vlk' ? '#c9d6cf' : '#8a7460'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = I.game === 'vlk' ? '#9fb3aa' : '#5c4a3c'; ctx.fillRect(0, 200, W, H - 200);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(0, 198, W, 3);
+    if (I.game === 'vlk') {
+      const r = Math.min(I.round, VLK.length - 1), D = VLK[r];
+      u.panel(ctx, W / 2 - 110, 8, 220, 22, { fill: '#2a2030' });
+      u.text(ctx, 'ВЛК · кабінет: ' + D.who + ' (' + (r + 1) + '/3)', W / 2, 13, { size: 8, align: 'center', color: '#fde98f' });
+      const R = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+      // стіна: кахель до половини, таблиця Сивцева, плакат, двері-втеча
+      R('#b8cfc6', 0, 118, W, 80); R('#8fa89e', 0, 116, W, 3);
+      for (let k = 0; k < W; k += 20) R('rgba(255,255,255,0.18)', k, 119, 1, 79);
+      for (let k = 118; k < 198; k += 20) R('rgba(255,255,255,0.18)', 0, k, W, 1);
+      R('#fbf8f0', ox + 170, 46, 44, 62); R('#2a2030', ox + 170, 46, 44, 2);
+      [[14, 6], [10, 5], [7, 6], [5, 7], [3, 8]].forEach((r, i) => { for (let k = 0; k < r[1]; k++) R('#2a2030', ox + 192 - (r[1] * (r[0] / 2 + 1)) / 2 + k * (r[0] / 2 + 1) - r[0] / 4, 52 + i * 10, Math.max(2, r[0] / 3), Math.max(2, r[0] / 2)); });
+      R('#6a4a34', ox + 8, 72, 58, 126); R('#8a6448', ox + 12, 76, 50, 122); R('#f7c948', ox + 54, 136, 4, 6); u.text(ctx, 'ВИХІД', ox + 37, 84, { size: 7, align: 'center', color: '#fde98f' });
+      // лікар за столом
+      person(ctx, ox + 345, 104, '#f4f1e6', '#f3c39b', '#e8e4d8');
+      R('#d8302a', ox + 343, 96, 4, 2); R('#d8302a', ox + 344, 95, 2, 4); // хрестик на шапочці
+      R('#3a3a44', ox + 339, 118, 2, 14); R('#3a3a44', ox + 351, 118, 2, 14); R('#3a3a44', ox + 339, 131, 14, 2); // стетоскоп
+      R('#1a0e20', ox + 339, 106, 7, 1); R('#1a0e20', ox + 346, 106, 7, 1); // окуляри
+      R('#5e4228', ox + 268, 152, 154, 8); R('#7a5a3c', ox + 268, 150, 154, 3); R('#5e4228', ox + 276, 160, 10, 38); R('#5e4228', ox + 404, 160, 10, 38);
+      R('#fbf8f0', ox + 300, 145, 26, 6); R('#d8302a', ox + 372, 140, 8, 10); R('#4a3020', ox + 374, 134, 4, 6); // папери й печатка
+      // герой
+      const pl = P(), img = pl && G.sprites && G.sprites.get ? G.sprites.get('player', { skin: pl.skin, dir: 'right', frame: 0 }) : null;
+      if (img && img.width) { const sc = 3, iw = img.width * sc, ih = img.height * sc; R('rgba(0,0,0,0.25)', ox + 110 - 14, 196, 28, 4); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, Math.round(ox + 110 - iw / 2), 198 - ih, iw, ih); }
+      else person(ctx, ox + 110, 140, '#fbf6ea', '#f3c39b', '#5b3426');
+      u.panel(ctx, ox + 230, 50, 220, 34, { fill: '#fbf6ea', border: '#2a1a2e' });
+      u.text(ctx, D.q, ox + 340, 56, { size: 8, align: 'center', color: '#2a1a2e' });
+      u.text(ctx, 'Ти: ' + D.ex, ox + 340, 68, { size: 8, align: 'center', color: '#932c33' });
+      const bx = W / 2 - 110, by = 222, bw = 220, zone = 0.2 - r * 0.03;
+      ctx.fillStyle = '#2a2030'; ctx.fillRect(bx - 2, by - 2, bw + 4, 16);
+      ctx.fillStyle = '#d8443a'; ctx.fillRect(bx, by, bw, 12);
+      ctx.fillStyle = '#5e9846'; ctx.fillRect(bx + bw * (0.5 - zone), by, bw * zone * 2, 12);
+      if (I.phase === 'play') { ctx.fillStyle = '#fff'; ctx.fillRect(Math.round(bx + bw * I.x) - 2, by - 4, 4, 20); }
+      u.text(ctx, I.msg || 'Тапни, коли повзунок у зеленому — прослизни повз лікаря!', W / 2, 244, { size: 8, align: 'center', color: '#1a0e20' });
+      stampDraw(ctx, u);
+    } else if (I.game === 'search') {
+      u.panel(ctx, W / 2 - 120, 8, 240, 22, { fill: '#2a2030' });
+      u.text(ctx, 'ОБШУК КВАРТИРИ · раунд ' + Math.min(I.round + 1, 3) + '/3', W / 2, 13, { size: 8, align: 'center', color: '#fde98f' });
+      // кімната: шпалери, плінтус, підлога, килим
+      for (let k = 0; k < W; k += 24) { ctx.fillStyle = 'rgba(255,240,210,0.06)'; ctx.fillRect(k, 0, 12, 198); }
+      ctx.fillStyle = '#3e2c20'; ctx.fillRect(0, 194, W, 6);
+      for (let k = 0; k < W; k += 40) { ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(k, 200, 1, H - 200); }
+      ctx.fillStyle = '#7a2f2a'; ctx.fillRect(ox + 110, 204, 260, 16); ctx.fillStyle = '#9a4a3a'; ctx.fillRect(ox + 116, 207, 248, 10);
+      const R = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+      for (let i = 0; i < 4; i++) {
+        const sp = SPOTS[i], x = ox + sp.x, sel = I.sel === i, chk = I.checked.indexOf(i) >= 0;
+        if (sel) { R('rgba(253,233,143,0.25)', x - 40, 60, 80, 142); }
+        if (i === 0) { // шафа
+          R('#3a2616', x - 32, 66, 64, 132); R('#7a5636', x - 29, 69, 58, 126); R('#8e6846', x - 29, 69, 58, 3);
+          R('#3a2616', x - 1, 69, 2, 126); R('#f7c948', x - 7, 126, 3, 8); R('#f7c948', x + 4, 126, 3, 8);
+          R('#5e4228', x - 24, 80, 18, 34); R('#5e4228', x + 6, 80, 18, 34);
+          if (chk) { R('#1a120c', x + 1, 69, 28, 126); R('#c84a3a', x + 8, 80, 8, 40); R('#3f6fa0', x + 18, 80, 8, 46); }
+        } else if (i === 1) { // ліжко
+          R('#4a3020', x - 36, 136, 72, 8); R('#4a3020', x - 36, 112, 6, 86); R('#4a3020', x + 30, 128, 6, 70);
+          R('#dfe4ea', x - 30, 128, 22, 14); R('#4f7fb0', x - 8, 124, 38, 22); R('#6a9ac8', x - 8, 124, 38, 4);
+          R('#2a1c14', x - 30, 146, 60, 40); R('#4a3020', x - 30, 186, 60, 12);
+          if (chk) { R('#4f7fb0', x + 8, 150, 26, 30); }
+        } else if (i === 2) { // балкон
+          R('#e8e4d8', x - 30, 66, 60, 132); R('#6fb0dc', x - 25, 72, 50, 120); R('#a8d8f0', x - 25, 72, 50, 40);
+          R('#59626e', x - 25, 150, 50, 3); for (let k = -22; k < 25; k += 9) R('#59626e', x + k, 150, 2, 42);
+          R('#e8e4d8', x - 1, 72, 2, 120); R('#f7c948', x + 6, 130, 3, 8);
+          if (chk) R('rgba(30,20,30,0.35)', x - 25, 72, 25, 120);
+        } else { // ванна
+          R('#e8e4d8', x - 32, 66, 64, 132); R('#bcd0d8', x - 28, 70, 56, 124);
+          for (let yy = 70; yy < 150; yy += 12) R('rgba(255,255,255,0.35)', x - 28, yy, 56, 1);
+          R('#fbf8f0', x - 28, 150, 56, 36); R('#d8d4c8', x - 28, 150, 56, 4); R('#d8d4c8', x - 28, 186, 8, 8); R('#d8d4c8', x + 20, 186, 8, 8);
+          R('#9aa0a8', x + 16, 134, 4, 18); R('#9aa0a8', x + 8, 134, 12, 3);
+          if (chk) R('rgba(30,20,30,0.3)', x - 28, 70, 56, 80);
+        }
+        u.panel(ctx, x - 26, 44, 52, 14, { fill: sel ? '#fde98f' : 'rgba(26,14,32,0.9)', border: '#1a0e20', hi: false });
+        u.text(ctx, sp.n, x, 47, { size: 8, align: 'center', color: sel ? '#1a0e20' : '#fbf6ea' });
+        if (chk) u.text(ctx, 'ПЕРЕВІРИЛИ', x, 106, { size: 7, align: 'center', color: '#fde98f', outline: '#1a0e20' });
+      }
+      if (I.phase === 'check' && I.checked.length) person(ctx, ox + SPOTS[I.checked[I.checked.length - 1]].x, 138, '#6b7142', '#f3c39b', '#474b2d');
+      u.panel(ctx, W / 2 - 170, 228, 340, 20, { fill: 'rgba(26,14,32,0.9)' });
+      u.text(ctx, I.msg, W / 2, 233, { size: 8, align: 'center', color: '#fbf6ea' });
+      if (I.stamp > 0) { ctx.fillStyle = 'rgba(216,48,42,0.25)'; ctx.fillRect(0, 0, W, H); }
+    }
+  };
+})();
+
+
 /* ===== 99_main.js ===== */
 // 99_main.js — game-architect
 // Зшивання модулів: сцени intro/play/paused/dialog/cutscene, порядок кадру, старт гри.
@@ -33590,6 +34145,7 @@
     if (G.player && G.player.alive) G.player.update(dt);
     call(G.tck, 'update', dt);
     call(G.bus, 'update', dt);
+    call(G.brawl, 'update', dt);
     call(G.items, 'update', dt);
     G.physics.step(dt);
     G.removeDead();
