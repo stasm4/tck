@@ -33518,7 +33518,7 @@
 // G.brawl.grab      — поточний захват (null | {t, T, need, taps, dmg, t0, net}); під час захвату гравець стоїть і тапає УДАР
 // G.brawl.tryGrab(tck, dmg) → bool — почати захват замість звичайної шкоди; в headless вимкнено (G.cfg.fullBrawl = true — увімкнути)
 // Місто як зброя: двері підʼїзду (бʼють ТЦК поруч), ривок у смітник (шкірки під ноги), авто збивають ТЦК з ніг.
-// Вороги: ТЦК у цивільному (перехожий у натовпі), дрон із гучномовцем, сітка, бус упоперек вулиці.
+// Вороги: дрон із гучномовцем, сітка, бус упоперек вулиці.
 // G.minigames.start(game, cb) — міні-ігри 'vlk' / 'search' (сцена 'mini'); cb({clean, hits}).
 (function () {
   const G = window.G;
@@ -33544,7 +33544,7 @@
   const hitT = (t, o) => G.applyHit && G.applyHit(t, o);
 
   const B = G.brawl = {
-    grab: null, nextGrab: 0, drone: null, nets: [], civT: 20, droneT: 25, blockT: 10, doorCd: 0, hinted: false, envT: 0,
+    grab: null, nextGrab: 0, drone: null, nets: [], droneT: 25, blockT: 10, doorCd: 0, hinted: false, envT: 0,
     tryGrab(t, dmg) {
       if (inStub()) return false;
       const p = P();
@@ -33655,7 +33655,7 @@
     if (G.juice && G.juice.addCombo) G.juice.addCombo('near', d.x, d.y);
   });
   G.events.on('run:start', () => {
-    B.grab = null; B.nextGrab = 0; B.drone = null; B.nets = []; B.civT = 18 + rnd() * 10; B.droneT = 18 + rnd() * 12; B.blockT = 8; B.doorCd = 0; B.hinted = false; B.lads = null; B.revT = 2; B.ladSay = 3; B.tripT = 0;
+    B.grab = null; B.nextGrab = 0; B.drone = null; B.nets = []; B.droneT = 18 + rnd() * 12; B.blockT = 8; B.doorCd = 0; B.hinted = false; B.lads = null; B.revT = 2; B.ladSay = 3; B.tripT = 0;
   });
   G.events.on('run:end', () => { B.endGrab(); B.drone = null; B.nets = []; });
 
@@ -33743,31 +33743,6 @@
       sfx('hit', { x: t.x, y: t.y });
       break;
     }
-  }
-
-  // ─── ТЦК у цивільному ───
-  const CIV = ['Хвилиночку, громадянине…', 'Чоловіче, а можна вас?', 'Перепрошую, котра година?'];
-  function updateCivil(dt, p) {
-    B.civT -= dt;
-    if (B.civT > 0 || level() < 5 || p.hidden || p.riding || raid() || capLeft() <= 0 || !G.npcs) return;
-    B.civT = 3;
-    let n = null;
-    for (const q of G.npcs.list) {
-      if (!q.alive || q.hidden || q.lad || (q.variant !== 'man' && q.variant !== 'citizen' && q.variant !== 'courier') || q.role === 'crowd') continue;
-      const d = Math.hypot(q.x - p.x, q.y - p.y);
-      if (d > 55 && d < 120) { n = q; break; }
-    }
-    if (!n) return;
-    B.civT = 24 + rnd() * 14;
-    bubble(n, pick(CIV), 1000, { style: 'say' });
-    G.after(900, () => {
-      if (!n.alive || !G.run || G.run.ended || !G.tck || G.state !== 'play') return;
-      const x = n.x, y = n.y; n.alive = false;
-      const t = G.tck.spawnGroup(x, y, 1, ['sly'], { state: 'chase', origin: 'bus', exact: true })[0];
-      if (G.items && G.items.fx) G.items.fx('dust', x, y, { fps: 14, frames: 4 });
-      if (t) { bubble(t, 'Я в цивільному! Документики!', 1500); if (G.tck.spot) G.tck.spot(t, 'tck', true); }
-      sfx('whistle_fab', { x, y });
-    }, {});
   }
 
   // ─── Дрон із гучномовцем ───
@@ -33867,7 +33842,7 @@
     if (!p || p.caught || G.state !== 'play' || !G.run || G.run.ended || inStub()) return;
     B.doorCd = Math.max(0, B.doorCd - dt);
     updateLads(dt, p);
-    updateCars(dt); updateCivil(dt, p); updateDrone(dt, p); updateNets(dt, p); updateBlock(dt, p);
+    updateCars(dt); updateDrone(dt, p); updateNets(dt, p); updateBlock(dt, p);
     B.envT -= dt;
     if (B.envT <= 0) {
       B.envT = 0.4;
