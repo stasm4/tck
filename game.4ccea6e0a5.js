@@ -29746,7 +29746,7 @@
       brief: 'Мама Каті кличе на день народження і вже називає тебе зятем. Букет — не хризантеми! Посеред дороги — тривога.',
       steps: [
         { type: 'hold', at: 'flowers_shop', label: 'Купи букет (не хризантеми!)', hold: 1.2, doing: 'Флористка: «Вам на свято чи на похорон?»' },
-        { type: 'scoot', at: 'tesha', label: 'Втечи самокатом до тещі, поки не сів' }],
+        { type: 'go', at: 'tesha', label: 'Дійди до тещі' }],
       events: [{ type: 'air_raid', at: [14, 22], chance: 1 }],
       star3: 'noPunch', place: 'mother_in_law',
       win: ['Теща: «Ну нарешті, зятю! Де ти був?»', 'Ти: «Краще не питайте.»', 'Торт «Київський» — твій.'],
@@ -29762,9 +29762,9 @@
       win: ['47 лайків.', 'Коментар від «tck_kyiv_official»: «Гарне фото. Де ти зараз?»', 'Акаунт приватний. Назавжди.'],
       late: ['Сонце сіло, фото темні.', 'Підписав «нуар». 12 лайків.'] },
     { tier: 4, title: 'Зустріти Васю', short: 'Вася', weekday: 'Вівторок', start: 10 * 60 + 40, slack: 20, sides: 1,
-      brief: 'Вася не виходив з дому два роки, а Майор, здається, про це знає. Зустрінь друга біля бурси і доведи до скверу.',
+      brief: 'Вася не виходив з дому два роки, а Майор, здається, про це знає. Зустрінь друга біля метро і доведи до скверу.',
       steps: [
-        { type: 'meet', at: 'bursa', label: 'Зустрінь Васю біля бурси' },
+        { type: 'meet', at: 'metroA', label: 'Зустрінь Васю біля метро «Спальна»' },
         { type: 'escort', at: 'fountain_sq', label: 'Доведи Васю до фонтану' },
         { type: 'hold', at: 'coffee_sq', label: 'Купіть каву на двох', hold: 1.0, doing: 'Вася: «А шо, кава вже 70 гривень?!»' }],
       star3: 'noHit', place: 'square',
@@ -30422,11 +30422,6 @@
     }
     if (s.type === 'escort' && S.friend) { S.friend.following = true; S.friend.mark = null; }
     if (s.type === 'survive') startSurvive(s);
-    if (s.type === 'scoot' && p && G.heroes && !p.scoot) { // Round 22: самокат під ноги, погоня, батарея на межі
-      const r = G.heroes.spawnRental('scooter', p.x + 8, p.y + 4, { state: 'parked', battery: 30, free: true });
-      if (r) G.heroes.tryMount(p, r);
-      if (G.tck && G.tck.forceChase && G.bus && !(typeof globalThis !== 'undefined' && globalThis.__stub)) { G.tck.forceChase('scoot'); G.bus.spawnDrop(130, 320, { crew: 2 }); }
-    }
     if (s.type === 'boss') startBoss(s);
     if (s.type === 'stealth') { s.spottedHere = false; toast('Чат «Де ТЦК Київ»: бус ТЦК чатує біля дороги! Не попадись водію на очі.', 3200); }
   }
@@ -30761,7 +30756,7 @@
         }
         break;
       }
-      case 'go': case 'stealth': case 'scoot': {
+      case 'go': case 'stealth': {
         if (reached(poi(s.at))) completeStep();
         break;
       }
