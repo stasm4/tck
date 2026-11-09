@@ -630,7 +630,6 @@
   G.canvas = null; G.ctx = null; G.screen = null; G.screenCtx = null; G.scale = 1;
   G.resize = function () {
     if (!G.screen) return;
-    const H = G.cfg.VIEW_H;
     // safe-area (виріз/«чубчик», смужка home на iPhone): body має padding env(safe-area-inset-*), канвас — у середині
     const sa = G.safeArea = readSafeArea();
     // iOS Safari: видима висота з урахуванням нижньої панелі — visualViewport (якщо є), інакше innerHeight
@@ -643,6 +642,9 @@
     // (телефон 2.16:1 → ~584), у межах VIEW_W_MIN..VIEW_W_MAX, парна. 16:9 і вужче (iPad 4:3) — 480 (смуги згори/знизу).
     const W = G.viewWidthFor(aw, ah);
     if (W !== G.cfg.VIEW_W) G.setViewW(W);
+    // Round 27: планшети (вужче 16:9) — світ на всю висоту; екрани з фіксованою версткою (меню, кат-сцени) лишаються 270
+    const H = G.viewHeightFor(aw, ah, W);
+    if (H !== G.cfg.VIEW_H) G.setViewH(H);
     // Екран заповнюється максимально; буфер — цілий множник, CSS дотягує (image-rendering: pixelated).
     const fit = Math.max(0.25, Math.min(aw / W, ah / H));
     G.fit = fit;
@@ -668,11 +670,20 @@
   };
 
   // Round 18: логічна ширина для області aw×ah (CSS px). G.cfg.FIXED_W — примусова ширина (тести/налагодження, ?w=480).
-  G.cfg.VIEW_W_MIN = 480; G.cfg.VIEW_W_MAX = 860;
+  G.cfg.VIEW_W_MIN = 480; G.cfg.VIEW_W_MAX = 860; G.cfg.VIEW_H_BASE = 270; G.cfg.VIEW_H_MAX = 360;
+  G.viewHeightFor = function (aw, ah, W) {
+    const B = G.cfg.VIEW_H_BASE;
+    if (!G.isWorldState() || !(aw > 0) || !(ah > 0)) return B;
+    return Math.round(G.util.clamp((W * ah) / aw, B, G.cfg.VIEW_H_MAX) / 2) * 2;
+  };
+  G.setViewH = function (H) {
+    G.cfg.VIEW_H = H;
+    if (G.canvas) G.canvas.height = H;
+    if (G.ctx) G.ctx.imageSmoothingEnabled = false;
+  };
   G.viewWidthFor = function (aw, ah) {
     if (G.cfg.FIXED_W) return G.cfg.FIXED_W;
-    const H = G.cfg.VIEW_H;
-    const raw = ah > 0 ? (H * aw) / ah : G.cfg.VIEW_W_MIN;
+    const raw = ah > 0 ? (G.cfg.VIEW_H_BASE * aw) / ah : G.cfg.VIEW_W_MIN;
     const w = Math.round(G.util.clamp(raw, G.cfg.VIEW_W_MIN, G.cfg.VIEW_W_MAX) / 2) * 2;
     return isFinite(w) ? w : G.cfg.VIEW_W_MIN;
   };
@@ -887,7 +898,7 @@
         const N = 5, band = (x0, y0, w, h, horiz, toEdgeAtStart) => {
           for (let i = 0; i < N; i++) {
             const k = toEdgeAtStart ? N - 1 - i : i;
-            c.fillStyle = 'rgba(0,0,0,' + (0.55 + k * 0.09).toFixed(2) + ')';
+            c.fillStyle = 'rgba(0,0,0,' + (0.04 + k * 0.07).toFixed(2) + ')';
             if (horiz) { const a0 = Math.round(x0 + w * i / N), a1 = Math.round(x0 + w * (i + 1) / N); c.fillRect(a0, y0, a1 - a0, h); }
             else { const a0 = Math.round(y0 + h * i / N), a1 = Math.round(y0 + h * (i + 1) / N); c.fillRect(x0, a0, w, a1 - a0); }
           }
@@ -951,6 +962,7 @@
     if (G.gfx) G.gfx.init();
     G.resize();
     window.addEventListener('resize', G.resize);
+    G.events.on('state:change', () => G.resize()); // Round 27: висота світу залежить від сцени
     // iOS після повороту віддає старі innerWidth/innerHeight — перераховуємо ще раз трохи згодом
     window.addEventListener('orientationchange', () => { G.resize(); setTimeout(G.resize, 250); setTimeout(G.resize, 700); });
     if (window.visualViewport && window.visualViewport.addEventListener) window.visualViewport.addEventListener('resize', G.resize);
@@ -1173,7 +1185,8 @@
     delete T.touches[id];
   }
 
-  function firstGesture() {
+  // Round 27: Chrome дає повний екран лише з кінця дотику (touchend), тож пробуємо тоді; відмова — спроба на наступному тапі (до 4 разів)
+  function firstGesture(isEnd) {
     // звук: iOS/Android дозволяють AudioContext лише з жесту
     try {
       if (G.audio) {
@@ -1185,21 +1198,22 @@
         }
       }
     } catch (e) { /* */ }
-    // повноекранний режим (не iOS: там Safari не дає fullscreen для сторінок)
-    if (!T._fsTried && !isIOS && T.active) {
-      T._fsTried = true;
-      try {
-        const d = document, el = d.documentElement;
-        if (el && !(d.fullscreenElement || d.webkitFullscreenElement)) {
-          const fn = el.requestFullscreen || el.webkitRequestFullscreen;
-          if (fn) {
-            const pr = fn.call(el, { navigationUI: 'hide' });
-            const lock = () => { try { const o = window.screen && window.screen.orientation; if (o && o.lock) { const p2 = o.lock('landscape'); if (p2 && p2.catch) p2.catch(() => {}); } } catch (e) { /* */ } };
-            if (pr && pr.then) pr.then(lock, () => {}); else lock();
-          }
-        }
-      } catch (e) { /* iframe без allowfullscreen тощо */ }
-    }
+    if (isEnd) goFullscreen();
+  }
+  let fsBusy = false, fsFails = 0;
+  function lockLandscape() { try { const o = window.screen && window.screen.orientation; if (o && o.lock) { const p = o.lock('landscape'); if (p && p.catch) p.catch(() => {}); } } catch (e) { /* */ } }
+  function goFullscreen() {
+    if (fsBusy || fsFails >= 4 || isIOS || !T.active || standalone()) return;
+    try {
+      const d = document, el = d.documentElement;
+      if (!el || d.fullscreenElement || d.webkitFullscreenElement) return;
+      const fn = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!fn) return;
+      fsBusy = true;
+      const pr = fn.call(el, { navigationUI: 'hide' });
+      if (pr && pr.then) pr.then(() => { fsBusy = false; fsFails = 0; lockLandscape(); }, () => { fsBusy = false; fsFails++; });
+      else { fsBusy = false; lockLandscape(); }
+    } catch (e) { fsBusy = false; fsFails++; }
   }
 
   // ───────── Round 18: підказка «Для повного екрана» (iOS, не з початкового екрана) ─────────
@@ -1248,8 +1262,8 @@
         else if (kind === 'move') onMove(t);
         else onEnd(t);
       }
-      if (kind === 'end') firstGesture();
-      if (kind === 'start' && !T._audioTried) { T._audioTried = true; firstGesture(); }
+      if (kind === 'end') firstGesture(true);
+      if (kind === 'start' && !T._audioTried) { T._audioTried = true; firstGesture(false); }
     };
   }
 
@@ -12276,8 +12290,8 @@
   // Round 18: ширина логічного екрана динамічна (G.cfg.VIEW_W 480..640) — VW оновлюється на вході post/grade/
   // drawShadows, екранні кеші перебудовуються за шириною (ключі містять VW)
   let VW = G.cfg.VIEW_W;
-  const VH = G.cfg.VIEW_H;
-  const syncVW = () => { VW = G.cfg.VIEW_W; };
+  let VH = G.cfg.VIEW_H; // Round 27: на планшетах висота світу теж динамічна (270..360)
+  const syncVW = () => { VW = G.cfg.VIEW_W; VH = G.cfg.VIEW_H; };
   const SC = 4;
   const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -13064,7 +13078,7 @@
     return a;
   }
   function moon() {
-    if (moonC && moonC.width === VW) return moonC;
+    if (moonC && moonC.width === VW && moonC.height === VH) return moonC;
     moonC = mk(VW, VH); const g = moonC.getContext('2d');
     const gr = g.createRadialGradient(VW * 0.82, -30, 10, VW * 0.82, -30, VW * 0.8);
     gr.addColorStop(0, 'rgba(110,150,190,0.55)'); gr.addColorStop(0.6, 'rgba(70,100,150,0.2)'); gr.addColorStop(1, 'rgba(60,90,140,0)');
@@ -13072,7 +13086,7 @@
     return moonC;
   }
   function drawLightmap(ctx, r, S, amb) {
-    if (!lmC || lmC.width !== VW) { lmC = mk(VW, VH); lmG = lmC.getContext('2d'); }
+    if (!lmC || lmC.width !== VW || lmC.height !== VH) { lmC = mk(VW, VH); lmG = lmC.getContext('2d'); }
     const g = lmG, sh = G.world.shade, rt = G.realTime || 0;
     const n = S.nv, B = L.blackout, lk = clamp01(Math.max(n * 1.4, S.lamp * 0.5)), lq = LQ();
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -13204,7 +13218,7 @@
   function selfLit(ctx, s, a) {
     const cv = ctx.canvas;
     const cam = G.camera, z = cam.zoom || 1;
-    if (!cv || a <= 0.02 || cv.width !== VW) return null;
+    if (!cv || a <= 0.02 || cv.width !== VW || cv.height !== VH) return null;
     if (LQ() < 1) return s.key && signColC[s.key] !== undefined ? signColC[s.key] : null; // низька якість: без копії пікселів
     // так само, як camera.apply (зсув округлений до пікселя)
     const tx = Math.round(VW / 2 + (cam.ox || 0) - cam.x * z), ty = Math.round(VH / 2 + (cam.oy || 0) - cam.y * z);
@@ -13330,7 +13344,7 @@
   const gradeC = {}, raysC = {};
   let vigC = null, vigNC = null;
   function gradeCanvas(w, eve) {
-    const key = Math.round(w * 24) + (eve ? 'e' : 'm') + VW;
+    const key = Math.round(w * 24) + (eve ? 'e' : 'm') + VW + 'x' + VH;
     if (gradeC[key]) return gradeC[key];
     const c = mk(VW, VH), g = c.getContext('2d'), q = Math.round(w * 24) / 24;
     // тепле світло з боку сонця (ранок — зліва, вечір — справа), фіолетова тінь з протилежного
@@ -13342,7 +13356,7 @@
     return (gradeC[key] = c);
   }
   function vignette() {
-    if (vigC && vigC.width === VW) return vigC;
+    if (vigC && vigC.width === VW && vigC.height === VH) return vigC;
     vigC = mk(VW, VH); const g = vigC.getContext('2d');
     const gr = g.createRadialGradient(VW / 2, VH / 2, VH * 0.42, VW / 2, VH / 2, VW * 0.62);
     gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.55, '#e8e0ee'); gr.addColorStop(1, '#8a76a6');
@@ -13350,7 +13364,7 @@
     return vigC;
   }
   function vignetteNight() { // нічний: холодніший, м'якший (кути не провалюються в чорне)
-    if (vigNC && vigNC.width === VW) return vigNC;
+    if (vigNC && vigNC.width === VW && vigNC.height === VH) return vigNC;
     vigNC = mk(VW, VH); const g = vigNC.getContext('2d');
     const gr = g.createRadialGradient(VW / 2, VH / 2, VH * 0.38, VW / 2, VH / 2, VW * 0.64);
     gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.6, '#dfe4f0'); gr.addColorStop(1, '#7a86aa');
@@ -13360,7 +13374,7 @@
   // сутінкове небо: діагональний градієнт від боку заходу (помаранчево-рожевий) до фіолетового
   const duskC = {};
   function duskGrad(eve, mul) {
-    const key = (eve ? 'e' : 'm') + (mul ? 'x' : '') + VW;
+    const key = (eve ? 'e' : 'm') + (mul ? 'x' : '') + VW + 'x' + VH;
     if (duskC[key]) return duskC[key];
     const c = mk(VW, VH), g = c.getContext('2d');
     const gr = eve ? g.createLinearGradient(VW, 0, VW * 0.2, VH) : g.createLinearGradient(0, 0, VW * 0.8, VH);
@@ -13370,7 +13384,7 @@
     return (duskC[key] = c);
   }
   function rays(eve) { // кілька м'яких діагональних променів від сонця (малюються в 1/4 і розтягуються)
-    const key = (eve ? 'e' : 'm') + VW;
+    const key = (eve ? 'e' : 'm') + VW + 'x' + VH;
     if (raysC[key]) return raysC[key];
     const w = Math.ceil(VW * 1.4 / 4), h = Math.ceil(VH / 4);
     const c = mk(w, h), g = c.getContext('2d');
@@ -13388,7 +13402,7 @@
   }
   const sunGlowC = {};
   function sunGlow(eve) {
-    const key = (eve ? 'e' : 'm') + VW;
+    const key = (eve ? 'e' : 'm') + VW + 'x' + VH;
     if (sunGlowC[key]) return sunGlowC[key];
     const c = mk(VW, VH), g = c.getContext('2d'), cx = eve ? VW + 30 : -30;
     const sg = g.createRadialGradient(cx, -40, 10, cx, -40, 300);
@@ -24772,7 +24786,7 @@
   let digit = 0;
   const mouseTrack = { x: -1, y: -1 };
   // Round 18: на ширшому екрані (VIEW_W > 480) коробка тієї ж ширини — по центру
-  const BOX = { get x() { return Math.round((G.cfg.VIEW_W - 464) / 2); }, y: 186, w: 464, h: 78 };
+  const BOX = { get x() { return Math.round((G.cfg.VIEW_W - 464) / 2); }, get y() { return G.cfg.VIEW_H - 84; }, w: 464, h: 78 };
   const TEXT_X = 70, TEXT_W = 464 - 70;
   const CPS = 48; // символів на секунду
 
