@@ -650,6 +650,7 @@
     // продовженням картинки (G.pad, логічні px), а гра/інтерфейс лишаються в безпечній області.
     const pd = G.pad = { l: 0, r: 0, t: 0, b: 0 };
     G.safe.s = Math.max(0, Math.min(Math.floor((W - 480) / 2), Math.round(Math.max(sa.left, sa.right) / fit)));
+    G.safe.b = Math.max(0, Math.min(14, Math.round((sa.bottom || 0) / fit))); // Round 26: смужка home — сенсорні кнопки стоять вище
     // залишок (якщо пропорція впирається в межі VIEW_W) теж віддаємо смугам, щоб не було чорного
     const extraW = Math.max(0, Math.floor((aw - W * fit) / fit / 2)), extraH = Math.max(0, Math.floor((ah - H * fit) / fit / 2));
     pd.l += extraW; pd.r += extraW; pd.t += extraH; pd.b += extraH;
@@ -896,11 +897,6 @@
         if (t) band(X, 0, BW, Y, false, true);
         if (b) band(X, Y + BH, BW, SH - Y - BH, false, false);
       }
-      // Round 21: сенсорні кнопки — у повній роздільності екрана (гладкі, з іконками)
-      if (G.touch && G.touch.active && G.touch.drawHi) {
-        const pd2 = G.pad || { l: 0, t: 0 };
-        try { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.imageSmoothingEnabled = true; G.touch.drawHi(c, G.scale, (pd2.l + G.safe.s) * G.scale, pd2.t * G.scale); } catch (e) { console.error('touch hi', e); G.touch.drawHi = null; } finally { c.restore(); c.imageSmoothingEnabled = false; }
-      }
     }
   };
 
@@ -980,8 +976,7 @@
 //   G.touch.rects()                → {buttons:[{id,x,y,r}], pause:{x,y,w,h}, stick:{x,y,r}, cluster:{x,y,w,h}} — у логічних px
 //   Round 16: кнопка паузи — 372..398 × 3..20 (ліворуч від годинника); у паузі вона ▶ (грати далі), інші тапи — кліки по меню паузи.
 //   G.input.stick {x, y, mag, active} — аналоговий стік (00_core); G.input.axis() віддає його, коли палець на стіку
-//   Контракт із 70_ui (необовʼязковий): якщо G.ui.minimapRect = {x,y,w,h} — кнопки обходять міні-карту за ним;
-//   інакше вважаємо, що міні-карта в правому нижньому куті (як зараз), і кнопки стають ліворуч від неї.
+//   Round 26: кнопки в правому нижньому куті; міні-карта на сенсорі — вгорі (70_ui.mmBox).
 //   Кнопка РИВОК тьмяніє, якщо G.player.dashCd > 0 (52_juice), КИНУТИ — якщо G.player.inventory порожній,
 //   E пульсує, коли G.player.hint є (поруч сховок/метро/самокат). ВМІННЯ (дія 'ability', 53_heroes) тьмяніє на перезарядці
 //   (G.heroes.ab.cd > 0) і світиться, коли вміння діє.
@@ -1008,27 +1003,21 @@
   const STICK_R = 26;            // радіус бази джойстика
   const DEAD = 0.18;             // мертва зона (частка радіуса)
   const RUN_AT = 0.85;           // далі — автобіг
-  const STICK_IDLE = { x: 70, y: 192 };
-  // Round 21: більші кнопки, дуга навколо УДАРУ; малюються у повній роздільності екрана (drawHi) — гладкі, з іконками
+  const STICK_IDLE = { x: 62, y: 212 };
+  // Round 26: кнопки — піксельні таблички в стилі HUD, у куті під великим пальцем (міні-карта на сенсорі — вгорі, 70_ui)
   const BTNS = [
-    { id: 'attack', label: 'УДАР', action: 'attack', dx: -30, dy: -29, r: 23, col: '#e5483c', icon: 'punch' },
-    { id: 'dash', label: 'РИВОК', action: 'dash', dx: -78, dy: -22, r: 16, col: '#f2b632', icon: 'dash' },
-    { id: 'throw', label: 'КИНУТИ', action: 'throw', dx: -74, dy: -64, r: 16, col: '#ef8a3b', icon: 'throw' },
-    { id: 'use', label: 'ДІЯ', action: 'use', dx: -28, dy: -73, r: 15, col: '#4fae5c', icon: 'hand' },
-    { id: 'ability', label: 'ВМІННЯ', action: 'ability', dx: -118, dy: -40, r: 15, col: '#5aa9e6', icon: 'star' }, // Round 14: вміння героя (V)
+    { id: 'attack', label: 'УДАР', action: 'attack', dx: -27, dy: -27, r: 23, col: '#e5483c', dark: '#7a2626', icon: 'fist', k: 2 },
+    { id: 'dash', label: 'РИВОК', action: 'dash', dx: -72, dy: -20, r: 16, col: '#f2b632', dark: '#7a5a18', icon: 'shoe', k: 1 },
+    { id: 'throw', label: 'КИНУТИ', action: 'throw', dx: -69, dy: -60, r: 16, col: '#ef8a3b', dark: '#7a431c', icon: 'brick', k: 1 },
+    { id: 'use', label: 'ДІЯ', action: 'use', dx: -27, dy: -73, r: 16, col: '#6fbf5a', dark: '#2f6a34', icon: 'hand', k: 1 },
+    { id: 'ability', label: 'ВМІННЯ', action: 'ability', dx: -111, dy: -20, r: 16, col: '#5aa9e6', dark: '#274f78', icon: 'hero', k: 1 },
   ];
-  const CLUSTER = { w: 140, h: 100 };
+  const CLUSTER = { w: 130, h: 94 };
 
-  function minimapRect() {
-    const r = G.ui && G.ui.minimapRect;
-    if (r && r.w > 0 && r.h > 0) return r;
-    return { x: VW() - 92, y: VH() - 68, w: 88, h: 64 }; // 70_ui.drawMinimap: панель 84×60 + рамка, відступ 6
-  }
+  function bottomInset() { return (G.safe && G.safe.b) || 0; } // смужка home на iPhone: щоб свайп не забирав дотики
   function layout() {
-    let ax = VW() - 4;
-    const ay = VH() - 3;
-    const mm = minimapRect();
-    if (mm.x < ax && mm.x + mm.w > ax - CLUSTER.w && mm.y < ay && mm.y + mm.h > ay - CLUSTER.h) ax = Math.round(mm.x - 4);
+    const ax = VW() - 4, ay = VH() - 4 - bottomInset();
+    STICK_IDLE.y = VH() - 58 - bottomInset();
     for (const b of BTNS) { b.x = ax + b.dx; b.y = ay + b.dy; }
     return { x: ax - CLUSTER.w, y: ay - CLUSTER.h, w: CLUSTER.w, h: CLUSTER.h };
   }
@@ -1311,7 +1300,7 @@
     if (G.state === 'play' && h > w * 1.05) { releaseAll(); G.setState('paused'); }
   };
 
-  // ───────── малювання (піксельні диски) ─────────
+  // ───────── малювання: усе в логічних px, тим самим шаром, що й HUD ─────────
   function rows(ctx, cx, cy, r, ri) {
     cx = Math.round(cx); cy = Math.round(cy);
     for (let dy = -r; dy <= r; dy++) {
@@ -1325,21 +1314,108 @@
   function disc(ctx, cx, cy, r, col, a) { ctx.globalAlpha = a; ctx.fillStyle = col; rows(ctx, cx, cy, r, 0); }
   function ring(ctx, cx, cy, r, th, col, a) { ctx.globalAlpha = a; ctx.fillStyle = col; rows(ctx, cx, cy, r, r - th); }
 
+  const INK = '#1a0e20', CREAM = '#fbf6ea';
+  const ICONS = {
+    fist: { pal: { o: '#6b3f2c', H: '#ffe2c0', S: '#f2b98c', D: '#c98a60', W: '#fbf6ea', w: '#b9b0c4' }, rows: [
+      '...oo.ooo.ooo.oo..',
+      '..oHHoHHHoHHHoHHo.',
+      '..oSSoSSSoSSSoSSo.',
+      '..oSSoSSSoSSSoSSo.',
+      '..oDDoDDDoDDDoDDo.',
+      '.oooooooooooooSSo.',
+      'oHHHHHHHHHHHoSSSo.',
+      'oSSSSSSSSSSSoSSSo.',
+      '.oDDDDDDDDDoSSSSo.',
+      '..oooooooooSSSSSo.',
+      '...oSSSSSSSSSSDo..',
+      '...oDDDDDDDDDDDo..',
+      '....ooooooooooo...',
+      '....WWWWWWWWWWW...',
+      '....wwwwwwwwwww...' ] },
+    shoe: { pal: { o: INK, W: '#fbf6ea', G: '#b9b0c4', R: '#e5483c', Y: '#f2b632' }, rows: [
+      '.........oooo.....',
+      'YYY.....oWWWWo....',
+      '........oWWRWo....',
+      '.YYYY..oWWRWWo....',
+      '.......oWRWWWWoo..',
+      'YYY...oRWWWWWWWWo.',
+      '.....oRRRRWWWWWWWo',
+      '..YY.oRRRRRRRRRRWo',
+      '.....ooooooooooooo',
+      '.....oGGGGGGGGGGGo',
+      '......ooooooooooo.' ] },
+    brick: { pal: { o: INK, R: '#c9583c', H: '#e88a62', D: '#8a3528', M: '#e8dcc8', y: '#f2b632' }, rows: [
+      '.......yy.yy.y....',
+      '....yy........y...',
+      '..y............y..',
+      '.................y',
+      '....oooooooooooo..',
+      '...oHHHHHMHHHHHo..',
+      '..oMMMMMMMMMMMMo..',
+      '..oRRMRRRRRMRRRo..',
+      '..oMMMMMMMMMMMMo..',
+      '..oRRRRRMRRRRRRo..',
+      '..oDDDDDDDDDDDDo..',
+      '...oooooooooooo...' ] },
+    hand: { pal: { o: '#6b3f2c', H: '#ffe2c0', S: '#f2b98c', D: '#c98a60' }, rows: [
+      '......oo........',
+      '...oo.oHo.oo....',
+      '..oHo.oSo.oHo...',
+      '..oSo.oSo.oSo...',
+      '..oSo.oSo.oSo.oo',
+      '..oSooSSooSSooHo',
+      '..oSSSSSSSSSoSSo',
+      'oo.oSSSSSSSSSSo.',
+      'oHooSSSSSSSSSSo.',
+      '.oSSSSSSSSSSSo..',
+      '..oSSSSSSSSDDo..',
+      '...oDDDDDDDo....',
+      '....ooooooo.....' ] },
+  };
+  const iconCache = {};
+  function iconImg(name) {
+    if (iconCache[name] !== undefined) return iconCache[name];
+    const d = ICONS[name]; let img = null;
+    if (d) try {
+      const h = d.rows.length, w = d.rows.reduce((m, r) => Math.max(m, r.length), 0);
+      img = G.util.makeCanvas(w, h);
+      const g = img.getContext('2d');
+      d.rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) if (r[x] !== '.') { g.fillStyle = d.pal[r[x]]; g.fillRect(x, y, 1, 1); } });
+    } catch (e) { img = null; }
+    return (iconCache[name] = img);
+  }
+  // Табличка: як панелі HUD (зрізані кути, темне тло), кольорова внутрішня рамка, заклепки; натиск — утоплюється на 2 px
   function drawButton(ctx, b, held, opt) {
-    const now = G.realTime;
-    const flash = Math.max(0, 1 - (now - (T.pressedAt[b.id] || -9)) / 0.25);
-    const dim = opt && opt.dim, hint = opt && opt.hint;
-    const y = b.y + (held ? 1 : 0);
-    if (held || flash > 0) ring(ctx, b.x, y, b.r + 4, 4, b.col, 0.3 + 0.35 * flash);
-    else if (hint) ring(ctx, b.x, y, b.r + 3, 2, b.col, 0.25 + 0.3 * (0.5 + 0.5 * Math.sin(now * 8)));
-    disc(ctx, b.x, y + 1, b.r, '#000', 0.25);                         // тінь
-    disc(ctx, b.x, y, b.r - 1, b.col, dim ? 0.12 : held ? 0.72 : 0.32);
-    ring(ctx, b.x, y, b.r, 2, '#1a0e20', dim ? 0.35 : 0.6);
-    ring(ctx, b.x, y, b.r - 2, 1, '#fbf6ea', dim ? 0.08 : held ? 0.5 : 0.22);
-    ctx.globalAlpha = dim ? 0.45 : held ? 1 : 0.85;
-    const lh = G.ui && G.ui.gfx && G.ui.gfx.lineH ? G.ui.gfx.lineH(b.size) : 11;
-    G.text(ctx, b.label, Math.round(b.x), Math.round(y - lh / 2 + 1), { size: b.size, align: 'center', color: dim ? '#b4abb2' : '#fbf6ea', shadow: true });
+    const U = G.ui && G.ui.gfx;
+    if (!U) return;
+    const now = G.realTime, flash = Math.max(0, 1 - (now - (T.pressedAt[b.id] || -9)) / 0.18);
+    const dim = opt.dim, S = b.r * 2, press = held ? 2 : 0;
+    const x = Math.round(b.x - b.r), y = Math.round(b.y - b.r) + press - 1;
+    const blink = opt.hint && Math.floor(now * 5) % 2 === 0;
+    if (!held) U.rect(ctx, 'rgba(10,6,14,0.75)', x + 1, y + S, S - 2, 2);       // товщина таблички
+    U.panel(ctx, x, y, S, S, { border: blink ? '#fde98f' : INK, fill: held || flash > 0.5 ? b.dark : dim ? 'rgba(30,24,36,0.78)' : 'rgba(42,26,46,0.84)' });
+    const fr = blink ? '#fde98f' : dim ? '#5c5766' : b.col;
+    U.rect(ctx, fr, x + 2, y + 2, S - 4, 1); U.rect(ctx, fr, x + 2, y + S - 3, S - 4, 1);
+    U.rect(ctx, fr, x + 2, y + 2, 1, S - 4); U.rect(ctx, fr, x + S - 3, y + 2, 1, S - 4);
+    ctx.fillStyle = INK;
+    ctx.fillRect(x + 4, y + 4, 1, 1); ctx.fillRect(x + S - 5, y + 4, 1, 1);
+    // зображення: на КИНУТИ — те, що в руках; на ВМІННІ — портрет героя
+    const LH = 9, area = S - 6 - LH, top = y + 4;
+    let img = null, k = b.k;
+    if (b.id === 'throw' && opt.item) { img = U.spr('item', { variant: opt.item }); k = 1; }
+    else if (b.id === 'ability' && opt.hero) { img = opt.hero; k = 1; }
+    if (!img) img = iconImg(b.icon);
+    ctx.globalAlpha = dim && !opt.item ? 0.4 : 1;
+    if (img) {
+      const iw = img.width * k, ih = img.height * k;
+      const ix = Math.round(x + (S - iw) / 2), iy = Math.round(top + Math.max(0, (area - ih) / 2));
+      ctx.save(); ctx.beginPath(); ctx.rect(x + 3, y + 3, S - 6, area + 2); ctx.clip();
+      ctx.drawImage(img, ix, iy, iw, ih); ctx.restore();
+    }
     ctx.globalAlpha = 1;
+    if (opt.cd > 0) U.rect(ctx, 'rgba(14,8,20,0.72)', x + 3, y + 3, S - 6, Math.round((S - 6) * Math.min(1, opt.cd)));
+    if (opt.sec > 0) U.text(ctx, String(opt.sec), x + S / 2, y + 8, { size: 8, align: 'center', color: CREAM, shadow: true });
+    U.text(ctx, b.label, x + S / 2, y + S - 4 - LH + 1, { size: 7, align: 'center', color: dim ? '#8c8494' : CREAM, shadow: true });
   }
   function panelBtn(ctx, r, label, held) {
     ctx.globalAlpha = held ? 0.85 : 0.55; ctx.fillStyle = '#1a0e20'; ctx.fillRect(r.x, r.y, r.w, r.h);
@@ -1358,27 +1434,28 @@
     ctx.globalAlpha = 1;
   }
   function drawStick(ctx) {
-    const on = T.stickId != null;
-    if (!on) {
-      // підказка, де джойстик (зʼявляється під пальцем будь-де в лівих 40%)
-      disc(ctx, STICK_IDLE.x, STICK_IDLE.y, STICK_R, '#1a0e20', 0.14);
-      ring(ctx, STICK_IDLE.x, STICK_IDLE.y, STICK_R, 2, '#fbf6ea', 0.26);
-      disc(ctx, STICK_IDLE.x, STICK_IDLE.y, 9, '#fbf6ea', 0.2);
-      ctx.globalAlpha = 0.35; ctx.fillStyle = '#fbf6ea';
-      const x = STICK_IDLE.x, y = STICK_IDLE.y, d = STICK_R - 7;
-      ctx.fillRect(x - 1, y - d, 3, 2); ctx.fillRect(x - 1, y + d - 1, 3, 2); ctx.fillRect(x - d, y - 1, 2, 3); ctx.fillRect(x + d - 1, y - 1, 2, 3);
-      ctx.globalAlpha = 1;
-      return;
+    const U = G.ui && G.ui.gfx;
+    const on = T.stickId != null, run = on && stick.mag >= RUN_AT;
+    const bx = Math.round(on ? T.base.x : STICK_IDLE.x), by = Math.round(on ? T.base.y : STICK_IDLE.y);
+    const kx = Math.round(on ? T.knob.x : STICK_IDLE.x), ky = Math.round(on ? T.knob.y : STICK_IDLE.y);
+    const f = on ? 1 : 0.62, accent = run ? '#f7c948' : CREAM;
+    disc(ctx, bx, by, STICK_R, 'rgba(42,26,46,1)', 0.62 * f);
+    ring(ctx, bx, by, STICK_R, 2, INK, 0.95 * f);
+    ring(ctx, bx, by, STICK_R - 2, 1, accent, (run ? 0.8 : 0.3) * f);
+    if (U) {
+      ctx.globalAlpha = 0.6 * f;
+      const d = STICK_R - 6;
+      U.tri(ctx, bx, by - d, 'up', 3, accent); U.tri(ctx, bx, by + d, 'down', 3, accent);
+      U.tri(ctx, bx - d, by, 'left', 3, accent); U.tri(ctx, bx + d, by, 'right', 3, accent);
     }
-    const run = stick.mag >= RUN_AT;
-    disc(ctx, T.base.x, T.base.y, STICK_R, '#1a0e20', 0.28);
-    ring(ctx, T.base.x, T.base.y, STICK_R, 2, run ? '#f7c948' : '#fbf6ea', run ? 0.7 : 0.4);
-    ring(ctx, T.base.x, T.base.y, Math.round(STICK_R * RUN_AT), 1, '#fbf6ea', 0.12);
-    disc(ctx, T.knob.x, T.knob.y + 1, 11, '#000', 0.3);
-    disc(ctx, T.knob.x, T.knob.y, 11, run ? '#f7c948' : '#fbf6ea', 0.55);
-    ring(ctx, T.knob.x, T.knob.y, 11, 2, '#1a0e20', 0.6);
-    if (run) { ctx.globalAlpha = 0.9; G.text(ctx, 'БІГ', Math.round(T.base.x), Math.round(T.base.y - STICK_R - 12), { size: 8, align: 'center', color: '#f7c948', shadow: true }); }
+    const R = 11;
+    disc(ctx, kx, ky + 2, R, '#0a060e', 0.55 * f);
+    disc(ctx, kx, ky, R, INK, 0.98 * f);
+    disc(ctx, kx, ky, R - 1, run ? '#a8791c' : '#4a3a58', 0.98 * f);
+    disc(ctx, kx - 1, ky - 1, R - 3, run ? '#f2b632' : '#6a5a7a', 0.98 * f);
+    ring(ctx, kx - 1, ky - 1, 4, 1, run ? '#ffe08a' : '#8c7c9c', 0.98 * f);
     ctx.globalAlpha = 1;
+    if (run && U) U.text(ctx, 'БІГ', bx, by - STICK_R - 12, { size: 8, align: 'center', color: '#f7c948', shadow: true });
   }
   function heldBtn(id) {
     for (const k in T.touches) { const t = T.touches[k]; if (t.kind === 'btn' && t.btn && t.btn.id === id) return true; }
@@ -1388,114 +1465,28 @@
 
   function btnOpt(b) {
     const p = G.player || {}, opt = {};
-    if (b.id === 'throw') opt.dim = !p.inventory;
+    if (b.id === 'throw') { const v = p.inventory; opt.item = v ? (typeof v === 'string' ? v : v.type || v.kind || v.variant || v.id || null) : null; opt.dim = !v; }
     if (b.id === 'dash') { opt.dim = p.dashCd > 0; opt.cd = p.dashCd > 0 && p.dashCdMax ? p.dashCd / p.dashCdMax : 0; }
     if (b.id === 'use') opt.hint = !!p.hint;
     if (b.id === 'attack') opt.hint = !!(G.brawl && G.brawl.grab);
-    if (b.id === 'ability') { const H = G.heroes; opt.dim = !!(H && H.ab && H.ab.cd > 0); opt.cd = H && H.ab && H.ab.cd > 0 ? H.ab.cd / Math.max(0.1, H.ab.cdMax || 1) : 0; opt.hint = !!(H && H.ab && H.ab.t > 0); }
+    if (b.id === 'ability') {
+      const H = G.heroes, ab = H && H.ab;
+      opt.dim = !!(ab && ab.cd > 0);
+      opt.cd = ab && ab.cd > 0 ? ab.cd / Math.max(0.1, ab.cdMax || 1) : 0;
+      opt.sec = ab && ab.cd > 0 ? Math.ceil(ab.cd) : 0;
+      opt.hint = !!(ab && ab.t > 0);
+      if (H && H.cur && G.ui && G.ui.gfx && G.ui.gfx.person) try { opt.hero = G.ui.gfx.person('player', H.skinFor(H.cur), 'down', 0); } catch (e) { /* */ }
+    }
     return opt;
   }
-
-  // ───────── Round 21: кнопки й джойстик у повній роздільності екрана ─────────
-  // c — G.screenCtx, s — екранних px на логічний, ox/oy — зсув кадру (safe-area). Викликає G.render після blit.
-  function icon(c, kind, x, y, R, col) {
-    c.save(); c.translate(x, y); c.fillStyle = col; c.strokeStyle = col; c.lineCap = 'round'; c.lineJoin = 'round';
-    const k = R / 20;
-    if (kind === 'punch') { // вибух удару
-      c.beginPath();
-      for (let i = 0; i < 16; i++) { const a = -Math.PI / 2 + i * Math.PI / 8, r = (i % 2 ? 6 : 13) * k; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
-      c.closePath(); c.fill();
-    } else if (kind === 'dash') { // подвійний шеврон
-      c.lineWidth = 3.4 * k;
-      for (const dx of [-5, 4]) { c.beginPath(); c.moveTo((dx - 4) * k, -8 * k); c.lineTo((dx + 4) * k, 0); c.lineTo((dx - 4) * k, 8 * k); c.stroke(); }
-    } else if (kind === 'throw') { // дуга з наконечником
-      c.lineWidth = 3 * k;
-      c.beginPath(); c.arc(1 * k, 6 * k, 10 * k, Math.PI * 1.08, Math.PI * 1.85); c.stroke();
-      c.beginPath(); c.moveTo(9 * k, -8 * k); c.lineTo(10.5 * k, 1 * k); c.lineTo(2 * k, -2.5 * k); c.closePath(); c.fill();
-      c.beginPath(); c.arc(-8 * k, 7 * k, 3 * k, 0, Math.PI * 2); c.fill();
-    } else if (kind === 'hand') { // долоня
-      c.beginPath(); c.roundRect ? c.roundRect(-7 * k, -1 * k, 13 * k, 11 * k, 4 * k) : c.rect(-7 * k, -1 * k, 13 * k, 11 * k); c.fill();
-      for (let i = 0; i < 4; i++) { c.beginPath(); c.roundRect ? c.roundRect((-7 + i * 3.4) * k, (-10 + (i === 0 || i === 3 ? 2 : 0)) * k, 2.6 * k, 11 * k, 1.3 * k) : c.rect((-7 + i * 3.4) * k, -10 * k, 2.6 * k, 11 * k); c.fill(); }
-      c.beginPath(); c.roundRect ? c.roundRect(5 * k, 0, 2.6 * k, 7 * k, 1.3 * k) : c.rect(5 * k, 0, 2.6 * k, 7 * k); c.save(); c.translate(0, 0); c.restore(); c.fill();
-    } else { // зірка вміння
-      c.beginPath();
-      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = (i % 2 ? 5 : 11.5) * k; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
-      c.closePath(); c.fill();
-    }
-    c.restore();
-  }
-  function hiButton(c, b, s, ox, oy, held, opt) {
-    const now = G.realTime, flash = Math.max(0, 1 - (now - (T.pressedAt[b.id] || -9)) / 0.25);
-    const x = ox + b.x * s, y = oy + b.y * s, sc = held ? 0.93 : 1, R = b.r * s * sc;
-    const dim = opt.dim, hint = opt.hint;
-    c.save();
-    // тінь
-    c.globalAlpha = 0.35; c.fillStyle = '#000'; c.beginPath(); c.arc(x, y + R * 0.08, R * 1.02, 0, Math.PI * 2); c.fill();
-    // підсвітка натиску / підказки
-    if (held || flash > 0 || hint) {
-      c.globalAlpha = held || flash > 0 ? 0.35 + 0.4 * flash : 0.25 + 0.25 * (0.5 + 0.5 * Math.sin(now * 7));
-      c.strokeStyle = b.col; c.lineWidth = R * 0.16; c.beginPath(); c.arc(x, y, R * 1.16, 0, Math.PI * 2); c.stroke();
-    }
-    // тіло: скляний диск з градієнтом
-    const g = c.createRadialGradient(x - R * 0.35, y - R * 0.45, R * 0.1, x, y, R);
-    if (dim) { g.addColorStop(0, 'rgba(120,112,124,0.55)'); g.addColorStop(1, 'rgba(40,32,48,0.55)'); }
-    else { g.addColorStop(0, held ? b.col : 'rgba(255,255,255,0.28)'); g.addColorStop(0.35, b.col); g.addColorStop(1, 'rgba(20,10,26,0.85)'); }
-    c.globalAlpha = dim ? 0.75 : held ? 0.98 : 0.82; c.fillStyle = g; c.beginPath(); c.arc(x, y, R, 0, Math.PI * 2); c.fill();
-    // обідок
-    c.globalAlpha = dim ? 0.45 : 0.9; c.lineWidth = Math.max(2, R * 0.09); c.strokeStyle = 'rgba(255,255,255,0.55)'; c.beginPath(); c.arc(x, y, R - c.lineWidth / 2, 0, Math.PI * 2); c.stroke();
-    // перезарядка — темний сектор, що зменшується
-    if (opt.cd > 0) {
-      c.globalAlpha = 0.55; c.fillStyle = '#0c0812'; c.beginPath(); c.moveTo(x, y); c.arc(x, y, R * 0.94, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * opt.cd); c.closePath(); c.fill();
-    }
-    // іконка
-    c.globalAlpha = dim ? 0.6 : 1;
-    icon(c, b.icon, x, y - R * 0.06, R * 0.95, '#ffffff');
-    // підпис під кнопкою
-    const fs = Math.max(9, Math.round(s * 5.6));
-    c.font = '800 ' + fs + 'px -apple-system, "SF Pro Rounded", "Helvetica Neue", Roboto, Arial, sans-serif';
-    c.textAlign = 'center'; c.textBaseline = 'top';
-    c.globalAlpha = dim ? 0.55 : 0.95; c.lineWidth = Math.max(2, fs * 0.28); c.strokeStyle = 'rgba(16,8,22,0.9)'; c.lineJoin = 'round';
-    const ty = y + R + s * 1.2;
-    c.strokeText(b.label, x, ty); c.fillStyle = '#ffffff'; c.fillText(b.label, x, ty);
-    c.restore();
-  }
-  function hiStick(c, s, ox, oy) {
-    const on = T.stickId != null, run = on && stick.mag >= RUN_AT;
-    const bx = ox + (on ? T.base.x : STICK_IDLE.x) * s, by = oy + (on ? T.base.y : STICK_IDLE.y) * s, R = STICK_R * s;
-    c.save();
-    c.globalAlpha = on ? 0.5 : 0.28; c.fillStyle = 'rgba(16,8,22,0.9)'; c.beginPath(); c.arc(bx, by, R, 0, Math.PI * 2); c.fill();
-    c.globalAlpha = on ? 0.8 : 0.45; c.lineWidth = Math.max(2, s * 1.2); c.strokeStyle = run ? '#f2b632' : 'rgba(255,255,255,0.8)'; c.beginPath(); c.arc(bx, by, R, 0, Math.PI * 2); c.stroke();
-    // стрілочки-напрямки
-    c.globalAlpha = on ? 0.5 : 0.4; c.fillStyle = '#ffffff';
-    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2, d = R * 0.78, w = R * 0.12; c.save(); c.translate(bx + Math.cos(a) * d, by + Math.sin(a) * d); c.rotate(a); c.beginPath(); c.moveTo(w, 0); c.lineTo(-w * 0.6, -w); c.lineTo(-w * 0.6, w); c.closePath(); c.fill(); c.restore(); }
-    // ручка
-    const kx = ox + (on ? T.knob.x : STICK_IDLE.x) * s, ky = oy + (on ? T.knob.y : STICK_IDLE.y) * s, kr = R * 0.44;
-    const g = c.createRadialGradient(kx - kr * 0.3, ky - kr * 0.4, kr * 0.1, kx, ky, kr);
-    g.addColorStop(0, run ? '#ffe08a' : '#ffffff'); g.addColorStop(1, run ? '#d99a1e' : '#b9b0c4');
-    c.globalAlpha = on ? 0.95 : 0.55; c.fillStyle = g; c.beginPath(); c.arc(kx, ky, kr, 0, Math.PI * 2); c.fill();
-    if (run) {
-      const fs = Math.max(9, Math.round(s * 5.6));
-      c.font = '800 ' + fs + 'px -apple-system, "Helvetica Neue", Roboto, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'bottom';
-      c.globalAlpha = 1; c.lineWidth = fs * 0.28; c.strokeStyle = 'rgba(16,8,22,0.9)'; c.strokeText('БІГ', bx, by - R - s * 2); c.fillStyle = '#f2b632'; c.fillText('БІГ', bx, by - R - s * 2);
-    }
-    c.restore();
-  }
-  T.drawHi = function (c, s, ox, oy) {
-    if (!T.active || G.state !== 'play') return;
-    layout();
-    hiStick(c, s, ox, oy);
-    for (const b of BTNS) hiButton(c, b, s, ox, oy, heldBtn(b.id), btnOpt(b));
-  };
 
   T.draw = function (ctx) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const st = G.state;
     if (st === 'play') {
       layout();
-      if (!G.screenCtx) { // без екранного полотна (тести) — старі піксельні кнопки
-        drawStick(ctx);
-        for (const b of BTNS) drawButton(ctx, b, heldBtn(b.id), btnOpt(b));
-      }
+      drawStick(ctx);
+      for (const b of BTNS) drawButton(ctx, b, heldBtn(b.id), btnOpt(b));
       drawPause(ctx, heldKind('pause'), false);
     } else if (st === 'paused') {
       drawPause(ctx, heldKind('pause'), true); // підказки малює меню паузи (70_ui)
@@ -23131,11 +23122,13 @@
 
   // Round 17: на середній/низькій якості міні-карта перемальовується раз на N кадрів (кеш-канвас), між ними — один drawImage
   let mmC = null, mmG = null, mmF = -1e9, mmQ = '';
+  // Round 26: на сенсорі карта — вгорі поруч зі статами, правий нижній кут віддано кнопкам
+  function mmBox() { return isTouch() ? { x: 114, y: 6, w: 74, h: 44 } : { x: VW() - 90, y: VH() - 66, w: 84, h: 60 }; }
   function drawMinimap(ctx, p) {
     const every = (G.gfx && G.gfx.p && G.gfx.p.mmEvery) || 1;
     if (every <= 1) { mmF = -1e9; return drawMinimapRaw(ctx, p); }
-    const w = 84, h = 60, X = VW() - w - 6 - 8, Y = VH() - h - 6 - 14, CW = VW() - X, CH = VH() - Y;
-    if (!mmC) { mmC = G.util.makeCanvas(CW, CH); mmG = mmC.getContext('2d'); }
+    const B = mmBox(), w = B.w, h = B.h, X = B.x - 8, Y = B.y - 14, CW = w + 14, CH = h + 20;
+    if (!mmC || mmC.width !== CW || mmC.height !== CH) { mmC = G.util.makeCanvas(CW, CH); mmG = mmC.getContext('2d'); mmF = -1e9; }
     if (G.frame - mmF >= every || G.frame < mmF || mmQ !== G.quality) {
       mmF = G.frame; mmQ = G.quality;
       mmG.setTransform(1, 0, 0, 1, 0, 0); mmG.globalAlpha = 1; mmG.globalCompositeOperation = 'source-over';
@@ -23145,8 +23138,8 @@
       drawMinimapRaw(mmG, p);
       mmG.setTransform(1, 0, 0, 1, 0, 0);
     } else {
-      G.ui.minimapRect = { x: VW() - w - 8, y: VH() - h - 8, w: w + 4, h: h + 4 };
-      hudRect(VW() - w - 8, VH() - h - 8, w + 4, h + 4, 'minimap');
+      G.ui.minimapRect = { x: B.x - 2, y: B.y - 2, w: w + 4, h: h + 4 };
+      hudRect(B.x - 2, B.y - 2, w + 4, h + 4, 'minimap');
     }
     ctx.drawImage(mmC, X, Y);
   }
@@ -23155,7 +23148,7 @@
     let mm;
     try { mm = G.world.minimap(); } catch (e) { return; }
     if (!mm) return;
-    const T = G.cfg.TILE, w = 84, h = 60, x = VW() - w - 6, y = VH() - h - 6;
+    const T = G.cfg.TILE, B = mmBox(), w = B.w, h = B.h, x = B.x, y = B.y;
     G.ui.minimapRect = { x: x - 2, y: y - 2, w: w + 4, h: h + 4 };
     hudRect(x - 2, y - 2, w + 4, h + 4, 'minimap');
     U.panel(ctx, x - 2, y - 2, w + 4, h + 4, { fill: '#1a0e20' });
@@ -23212,6 +23205,7 @@
 
   // Round 14: слот вміння героя (V) — над слотом предмета
   function drawAbility(ctx, p) {
+    if (isTouch()) return; // Round 26: на сенсорі це показують самі кнопки ВМІННЯ і КИНУТИ
     const H = G.heroes;
     if (!H || !H.cur) return;
     const h = H.get(H.cur), ab = H.ab;
@@ -23236,6 +23230,7 @@
   }
 
   function drawItemSlot(ctx, p) {
+    if (isTouch()) return; // Round 26: на сенсорі це показують самі кнопки ВМІННЯ і КИНУТИ
     const x = 6, y = VH() - 30;
     U.panel(ctx, x, y, 24, 24);
     const t = invType(p.inventory);
