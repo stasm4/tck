@@ -23893,8 +23893,8 @@
     if (!G._bgDone) drawMenuBg(ctx, M.t);
     const bob = Math.round(Math.sin(M.t * 2) * 1.5);
     const pulse = Math.sin(M.t * 4) > -0.6;
-    U.text(ctx, 'ТИ В РОЗШУКУ', VW() / 2 + 2, 10 + bob + 2, { size: 24, align: 'center', color: '#1a0e20' });
-    U.text(ctx, 'ТИ В РОЗШУКУ', VW() / 2, 10 + bob, { size: 24, align: 'center', color: pulse ? '#ff5a4a' : '#d8443a', outline: '#1a0e20' });
+    U.text(ctx, 'БУСИФІКАЦІЯ', VW() / 2 + 2, 10 + bob + 2, { size: 24, align: 'center', color: '#1a0e20' });
+    U.text(ctx, 'БУСИФІКАЦІЯ', VW() / 2, 10 + bob, { size: 24, align: 'center', color: pulse ? '#ff5a4a' : '#d8443a', outline: '#1a0e20' });
     const P = G.progress;
     const bd = (P && P.badges) ? P.badges() : {};
     const camp = (G.missions && G.missions.CAMPAIGN) || 15;

@@ -1,6 +1,6 @@
 {
-  "name": "ТЦК",
-  "short_name": "ТЦК",
+  "name": "Бусифікація",
+  "short_name": "Бусифікація",
   "description": "Піксельна гра-втеча вулицями Києва.",
   "lang": "uk",
   "start_url": "./index.html",
