@@ -19842,6 +19842,14 @@
         return;
       }
       if (this.fadeOut) { this.vx = this.vy = 0; this.alpha = Math.max(0, this.alpha - dt * 1.6); if (this.alpha <= 0) this.alive = false; return; }
+      // Round 29: здався, але бус так і не забрав — не стоїмо стовпом біля гравця: 5 с на місці → іде геть
+      this._guChk = (this._guChk || 0) + dt;
+      if (this._guChk >= 1) {
+        this._guChk = 0;
+        if (this._guX != null && Math.hypot(this.x - this._guX, this.y - this._guY) < 6) this._guStill = (this._guStill || 0) + 1; else this._guStill = 0;
+        this._guX = this.x; this._guY = this.y;
+        if (this._guStill >= 5) { this.fadeOut = true; return; }
+      }
       // повертається у свій бус; свого нема — у найближчий, що чекає; нема й такого — викликає бус (G.bus.spawnPickup)
       let b = this.bus;
       if (!b || !b.alive || b.mode === 'leave') b = this.bus = M.busFor(this);
@@ -32011,7 +32019,7 @@
       busRate: Math.round(Math.min(6, 1.6 + 0.5 * (n - 1)) * tr * 100) / 100,
       maxBuses: Math.min(3, 1 + Math.floor(n / 3)),
       groupSize: n <= 2 ? [2, 2] : n <= 5 ? [2, 3] : [3, 3],
-      tckCap: Math.min(6, n <= 1 ? 2 : n <= 2 ? 3 : n <= 4 ? 4 : 5 + Math.floor((n - 5) / 4)), // Round 20: не більше стількох ТЦК одночасно
+      tckCap: Math.min(5, n <= 1 ? 2 : n <= 2 ? 3 : n <= 6 ? 4 : 4 + Math.floor((n - 3) / 4)), // Round 29: −1 на пізніх хвилях (раніше місце займали «завислі» ТЦК) // Round 20: не більше стількох ТЦК одночасно
       tckSpeed: Math.round(Math.min(1.35, 1 + 0.04 * (n - 1)) * bl * 1000) / 1000,
       huntChance: Math.min(0.85, 0.3 + 0.1 * (n - 1)),
       tckHp: Math.round(Math.min(1.9, 1 + 0.08 * (n - 1)) * 100) / 100,
@@ -32331,6 +32339,8 @@
   }
   function startWave(n, first) {
     const p = G.player;
+    // Round 29: ТЦК, що здались у минулій хвилі, не лишаються стояти біля гравця в новій
+    if (!first && G.tck && G.tck.list) for (const t of G.tck.list) if (t.alive && !t.ko && t.state === 'give_up') t.fadeOut = true;
     S.wave = n; S.waveT = 0; S.overtime = false; S.majorThisWave = false; S.major = null; S.late = false; S.cleared = false; S.clearT = 0;
     S.waveContact = !!(G.tck && G.tck.chaseActive);
     S.contacts[n] = S.contacts[n] || 0;
