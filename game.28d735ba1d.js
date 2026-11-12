@@ -5767,7 +5767,7 @@
     pharmacy: { text: 'АПТЕКА', sign: '#1f8f52', ink: '#ffffff', band: '#e8f4ec', awn: null, wall: '#e6ebe6', inner: ['#f4fbf6', '#cfe8dc'], goods: ['#ffffff', '#2a9a5a', '#e8a0b0', '#8fc7e4', '#f4d070'], icon: 'cross' },
     cafe: { text: 'КАВА', sign: '#4a2c22', ink: '#f7dcae', band: '#c8844a', awn: ['#7a3e24', '#f2e2c4'], wall: '#d6bfa0', inner: ['#ffe2a8', '#d8925a'], goods: ['#f4ede4', '#8b5a3a', '#c8844a', '#e8c890'], icon: 'cup' },
     shawarma: { text: 'ШАУРМА', sign: '#e0602a', ink: '#fff2b8', band: '#b8302a', awn: ['#d23a30', '#fbe28a'], wall: '#e8d4b0', inner: ['#ffe0a0', '#e0884a'], goods: ['#e8c890', '#7ab84e', '#d8443a', '#f7c948'], icon: 'doner' },
-    atb: { text: 'АТБ', sign: '#1f4fb0', ink: '#ffffff', band: '#e8302a', awn: null, wall: '#ecebe6', inner: ['#fbf8ee', '#e0dccc'], goods: ['#f7c948', '#d8443a', '#7ab84e', '#f4ede4', '#ef8a3b', '#3c6fb4'], icon: 'atb' },
+    atb: { text: 'АТБ', sign: '#d6212b', ink: '#ffffff', band: '#3e4147', awn: null, wall: '#ecebe6', inner: ['#fbf8ee', '#e0dccc'], goods: ['#f7c948', '#d8443a', '#7ab84e', '#f4ede4', '#ef8a3b', '#3c6fb4'], icon: 'atb' },
     novaposhta: { text: 'НОВА ПОШТА', sign: '#d8282a', ink: '#ffffff', band: '#ffffff', awn: null, wall: '#e8e6e4', inner: ['#fbf6ee', '#e0d6c8'], goods: ['#d8a060', '#c8a070', '#e8c890', '#b88a50'], icon: 'np' },
     optics: { text: 'ОПТИКА', sign: '#16485e', ink: '#bfefff', band: '#2a9ac0', awn: null, wall: '#d8dfe4', inner: ['#f4fbff', '#c8dce8'], goods: ['#2a2530', '#8a4a2a', '#c8a050', '#3c6fb4'], icon: 'glasses' },
     secondhand: { text: 'СЕКОНД ХЕНД', sign: '#6a2a8a', ink: '#ffe04a', band: '#ffe04a', awn: ['#6a2a8a', '#f0e0f8'], wall: '#e4dcd0', inner: ['#fff0d0', '#e0b890'], goods: ['#d8443a', '#3c6fb4', '#7ab84e', '#f7c948', '#e98fae', '#2a2530', '#f4ede4'], icon: 'hanger' },
@@ -5871,6 +5871,7 @@
   function storefrontBufs(o) {
     const tw = Math.max(2, o.w || 4), th = Math.max(3, o.h || 4);
     const styleKey = SF[o.style] ? o.style : (SF[o.type] ? o.type : 'generic');
+    if (styleKey === 'atb' || styleKey === 'novaposhta') return brandFront(o, styleKey); // Round 28: як справжні
     const S0 = SF[styleKey];
     const S = Object.assign({}, S0);
     if (styleKey === 'generic' && (o.color || o.frame)) { const pal = ['#3c6fb4', '#8a3a6a', '#2a7a6a', '#b8502a', '#4a4a8a', '#6a7a2a']; S.sign = o.color || pal[(o.frame | 0) % pal.length]; S.awn = [S.sign, '#f4ece0']; }
@@ -6005,6 +6006,98 @@
     // правий торець у тіні
     b.vl(W - 1, 0, H, DEEP, 0.35);
     bloom(gb, S.sign, 0.25, 1);
+    return { b, g: gb };
+  }
+  // ───── Round 28: АТБ і Нова пошта — як справжні (сірі металеві панелі АТБ з червоним «АТБ» + «маркет»;
+  // графітова НП з білими літерами на стіні, червоним лайтбоксом-логотипом, чорним козирком і кульками біля входу)
+  function brandFront(o, styleKey) {
+    const tw = Math.max(2, o.w || 4), th = Math.max(3, o.h || 4);
+    const W = tw * 16, H = th * 16, fh = Math.min(H - 8, Math.max(2, o.fh || 4) * 16), fy = H - fh;
+    const seed = (o.frame | 0) * 31 + tw * 7 + styleKey.length;
+    const b = new Buf(W, H), gb = new Buf(W, H);
+    const atb = styleKey === 'atb', S = SF[styleKey];
+    commercialRoof(b, W, fy, seed, atb ? '#8e9096' : '#5e6066');
+    const wallC = atb ? '#aeb2b9' : '#3c3e43', seamC = atb ? '#8f939b' : '#2e3034', hiC = atb ? '#c9ccd2' : '#4c4e54';
+    // стіна з панелей
+    b.rect(0, fy, W, fh, wallC);
+    const pw = atb ? 24 : 20, ph = atb ? 12 : 16;
+    for (let y = fy; y < H; y += ph) b.hl(0, y, W, seamC);
+    for (let y = fy, row = 0; y < H; y += ph, row++) for (let x = (row & 1) * (pw >> 1); x < W; x += pw) { b.vl(x, y, ph, seamC); b.vl(x + 1, y + 1, ph - 1, hiC, 0.6); }
+    for (let x = 0; x < W; x++) for (let y = fy; y < H; y++) if (hash(x, y, seed) < 0.025) b.p(x, y, mix(wallC, '#ffffff', 0.12));
+    // парапет
+    b.hl(0, fy, W, atb ? '#dfe1e5' : '#5a5c62'); b.hl(0, fy + 1, W, atb ? '#c4c7cd' : '#4a4c52'); shadeRect(b, 0, fy + 2, W, 1, 0.3);
+    // ── перший поверх: вітрини
+    const gy = fy + Math.max(26, fh - 34), gh = H - 3 - gy; // верх скла
+    const doors = doorList(o, tw, [atb ? tw >> 1 : Math.max(1, tw - 3)]);
+    const frameC = atb ? '#50545c' : '#1c1d21';
+    shopInterior(b, gb, 2, gy, W - 2, H - 3, S, styleKey, seed);
+    for (let y = gy; y < H - 3; y++) for (let x = 2; x < W - 2; x++) { const d = ((x + (y - gy)) % 23 + 23) % 23; if (d === 0) b.p(x, y, '#ffffff', 0.45); else if (d === 2) b.p(x, y, '#ffffff', 0.15); }
+    b.hl(0, gy - 1, W, frameC); b.hl(0, gy - 2, W, frameC); b.rect(0, gy, 2, gh, frameC); b.rect(W - 2, gy, 2, gh, frameC);
+    for (let x = 18; x < W - 6; x += 18) { if (doors.some((d) => x >= d * 16 - 3 && x <= d * 16 + 18)) continue; b.vl(x, gy, gh, frameC); b.vl(x + 1, gy, gh, frameC); }
+    b.hl(2, gy + Math.round(gh * 0.62), W - 4, frameC, 0.8);
+    // цоколь
+    for (let x = 0; x < W; x++) { b.p(x, H - 3, atb ? '#7a7e86' : '#26272b'); b.p(x, H - 2, atb ? '#6a6e76' : '#202125'); b.p(x, H - 1, '#3a3640'); }
+    // двері
+    for (const d of doors) {
+      const dx = d * 16 + 2, dw = 12, dy = gy, dh = H - dy;
+      b.rect(dx - 1, dy - 1, dw + 2, dh + 1, frameC);
+      for (let y = dy + 1; y < H - 1; y++) for (let x = dx; x < dx + dw; x++) b.p(x, y, mix(mix(S.inner[0], S.inner[1], (y - dy) / dh), '#9fc4dc', 0.4));
+      b.vl(dx + (dw >> 1), dy + 1, dh - 2, frameC);
+      b.line(dx + 1, dy + 7, dx + 4, dy + 3, '#ffffff', 0.5);
+      b.vl(dx + (dw >> 1) - 2, dy + (dh >> 1) - 1, 4, '#d8dce2'); b.vl(dx + (dw >> 1) + 2, dy + (dh >> 1) - 1, 4, '#d8dce2');
+      gb.rect(dx, dy + 1, dw, dh - 2, S.inner[0], 0.5);
+      // режим роботи
+      b.rect(dx + 2, dy + 5, 4, 5, atb ? '#ffffff' : '#d6232a'); b.hl(dx + 2, dy + 6, 4, atb ? '#9a9aa4' : '#ffffff'); b.hl(dx + 2, dy + 8, 3, atb ? '#9a9aa4' : '#ffffff');
+      // козирок над входом
+      const cy = gy - 6;
+      if (atb) { b.rect(dx - 5, cy, dw + 10, 3, '#c9ccd2'); b.hl(dx - 5, cy + 3, dw + 10, '#7a7e86'); shadeRect(b, dx - 5, cy + 4, dw + 10, 2, 0.3); }
+      else {
+        b.rect(dx - 6, cy - 2, dw + 12, 4, '#1a1b1f'); b.hl(dx - 6, cy - 2, dw + 12, '#3a3c42');
+        for (let i = 0; i < dw + 12; i += 3) b.p(dx - 6 + i, cy - 1, '#4a4c52');
+        shadeRect(b, dx - 6, cy + 2, dw + 12, 3, 0.4);
+        // арка з кульок
+        const BAL = ['#d6232a', '#f4f2ee'];
+        const pts = [];
+        for (let y = H - 3; y > cy + 6; y -= 3) { pts.push([dx - 4, y]); pts.push([dx + dw + 3, y]); }
+        for (let i = 0; i <= 8; i++) { const a = Math.PI * i / 8; pts.push([Math.round(dx + dw / 2 - 0.5 - Math.cos(a) * (dw / 2 + 3.5)), Math.round(cy + 6 - Math.sin(a) * 4)]); }
+        pts.forEach(([x, y], i) => { const c = BAL[i % 2]; b.rect(x - 1, y - 1, 3, 3, c); b.p(x - 1, y - 1, mix(c, '#000000', 0.25)); b.p(x + 1, y + 1, mix(c, '#000000', 0.3)); b.p(x, y - 1, '#ffffff', 0.7); });
+      }
+    }
+    // ── вивіски
+    if (atb) {
+      // червоний лайтбокс «АТБ» + сірий «маркет» над входом
+      const d0 = doors[0] * 16 + 8, bw = 34, bh = 15, bx = Math.round(Math.min(W - bw - 34, Math.max(4, d0 - bw + 6))), by = fy + 6;
+      b.rect(bx, by, bw, bh, '#a8161e'); b.rect(bx + 1, by + 1, bw - 2, bh - 2, '#d6212b'); b.hl(bx + 1, by + 1, bw - 2, '#ef5a5f');
+      gb.rect(bx, by, bw, bh, '#ff3a3a', 0.4);
+      drawSign(b, gb, fitSign('АТБ', bw - 6, 9), bx + bw / 2, by + bh / 2, '#ffffff', '#7a0c12', '#ffffff');
+      const mx = bx + bw, mw = 30, mh = 11, my = by + 2;
+      b.rect(mx, my, mw, mh, '#3e4147'); b.hl(mx, my, mw, '#5a5d64'); b.hl(mx, my + mh - 1, mw, '#2a2c30');
+      tinyInto(b, 'МАРКЕТ', mx + Math.round((mw - 23) / 2), my + 3, '#ffffff'); tinyInto(gb, 'МАРКЕТ', mx + Math.round((mw - 23) / 2), my + 3, '#ffffff');
+      // промо-постери на склі
+      for (let x = 6; x < W - 16; x += 30) if (!doors.some((d) => x + 10 >= d * 16 - 2 && x <= d * 16 + 16)) { const py = gy + 4; b.rect(x, py, 10, 12, '#f2d23a'); b.rect(x + 1, py + 1, 8, 5, '#d6212b'); tinyInto(b, '%', x + 3, py + 6, '#d6212b'); }
+      // вазони з квітами вздовж фасаду
+      for (let x = 4; x < W - 8; x += 20) {
+        if (doors.some((d) => x + 8 >= d * 16 - 4 && x <= d * 16 + 18)) continue;
+        b.rect(x, H - 6, 8, 5, '#b9b4aa'); b.hl(x, H - 6, 8, '#d4cfc4'); b.vl(x + 7, H - 6, 5, '#8a857c');
+        for (let i = 0; i < 7; i++) b.p(x + 1 + ((hash(x, i, seed) * 6) | 0), H - 8 + ((hash(i, x, seed) * 2) | 0), hash(x + i, 3, seed) < 0.5 ? '#4f9a3a' : ['#e8508a', '#f7c948', '#ffffff'][i % 3]);
+      }
+      // візки біля входу
+      const cx0 = doors[0] * 16 + 18;
+      if (cx0 + 14 < W) for (let i = 0; i < 3; i++) { const x = cx0 + i * 3; b.rect(x, H - 9, 6, 5, '#9aa0aa', 0.9); for (let j = 0; j < 6; j += 2) b.vl(x + j, H - 9, 5, '#6a707a'); b.p(x + 1, H - 3, '#2a2a30'); b.p(x + 5, H - 3, '#2a2a30'); }
+    } else {
+      // білі літери на графітовій стіні + червоний квадрат з логотипом
+      const fit = fitSign('НОВА ПОШТА', W - 34, 9);
+      const by = fy + 7, lw = 15, totalW = fit.w + 5 + lw, x0 = Math.round((W - totalW) / 2);
+      drawSign(b, gb, fit, x0 + fit.w / 2, by + 7, '#ffffff', '#16171a', '#ffffff');
+      const lx = x0 + fit.w + 5, ly = by;
+      b.rect(lx, ly, lw, lw, '#a8161e'); b.rect(lx + 1, ly + 1, lw - 2, lw - 2, '#e0242c'); b.hl(lx + 1, ly + 1, lw - 2, '#f05a5f');
+      gb.rect(lx, ly, lw, lw, '#ff3a3a', 0.5);
+      const LOGO = ['...#...', '..###..', '.#.#.#.', '###.###', '.#.#.#.', '..###..', '...#...'];
+      b.pat(lx + 4, ly + 4, LOGO, { '#': '#ffffff' }); gb.pat(lx + 4, ly + 4, LOGO, { '#': '#ffffff' });
+      // кондиціонер на стіні
+      const ax = 6; if (doors.every((d) => d * 16 > 30)) { box3d(b, ax, gy - 12, 10, 2, 6, '#e8e6e2'); b.hl(ax + 1, gy - 9, 8, '#9a9aa4'); }
+    }
+    b.vl(W - 1, 0, H, DEEP, 0.35);
     return { b, g: gb };
   }
   function genStorefront(o) {
@@ -11094,8 +11187,8 @@
     if (k === 'shop') { wall = b.color && b.color[0] === '#' ? b.color : '#9a7a5a'; roof = '#55575c'; roofIn = '#626469'; }
     if (k === 'garage') { roof = '#6b5244'; roofIn = '#7b5f4e'; }
     if (k === 'office') { wall = '#4f7fa3'; roof = '#3d434c'; roofIn = '#4a515b'; }
-    if (k === 'atb') { wall = '#ecebe6'; roof = '#5a5c61'; }
-    if (k === 'np') { wall = '#d12a2a'; roof = '#5a5c61'; }
+    if (k === 'atb') { wall = '#aeb2b9'; roof = '#5a5c61'; }
+    if (k === 'np') { wall = '#3c3e43'; roof = '#5a5c61'; }
     if (k === 'house') { wall = '#e6dcc2'; roof = '#9a3f2f'; roofIn = '#b24c38'; }
     if (k === 'tesha') { wall = '#efc3cf'; roof = '#3f7a4a'; roofIn = '#4f9159'; }
     if (k === 'metro') { wall = '#c9ccd3'; roof = '#2f5fa8'; roofIn = '#3a6fbd'; }
@@ -11198,7 +11291,7 @@
       for (let xx = x + 4; xx < x + w; xx += 10) rect(c, '#3d6787', xx, fy, 1, fh - 14);
       rect(c, '#2a3a48', x + 4, fy + fh - 14, w - 8, 14); rect(c, '#6f9cbf', x + 6, fy + fh - 12, w - 12, 10);
     } else if (k === 'atb') {
-      rect(c, '#c8242b', x, fy + 2, w, 6); rect(c, '#2a4fa0', x, fy + 8, w, 3);
+      rect(c, '#d6212b', x + (w >> 1) - 17, fy + 4, 34, 8); rect(c, '#3e4147', x + (w >> 1) + 17, fy + 5, 28, 6);
       rect(c, '#7fa9c4', x + 6, fy + 16, w - 12, fh - 20);
     } else if (k === 'np') {
       rect(c, '#ffffff', x, fy + 12, w, 2);
