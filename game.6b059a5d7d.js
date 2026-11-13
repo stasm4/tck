@@ -25922,6 +25922,7 @@
     // 7) дощ (екранний)
     ctx.save();
     ctx.fillStyle = 'rgba(176,186,206,0.38)';
+    if (WIN && G.winter && G.winter.drawSnow) { G.winter.drawSnow(ctx, 0.85, { cam: false, bliz: 0.35 }); c.rain.length = 0; }
     for (const r of c.rain) { const x = Math.round(r.x), y = Math.round(r.y); for (let i = 0; i < r.l; i++) ctx.fillRect(x + ((i / 3) | 0) * -1 + 0, y + i, 1, 1); }
     ctx.restore();
     // 8) кіно-смуги і затемнення під титр
@@ -25963,6 +25964,7 @@
     if (ecache[key] !== undefined) return ecache[key];
     let cv = null;
     try { const B = BufC(); if (B) { const b = new B(w, h); fn(b); cv = b.toCanvas(); } } catch (e) { console.error('ending bg', key, e); }
+    if (WIN && cv && /^end_(tesha_house|tesha_front|village_bg)/.test(key) && G.winter && G.winter.capLayer) cv = G.winter.capLayer(cv);
     ecache[key] = cv;
     return cv;
   }
@@ -25972,6 +25974,7 @@
     const cv = G.util.makeCanvas(w, h), x = cv.getContext('2d');
     x.imageSmoothingEnabled = false;
     try { fn(x); } catch (e) { console.error('ending layer', key, e); }
+    if (WIN && /^end_street_/.test(key) && G.winter && G.winter.capLayer) { const w2 = G.winter.capLayer(cv); ecache[key] = w2; return w2; }
     ecache[key] = cv;
     return cv;
   }
@@ -26163,6 +26166,12 @@
     night: { cols: ['#060918', '#0a0f28', '#0e1534', '#121c40', '#16224a', '#1c2852'], city: ['#12152a', '#1c2038', '#ffc870', 0.16], stars: 0.02, moon: [188, 18, 5] },
     nightB: { cols: ['#04060f', '#070b1e', '#0a102a', '#0e1634', '#121a3c', '#161e44'], city: ['#0c0e1e', '#14182c', '#ff9a40', 0.012], stars: 0.03, moon: [188, 18, 5] },
   };
+  // Зимовий івент: денне небо — блідо-зимове, хмари сіріші
+  const WIN = !!G.cfg.WINTER;
+  if (WIN) {
+    SKY.day = { cols: ['#8fa8c4', '#a2b6cc', '#b6c6d6', '#c8d4de', '#dae2e8', '#e8ecee'], sun: [34, 22, 7, '#fbf6ea', '#f4ecdc'], city: ['#a8acc0', '#e8eef5', '#f4dca0', 0.18] };
+    SKY.late = { cols: ['#8c96aa', '#9aa4b6', '#aab2c0', '#bac0ca', '#cacdd2', '#d8d8da'], sun: [58, 16, 7, '#f4f0e4', '#e8e4dc'], city: ['#a0a4b4', '#e2e8f0', '#c8c4c0', 0.18] };
+  }
   SKY.duskB = Object.assign({}, SKY.dusk, { city: ['#241e3a', '#30284a', '#ff9a40', 0.015], stars: 0.016 });
   SKY.dawnB = Object.assign({}, SKY.dawn, { city: ['#5e4c74', '#76608a', '#ff9a40', 0.015] });
   function skyLayer(late, tk) {
@@ -26184,7 +26193,7 @@
       const far = SP.city[0], farL = SP.city[1], winC = SP.city[2], wf = SP.city[3];
       for (let x = 0; x < EX.W;) {
         const w = 10 + ((hh(x, 1, 4) * 16) | 0), h = 10 + ((hh(x, 2, 4) * 18) | 0);
-        b.rect(x, 96 - h, w, h, far); b.hl(x, 96 - h, w, farL);
+        b.rect(x, 96 - h, w, h, far); b.hl(x, 96 - h, w, farL); if (WIN) { b.hl(x, 96 - h, w, '#eef3f8'); b.hl(x, 97 - h, w, '#c8d2e0', 0.7); }
         for (let y = 96 - h + 3; y < 95; y += 3) for (let i = x + 2; i < x + w - 1; i += 3) if (hh(i, y, 5) < wf) b.p(i, y, winC);
         x += w + ((hh(x, 3, 4) * 5) | 0);
       }
@@ -26198,7 +26207,7 @@
     });
   }
   const CLOUDC = {
-    day: ['#fbf6ea', '#e8dcd0', '#ffffff'], late: ['#d8dae0', '#b8bcc8', '#eceef0'],
+    day: WIN ? ['#e4e8ee', '#c4ccd8', '#f6f8fa'] : ['#fbf6ea', '#e8dcd0', '#ffffff'], late: ['#d8dae0', '#b8bcc8', '#eceef0'],
     dawn: ['#f4b8b4', '#b88aa8', '#ffe0cc'], eve: ['#ffc490', '#c87e86', '#fff0c4'],
     dusk: ['#4a3c6c', '#2e2650', '#b8708a'], night: ['#1a2044', '#121634', '#2a3462'],
   };
@@ -26214,6 +26223,21 @@
   }
   function streetGround(b, village) {
     const B = EX.base;
+    if (WIN) { // зима: засніжений тротуар / двір, сніг уздовж бордюру, мокра дорога з колією
+      for (let y = B; y < (village ? EX.road : EX.curb); y++) for (let x = 0; x < EX.W; x++) {
+        const n = hh(x, y, 21), row = ((y - B) / 4) | 0, off = row & 1 ? 4 : 0;
+        const seam = !village && ((y - B) % 4 === 3 || (x + off) % 8 === 7) && hh(x >> 2, y >> 2, 24) < 0.35;
+        b.p(x, y, seam ? '#c3cfe0' : n < 0.12 ? '#d2dbe8' : n > 0.92 ? '#ffffff' : '#e6edf5');
+      }
+      b.hl(0, B, EX.W, '#b8c4d6'); b.hl(0, B + 1, EX.W, '#f4f8fc');
+      if (!village) { b.hl(0, EX.curb, EX.W, '#f6f9fc'); b.hl(0, EX.curb + 1, EX.W, '#d8e0ea'); b.hl(0, EX.curb + 2, EX.W, '#6a6470'); }
+      for (let y = village ? EX.road : EX.road; y < EX.H; y++) for (let x = 0; x < EX.W; x++) {
+        const n = hh(x, y, 31), edge = y < EX.road + 3 || (village && Math.abs(y - EX.road - 9) > 3);
+        b.p(x, y, village ? (edge ? (n < 0.5 ? '#e2e9f2' : '#d2dbe8') : (n < 0.3 ? '#9a9ea8' : '#b4bac4')) : edge ? (n < 0.5 ? '#c8d0dc' : '#aab2be') : n < 0.12 ? '#3c3a44' : n > 0.9 ? '#54525c' : '#46444e');
+      }
+      if (!village) { for (let x = 4; x < EX.W; x += 22) b.rect(x, 128, 11, 1, '#d8d4c4'); b.ell(60, 122, 5, 1.5, '#34323a'); }
+      return;
+    }
     if (village) {
       // трава, стежка, ґрунтова дорога
       for (let y = B; y < EX.road; y++) for (let x = 0; x < EX.W; x++) { const n = hh(x, y, 21); b.p(x, y, n < 0.15 ? '#5e9846' : n > 0.85 ? '#93c25b' : '#77ac4e'); }
@@ -26266,7 +26290,7 @@
       b.rect(66, 38, 28, 3, '#6a6c76'); b.hl(66, 38, 28, '#a8aab2'); b.vl(67, 41, 29, '#8a6a4a'); b.vl(92, 41, 29, '#8a6a4a');
       b.rect(68, 70, 24, 3, '#b8b0a0'); b.hl(68, 70, 24, '#d8d0c0'); b.rect(70, 73, 20, 3, '#a8a090');
       // мальви біля стіни
-      for (const mx of [12, 36, 112]) { b.vl(mx, 52, 18, '#4a7a3a'); for (let k = 0; k < 4; k++) b.ell(mx + (k & 1 ? 1 : -1), 54 + k * 4, 1.6, 1.4, k % 2 ? '#e86a9a' : '#f0a0c0'); }
+      if (!WIN) for (const mx of [12, 36, 112]) { b.vl(mx, 52, 18, '#4a7a3a'); for (let k = 0; k < 4; k++) b.ell(mx + (k & 1 ? 1 : -1), 54 + k * 4, 1.6, 1.4, k % 2 ? '#e86a9a' : '#f0a0c0'); }
       b.outline('#3a3440');
     });
   }
@@ -26288,7 +26312,7 @@
       btext(b, 'ТЕЩА!', px + pw / 2, py + 9, '#a01818', 'center');
       b.vl(px + 4, py + 19, 3, '#6a4a2a'); b.vl(px + pw - 5, py + 19, 3, '#6a4a2a');
       // соняхи
-      for (const sx of [16, 30, 196]) {
+      if (!WIN) for (const sx of [16, 30, 196]) {
         b.vl(sx, y0 - 30, 32, '#4a7a3a'); b.p(sx - 1, y0 - 16, '#5e9846'); b.p(sx + 1, y0 - 22, '#5e9846'); b.rect(sx - 3, y0 - 18, 3, 2, '#5e9846'); b.rect(sx + 1, y0 - 12, 3, 2, '#5e9846');
         b.ell(sx, y0 - 32, 5, 5, '#f7c948'); b.ell(sx, y0 - 32, 2.6, 2.6, '#6a4424'); b.p(sx - 1, y0 - 33, '#8a5a32');
       }
@@ -26712,6 +26736,7 @@
       else gradeAt(ctx, c, { vignette: tod.dark ? 0.95 : 0.75 });
     }
     if (late && tod.ph === 'day') { ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = '#d4d8e4'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+    if (WIN && G.winter && G.winter.drawSnow) G.winter.drawSnow(ctx, 0.55, { cam: false, bliz: 0 });
   }
   function tw0(T) { return T.spr ? (T.spr.w || 8) * 16 : 0; }
   // G.lighting.grade у "ігровому" режимі (без opts.warm) — рахує пору доби з G.time; підставляємо час прибуття
@@ -34482,8 +34507,28 @@
     return c;
   }
 
+  // шар кат-сцени (прозоре небо): верхні пікселі об'єктів — шапка снігу, зелень — засніжена
+  WN.capLayer = function (src) {
+    const c = copyOf(src), g = c.getContext('2d');
+    let im;
+    try { im = g.getImageData(0, 0, c.width, c.height); } catch (e) { return src; }
+    const d = im.data, W = c.width, H = c.height;
+    const a = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : d[((y * W + x) << 2) + 3]);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = (y * W + x) << 2;
+      if (d[i + 3] < 60) continue;
+      const top1 = a(x, y - 1) < 60, top2 = !top1 && a(x, y - 2) < 60;
+      const gr = d[i + 1] > d[i] + 8 && d[i + 1] >= d[i + 2] - 4;
+      if (top1) mixPx(d, i, SNOW[4], 0.92);
+      else if (top2) mixPx(d, i, SNOW[3], 0.6);
+      else if (gr) mixPx(d, i, (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11) > 100 ? SNOW[3] : [92, 108, 128], 0.5);
+    }
+    g.putImageData(im, 0, 0);
+    return c;
+  };
+
   const cache = new WeakMap();
-  const TREEISH = { tree_crown: 1, bush: 1, shrub: 1 };
+  const TREEISH = { tree_crown: 1, bush: 1, shrub: 1, tree: 1, flowerbed: 1 };
   const origGet = G.sprites.get.bind(G.sprites);
   G.sprites.get = function (key, opts) {
     const img = origGet(key, opts);
