@@ -34527,6 +34527,74 @@
     return c;
   };
 
+  // ── теплий одяг: дута куртка на тулубі (шкіра, краватка й контур лишаються), в'язана шапка з помпоном ──
+  const JACKETS = [['#1f2a40', '#2c3e5c', '#3f5678'], ['#26362a', '#3a5238', '#4e6a48'], ['#3a1e26', '#5a2a34', '#7a3a46'], ['#3a2a20', '#5a4030', '#7a5a40'], ['#26262c', '#3e3e48', '#56566a'], ['#1e3238', '#2e4e58', '#40707c']];
+  const BEANIES = [['#c82a2a', '#8e1c22', '#f4f2ee'], ['#2a6ab8', '#1c4a86', '#e8eef8'], ['#3a8a4a', '#26623a', '#f4f2ee'], ['#e8b030', '#b0801c', '#fff4d0'], ['#7a3a9a', '#56287a', '#f0e0f8'], ['#f07a2a', '#b8561c', '#2a2a30']];
+  const hexA = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  function figureRows(d, W, H) {
+    let ty = -1, by = -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[((y * W + x) << 2) + 3] > 60) { if (ty < 0) ty = y; by = y; break; }
+    return { ty, by };
+  }
+  function jacketOn(src, pal, keepCollar, top) {
+    const c = copyOf(src), g = c.getContext('2d');
+    let im;
+    try { im = g.getImageData(0, 0, c.width, c.height); } catch (e) { return src; }
+    const d = im.data, W = c.width, H = c.height;
+    const { ty, by } = figureRows(d, W, H);
+    if (ty < 0) return src;
+    const fh = by - ty, y0 = ty + Math.round(fh * (top || 0.42)), y1 = ty + Math.round(fh * 0.74);
+    const J = pal.map(hexA);
+    let cx0 = W, cx1 = -1;
+    for (let x = 0; x < W; x++) if (d[((y0 * W + x) << 2) + 3] > 60) { if (x < cx0) cx0 = x; if (x > cx1) cx1 = x; }
+    const cmid = (cx0 + cx1) / 2;
+    for (let y = y0; y <= y1; y++) for (let x = 0; x < W; x++) {
+      const i = (y * W + x) << 2;
+      if (d[i + 3] < 60) continue;
+      const r = d[i], gg = d[i + 1], b = d[i + 2], lum = r * 0.3 + gg * 0.59 + b * 0.11;
+      if (lum < 45) continue;                                     // контур
+      if (r > 175 && gg > 115 && b < 175 && r > gg && gg > b && b > r * 0.45) continue; // шкіра (руки)
+      if (r > 140 && gg < 95 && b < 95) continue;                 // краватка / червоне
+      if (keepCollar && Math.abs(x - cmid) <= 1 && y <= y0 + 3) continue; // відкрита куртка: видно сорочку
+      const t = lum > 170 ? 2 : lum > 110 ? 1 : 0;
+      const quilt = (y - y0) % 3 === 2 && t > 0;
+      const col = J[quilt ? t - 1 : t];
+      d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2];
+    }
+    g.putImageData(im, 0, 0);
+    return c;
+  }
+  function beanieOn(src, pal) {
+    const P = 3, c = copyOf(src, P), g = c.getContext('2d');
+    let im;
+    try { im = g.getImageData(0, 0, c.width, c.height); } catch (e) { return src; }
+    const d = im.data, W = c.width, H = c.height;
+    const { ty } = figureRows(d, W, H);
+    if (ty < 0) return src;
+    let x0 = W, x1 = -1;
+    for (let y = ty; y < ty + 3; y++) for (let x = 0; x < W; x++) if (d[((y * W + x) << 2) + 3] > 60) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+    if (x1 < x0) return src;
+    const px = (x, y, col) => { if (x >= 0 && y >= 0 && x < W && y < H) { g.fillStyle = col; g.fillRect(x, y, 1, 1); } };
+    const [M, D, F] = pal;
+    for (let x = x0 + 1; x <= x1 - 1; x++) px(x, ty - 1, M);
+    for (let x = x0; x <= x1; x++) { px(x, ty, x === x0 ? D : M); px(x, ty + 1, (x + ty) % 2 ? M : D); }
+    for (let x = x0; x <= x1; x++) px(x, ty + 2, D);
+    const cx = Math.round((x0 + x1) / 2);
+    px(cx - 1, ty - 3, F); px(cx, ty - 3, F); px(cx - 1, ty - 2, F); px(cx, ty - 2, F);
+    return c;
+  }
+  const NO_JACKET = { granny: 1, courier: 1, pigeon: 1, firefighter: 1, rescuer: 1, medic: 1 };
+  const NO_BEANIE = { granny: 1, courier: 1, pigeon: 1, firefighter: 1, rescuer: 1, medic: 1 };
+  function dressPlayer(img, opts) { return santaHat(jacketOn(img, JACKETS[0], !opts || opts.dir !== 'up')); }
+  function dressNpc(img, opts) {
+    const v = opts.variant || 'man';
+    const seed = Math.floor(hsh((opts.skin | 0) * 13 + v.length * 7, 401) * 6);
+    let out = img;
+    if (!NO_JACKET[v]) out = jacketOn(out, JACKETS[(seed + 1) % JACKETS.length], false, v === 'kid' ? 0.52 : 0.42);
+    if (!NO_BEANIE[v]) out = beanieOn(out, BEANIES[seed % BEANIES.length]);
+    return out;
+  }
+
   const cache = new WeakMap();
   const TREEISH = { tree_crown: 1, bush: 1, shrub: 1, tree: 1, flowerbed: 1 };
   const origGet = G.sprites.get.bind(G.sprites);
@@ -34535,6 +34603,8 @@
     if (!img || !WN.on || (opts && opts.layer === 'glow')) return img;
     let kind = null;
     if (key === 'tck') kind = 'hat';
+    else if (key === 'player') kind = 'player';
+    else if (key === 'npc' && opts && opts.variant !== 'pigeon') kind = 'npc';
     else if (key === 'bg' && opts && opts.variant === 'menu') kind = 'menu';
     else if (key === 'prop' && opts) {
       if (TREEISH[opts.variant]) kind = 'crown';
@@ -34544,7 +34614,7 @@
     let out = cache.get(img);
     if (out) return out;
     try {
-      out = kind === 'menu' ? menuSnow(img) : kind === 'hat' ? santaHat(img) : kind === 'crown' ? crownSnow(img, /pine|spruce|ялин|сосн/i.test(String(opts.type || ''))) : roofSnow(img, opts);
+      out = kind === 'player' ? dressPlayer(img, opts) : kind === 'npc' ? dressNpc(img, opts) : kind === 'menu' ? menuSnow(img) : kind === 'hat' ? santaHat(img) : kind === 'crown' ? crownSnow(img, /pine|spruce|ялин|сосн/i.test(String(opts.type || ''))) : roofSnow(img, opts);
     } catch (e) { out = img; }
     cache.set(img, out);
     return out;
