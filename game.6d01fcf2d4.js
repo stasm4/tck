@@ -14449,7 +14449,8 @@
   const BOARD_R = 34;          // радіус посадки
   const RIDE_MAX_MODE = 3;     // Round 12: зупинок у маршрутці в режимах (ВТЕЧА/щоденна); кампанія — 2–3
   const METRO_R = 22;          // радіус входу в метро
-  const METRO_DUR = 1.2;
+  const METRO_DUR = 4.4; // Round 34: анімація поїздки (станція → тунель → станція)
+  const METRO_SWAP = 1.75; // коли переносимо гравця (екран уже в тунелі)
   const JAM_T = 6;             // сек стоїть не на червоне → розрулюємо
 
   let uid = 0;
@@ -15615,7 +15616,7 @@
     if (!m) return;
     m.t += dt;
     if (p) { p.vx = 0; p.vy = 0; }
-    if (!m.moved && m.t >= METRO_DUR / 2) {
+    if (!m.moved && m.t >= METRO_SWAP) {
       m.moved = true;
       if (p) { p.x = m.to.exit.x; p.y = m.to.exit.y; G.camera.follow(p, true); }
     }
@@ -15704,13 +15705,96 @@
       txt(v.wantExit ? 'Вийдете на наступній зупинці' : 'Маршрутка №15 · E — вийти на зупинці', G.cfg.VIEW_W / 2, G.cfg.VIEW_H - 22, '#fde98f');
     }
     const m = traffic._metro;
-    if (m) {
-      const h = METRO_DUR / 2;
-      const a = m.t < h ? U.clamp(m.t / (h * 0.8), 0, 1) : U.clamp(1 - (m.t - h * 1.2) / (h * 0.8), 0, 1);
-      ctx.fillStyle = 'rgba(0,0,0,' + a.toFixed(3) + ')';
-      ctx.fillRect(0, 0, G.cfg.VIEW_W, G.cfg.VIEW_H);
-      if (a > 0.6) txt('М  «' + m.from.name + '» → «' + m.to.name + '»', G.cfg.VIEW_W / 2, G.cfg.VIEW_H / 2 - 4, '#bfe3ff');
+    if (m) drawMetroRide(ctx, m, txt);
+  }
+
+  // ═══════════ Round 34: поїздка в метро ═══════════
+  // 0–0.3 затемнення · 0.3–1.65 станція «звідки»: потяг заїжджає, двері, герой заходить · 1.65–2.75 тунель ·
+  // 2.75–4.0 станція «куди»: потяг гальмує, герой виходить · 4.0–4.4 повернення у світ
+  function heroImg(dir, frame) { try { return G.sprites.get('player', { skin: (G.player && G.player.skin) || 'office', dir, frame }); } catch (e) { return null; } }
+  function drawStation(ctx, name, W, H, scroll) {
+    const R = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+    R('#d6cdbb', 0, 0, W, 176);
+    for (let y = 0; y < 176; y += 8) R('#cbc1ad', 0, y, W, 1);
+    for (let x = -((scroll | 0) % 12); x < W; x += 12) R('#cbc1ad', x, 0, 1, 176);
+    R('#b8302a', 0, 92, W, 6); R('#8a2420', 0, 98, W, 2);     // червона лінія
+    R('#3a3440', 0, 0, W, 10); for (let x = -((scroll | 0) % 64); x < W; x += 64) { R('#fff2c8', x + 20, 10, 24, 3); R('rgba(255,242,200,0.12)', x + 8, 13, 48, 30); } // світильники
+    const pw = 150, px = W / 2 - pw / 2 - (scroll || 0) * 0.5;
+    R('#1a2a4a', px, 34, pw, 30); R('#2c4270', px + 2, 36, pw - 4, 26);
+    G.text(ctx, 'М', px + 12, 42, { size: 12, color: '#e5483c', shadow: true });
+    G.text(ctx, '«' + name + '»', px + pw / 2 + 8, 43, { size: 10, align: 'center', color: '#ffffff', shadow: true });
+    R('#2a2630', 0, 176, W, 6);                                   // колія
+    R('#151318', 0, 182, W, 6);
+    R('#8a8690', 0, 188, W, H - 188);                             // платформа
+    for (let x = -((scroll | 0) % 24); x < W; x += 24) R('#7a7680', x, 188, 1, H - 188);
+    R('#f2c13a', 0, 188, W, 3); R('#c8901a', 0, 191, W, 1);       // жовта лінія
+  }
+  function drawTrain(ctx, x0, y0, doorK, lit, scroll) {
+    const R = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+    const CAR = 150;
+    for (let k = 0; k < 6; k++) {
+      const x = x0 + k * (CAR + 4);
+      if (x > G.cfg.VIEW_W + 10 || x + CAR < -10) continue;
+      R('#1e3a6e', x, y0, CAR, 66); R('#3c6fb4', x + 1, y0 + 2, CAR - 2, 60); R('#5a8ad0', x + 1, y0 + 2, CAR - 2, 4);
+      R('#f2f2f2', x + 1, y0 + 40, CAR - 2, 4);                 // біла смуга
+      for (const wx of [14, 58, 102]) { // вікна
+        R('#13203a', x + wx, y0 + 12, 34, 22);
+        R(lit ? '#f4e8b8' : '#8fb4d8', x + wx + 1, y0 + 13, 32, 20);
+        if (lit) R('rgba(255,250,220,0.35)', x + wx + 2, y0 + 14, 8, 18);
+      }
+      for (const dx of [40, 96]) { // двері (розсуваються)
+        const off = Math.round(doorK * 7);
+        R('#1e3a6e', x + dx - off, y0 + 8, 1, 56); R('#1e3a6e', x + dx + 13 + off, y0 + 8, 1, 56);
+        if (off > 0) R('#f4e8b8', x + dx + 1 - off, y0 + 9, 12 + off * 2 - 1, 54);
+      }
+      R('#151318', x + 10, y0 + 64, 16, 4); R('#151318', x + CAR - 26, y0 + 64, 16, 4); // колеса
     }
+    void scroll;
+  }
+  function drawMetroRide(ctx, m, txt) {
+    const W = G.cfg.VIEW_W, H = G.cfg.VIEW_H, t = m.t;
+    const ease = (k) => 1 - Math.pow(1 - U.clamp(k, 0, 1), 3);
+    ctx.save();
+    if (t < 0.3) { ctx.fillStyle = 'rgba(0,0,0,' + (t / 0.3).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); ctx.restore(); return; }
+    if (t >= 4.0) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - (t - 4.0) / 0.4).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); ctx.restore(); return; }
+    const trainY = 112, stopX = W / 2 - 230;
+    const hero = (x, y, dir, fr, a) => { const im = heroImg(dir, fr); if (!im) return; ctx.globalAlpha = a == null ? 1 : a; const sc = 2; ctx.drawImage(im, Math.round(x - im.width), Math.round(y - im.height * sc), im.width * sc, im.height * sc); ctx.globalAlpha = 1; };
+    if (t < 1.65) {
+      // станція «звідки»: потяг заїжджає зліва і гальмує
+      drawStation(ctx, m.from.name, W, H, 0);
+      const k = ease((t - 0.3) / 0.85), tx = -1000 + (stopX + 1000) * k;
+      drawTrain(ctx, tx, trainY, t > 1.15 ? U.clamp((t - 1.15) / 0.2, 0, 1) : 0, true, 0);
+      const doorX = stopX + 2 * 154 + 40 + 6;
+      if (t < 1.35) hero(W / 2 + 40, 244, 'up', 0);
+      else { const wk = U.clamp((t - 1.35) / 0.3, 0, 1); hero(W / 2 + 40 + (doorX - W / 2 - 40) * wk, 244 - 40 * wk, 'up', 1 + Math.floor(t * 8) % 2, 1 - wk * 0.9); }
+      if (t < 0.5) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - (t - 0.3) / 0.2).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    } else if (t < 2.75) {
+      // тунель: потяг стоїть на екрані, повз летять вогні
+      const k = (t - 1.65) / 1.1;
+      ctx.fillStyle = '#0c0b10'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#1a1820'; ctx.fillRect(0, 60, W, 140);
+      const sp = 900;
+      for (let i = 0; i < 12; i++) { const x = ((i * 97 - t * sp) % (W + 120) + W + 120) % (W + 120) - 60; ctx.fillStyle = '#fff2c8'; ctx.fillRect(Math.round(x), 70, 10, 3); ctx.fillStyle = 'rgba(255,242,200,0.15)'; ctx.fillRect(Math.round(x) - 20, 66, 50, 12); }
+      for (let i = 0; i < 30; i++) { const x = ((i * 53 - t * sp * 1.4) % (W + 60) + W + 60) % (W + 60) - 30; ctx.fillStyle = '#2a2830'; ctx.fillRect(Math.round(x), 196, 18, 3); }
+      const shake = Math.round(Math.sin(t * 40) * 0.7);
+      drawTrain(ctx, stopX, trainY + shake, 0, true, 0);
+      // герой у вікні
+      const im = heroImg('down', 0);
+      if (im) { ctx.save(); const wx = stopX + 2 * 154 + 58, wy = trainY + 13 + shake; ctx.beginPath(); ctx.rect(wx + 1, wy, 32, 20); ctx.clip(); ctx.drawImage(im, wx + 7, wy - 2, im.width, im.height); ctx.restore(); }
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, 0, W, H);
+      txt('М  «' + m.from.name + '» → «' + m.to.name + '»', W / 2, 28, '#bfe3ff');
+      if (k < 0.12) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - k / 0.12).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    } else {
+      // станція «куди»: стіна заїжджає справа, потяг гальмує, двері, герой виходить
+      const k = ease((t - 2.75) / 0.7), scroll = (1 - k) * 700;
+      drawStation(ctx, m.to.name, W, H, scroll);
+      drawTrain(ctx, stopX, trainY, t > 3.45 ? U.clamp((t - 3.45) / 0.2, 0, 1) : 0, true, 0);
+      const doorX = stopX + 2 * 154 + 40 + 6;
+      if (t > 3.6) { const wk = U.clamp((t - 3.6) / 0.4, 0, 1); hero(doorX + (W / 2 + 60 - doorX) * wk, 204 + 40 * wk, 'down', 1 + Math.floor(t * 8) % 2, 0.2 + wk * 0.8); }
+      if (t < 2.9) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - (t - 2.75) / 0.15).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+      if (t > 3.85) { ctx.fillStyle = 'rgba(0,0,0,' + ((t - 3.85) / 0.15).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    ctx.restore();
   }
 
   // розміри зі спрайтів (габарит = спрайт, щоб "нуль перекриттів" був і візуально)
