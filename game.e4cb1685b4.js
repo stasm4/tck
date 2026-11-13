@@ -301,11 +301,17 @@
   // ───────────────────────── Камера ─────────────────────────
   // x, y — світова точка в ЦЕНТРІ екрана. zoom — множник (1 = 1 світовий px на 1 логічний px).
   G.camera = {
-    x: 0, y: 0, zoom: 1, targetZoom: 1, target: null,
+    x: 0, y: 0, zoom: 1, targetZoom: 1, target: null, base: 1, // base — Round 30: наближення світу на телефонах (усі setZoom множаться на нього)
     shakePower: 0, shakeLeft: 0, shakeTotal: 0, ox: 0, oy: 0,
     bounds: null, // {x, y, w, h} у світових px — камера не виходить за межі (ставить main за G.world)
     follow(e, snap) { this.target = e; if (snap && e) { this.x = e.x; this.y = e.y; } },
-    setZoom(z, instant) { this.targetZoom = z; if (instant) this.zoom = z; },
+    setZoom(z, instant) { this.targetZoom = z * this.base; if (instant) this.zoom = this.targetZoom; },
+    // Round 30: на телефоні (сенсор, мала висота екрана) світ ×1.5 / ×1.25 — герой і місто більші; ноут/планшет — ×1
+    baseFor() {
+      if (!(G.touch && G.touch.active) || !G.isWorldState()) return 1;
+      const want = 2 / Math.max(0.1, G.fit || 2);
+      return want >= 1.3 ? 1.5 : want >= 1.12 ? 1.25 : 1;
+    },
     shake(power, ms) {
       if (power >= this.shakePower || this.shakeLeft <= 0) { this.shakePower = power; this.shakeLeft = ms / 1000; this.shakeTotal = ms / 1000; }
     },
@@ -315,6 +321,8 @@
         this.x += (this.target.x - this.x) * k;
         this.y += (this.target.y - this.y) * k;
       }
+      const nb = this.baseFor();
+      if (nb !== this.base) { this.targetZoom *= nb / this.base; if (G.state !== 'play') this.zoom = this.targetZoom; this.base = nb; }
       this.zoom += (this.targetZoom - this.zoom) * (1 - Math.exp(-4 * dt));
       if (Math.abs(this.zoom - this.targetZoom) < 0.001) this.zoom = this.targetZoom;
       if (this.bounds) {
@@ -1012,10 +1020,10 @@
   const isIOS = /iPad|iPhone|iPod/.test(ua) || (nav.platform === 'MacIntel' && (nav.maxTouchPoints || 0) > 1);
 
   // ───────── розкладка (логічні px 480×270) ─────────
-  const STICK_R = 26;            // радіус бази джойстика
+  const STICK_R = 31;            // радіус бази джойстика (Round 30: більший)
   const DEAD = 0.18;             // мертва зона (частка радіуса)
   const RUN_AT = 0.85;           // далі — автобіг
-  const STICK_IDLE = { x: 62, y: 212 };
+  const STICK_IDLE = { x: 66, y: 206 };
   // Round 26: кнопки — піксельні таблички в стилі HUD, у куті під великим пальцем (міні-карта на сенсорі — вгорі, 70_ui)
   const BTNS = [
     { id: 'attack', label: 'УДАР', action: 'attack', dx: -27, dy: -27, r: 23, col: '#e5483c', dark: '#7a2626', icon: 'fist', k: 2 },
@@ -1029,7 +1037,7 @@
   function bottomInset() { return (G.safe && G.safe.b) || 0; } // смужка home на iPhone: щоб свайп не забирав дотики
   function layout() {
     const ax = VW() - 4, ay = VH() - 4 - bottomInset();
-    STICK_IDLE.y = VH() - 58 - bottomInset();
+    STICK_IDLE.y = VH() - 64 - bottomInset();
     for (const b of BTNS) { b.x = ax + b.dx; b.y = ay + b.dy; }
     return { x: ax - CLUSTER.w, y: ay - CLUSTER.h, w: CLUSTER.w, h: CLUSTER.h };
   }
@@ -1462,7 +1470,7 @@
       U.tri(ctx, bx, by - d, 'up', 3, accent); U.tri(ctx, bx, by + d, 'down', 3, accent);
       U.tri(ctx, bx - d, by, 'left', 3, accent); U.tri(ctx, bx + d, by, 'right', 3, accent);
     }
-    const R = 11;
+    const R = 14;
     disc(ctx, kx, ky + 2, R, '#0a060e', 0.55 * f);
     disc(ctx, kx, ky, R, INK, 0.98 * f);
     disc(ctx, kx, ky, R - 1, run ? '#a8791c' : '#4a3a58', 0.98 * f);
@@ -18588,8 +18596,8 @@
       try { camUpd.call(this, dt); } finally { this.target = tg; }
     } else camUpd.call(this, dt);
     // легкий відʼїзд у погоні (лише якщо CHASE_ZOOM ≠ 1)
-    if (G.state === 'play' && CFG.CHASE_ZOOM !== 1 && pursuit()) { this.targetZoom = CFG.CHASE_ZOOM; zoomOwned = true; }
-    else if (zoomOwned && G.state === 'play') { this.targetZoom = 1; zoomOwned = false; }
+    if (G.state === 'play' && CFG.CHASE_ZOOM !== 1 && pursuit()) { this.targetZoom = CFG.CHASE_ZOOM * (this.base || 1); zoomOwned = true; }
+    else if (zoomOwned && G.state === 'play') { this.targetZoom = this.base || 1; zoomOwned = false; }
   };
 
   // ═══════════════════════════ Малювання ═══════════════════════════
@@ -25428,7 +25436,7 @@
           start: (c) => { c.pull = { x: c.cam.x, y: c.cam.y }; },
           tick: (c, k) => {
             const e = easeInOut(k);
-            G.camera.zoom = G.camera.targetZoom = G.util.lerp(INTRO.zoom, 1, e);
+            G.camera.zoom = G.camera.targetZoom = G.util.lerp(INTRO.zoom, 1, e) * (G.camera.base || 1);
             c.cam.x = G.util.lerp(c.pull.x, p.x, e); c.cam.y = G.util.lerp(c.pull.y, p.y, e);
           },
         },
