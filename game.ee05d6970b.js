@@ -34744,14 +34744,76 @@
       else G.addEntity(plainSnowman(q.x, q.y));
     });
   }
-  G.events.on('run:start', () => { hookFx(); hookGround(); prints.length = 0; lastP = null; spawnDecor(); });
+  G.events.on('run:start', () => { hookFx(); hookGround(); hookWorldFx(); prints.length = 0; lastP = null; puffs.length = 0; spawnDecor(); });
+
+  // ═══════════════ пара: дихання людей і вихлоп машин ═══════════════
+  const puffs = [];
+  function emit(x, y, vx, vy, life, r0, r1, a, col) {
+    if (puffs.length > 320) puffs.shift();
+    puffs.push({ x, y, vx, vy, t: 0, life, r0, r1, a, col });
+  }
+  function onCam(e, r, pad) { return e.x > r.x - pad && e.x < r.x + r.w + pad && e.y > r.y - pad && e.y < r.y + r.h + pad; }
+  function breathe(e, dt, mouthUp, hurry) {
+    e._brT = (e._brT == null ? hsh(Math.round(e.x * 7 + e.y), 811) * 2 : e._brT) - dt;
+    if (e._brT > 0) return;
+    const sp = Math.hypot(e.vx || 0, e.vy || 0);
+    e._brT = (sp > 70 || hurry ? 0.75 : sp > 15 ? 1.25 : 1.9) + hsh(Math.round(rt() * 13 + e.x), 812) * 0.5;
+    const d = e.dir, fx = d === 'left' ? -1 : d === 'right' ? 1 : 0, fy = d === 'down' ? 1 : d === 'up' ? -1 : 0;
+    const mx = e.x + fx * 4, my = e.y + (e.h || 6) / 2 - mouthUp + (fy > 0 ? 1 : 0);
+    for (let k = 0; k < 2; k++) emit(mx + fx * k, my - k, fx * (9 + k * 3) + (e.vx || 0) * 0.3, -5 - k * 2 + fy * 3 + (e.vy || 0) * 0.3, 1 + k * 0.3, 1, 3.2 + k, 0.68, '240,245,252');
+  }
+  function exhaust(e, dt) {
+    e._exT = (e._exT == null ? hsh(Math.round(e.x + e.y * 3), 813) * 0.3 : e._exT) - dt;
+    if (e._exT > 0) return;
+    const v = Math.abs(e.v != null ? e.v : Math.hypot(e.vx || 0, e.vy || 0) || (e.speed || 0));
+    e._exT = v < 8 ? 0.22 : 0.12;
+    let P = null; try { P = G.traffic && G.traffic.lightPts ? G.traffic.lightPts(e) : null; } catch (er) { P = null; }
+    if (!P) return;
+    const R = P.R[1], ca = Math.cos(P.a), sa = Math.sin(P.a);
+    const x = R[0] - ca * 2 + (P.r[0] - R[0]) * 0.3, y = R[1] - sa * 2 + (P.r[1] - R[1]) * 0.3;
+    const back = v < 8 ? 5 : 12;
+    emit(x, y, -ca * back + (hsh(Math.round(rt() * 50), 814) - 0.5) * 5, -sa * back - 4, v < 8 ? 1.7 : 1.2, 1.3, v < 8 ? 5.5 : 4.5, v < 8 ? 0.5 : 0.38, '216,224,236');
+  }
+  function updateVapor(dt) {
+    for (const q of puffs) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 1 - dt * 1.2; q.vy -= dt * 3; }
+    while (puffs.length && puffs[0].t >= puffs[0].life) puffs.shift();
+    for (let i = puffs.length - 1; i >= 0; i--) if (puffs[i].t >= puffs[i].life) puffs.splice(i, 1);
+    if (!G.camera) return;
+    const r = G.camera.rect(), p = G.player;
+    if (p && !p.hidden && !p.riding) breathe(p, dt, 17, !!(G.tck && G.tck.pursuit));
+    if (G.tck && G.tck.list) for (const t of G.tck.list) if (t.alive && !t.ko && (t.alpha == null || t.alpha > 0.9) && onCam(t, r, 30)) breathe(t, dt, 19, t.state === 'chase');
+    if (G.npcs && G.npcs.list) for (const n of G.npcs.list) if (n.alive && !n.hidden && n.variant !== 'pigeon' && onCam(n, r, 30)) breathe(n, dt, n.variant === 'kid' ? 12 : 17, false);
+    if (G.traffic && G.traffic.list) for (const c of G.traffic.list) if (c.alive && onCam(c, r, 40)) exhaust(c, dt);
+    if (G.bus && G.bus.list) for (const b of G.bus.list) if (b.alive && onCam(b, r, 50)) exhaust(b, dt);
+  }
+  function drawVapor(ctx) {
+    const nt = night();
+    for (const q of puffs) {
+      const k = q.t / q.life, rr = q.r0 + (q.r1 - q.r0) * k, a = q.a * Math.pow(1 - k, 1.4) * (nt > 0.4 ? 0.8 : 1);
+      if (a < 0.02) continue;
+      const x = Math.round(q.x), y = Math.round(q.y), R = Math.max(1, Math.round(rr));
+      ctx.fillStyle = 'rgba(' + q.col + ',' + a.toFixed(3) + ')';
+      if (R <= 1) { ctx.fillRect(x, y, 2, 1); continue; }
+      ctx.fillRect(x - R + 1, y - R + 1, R * 2 - 2, R * 2 - 2);
+      ctx.fillStyle = 'rgba(' + q.col + ',' + (a * 0.5).toFixed(3) + ')';
+      ctx.fillRect(x - R, y - R + 2, 1, Math.max(1, R * 2 - 4)); ctx.fillRect(x + R - 1, y - R + 2, 1, Math.max(1, R * 2 - 4));
+      ctx.fillRect(x - R + 2, y - R, Math.max(1, R * 2 - 4), 1); ctx.fillRect(x - R + 2, y + R - 1, Math.max(1, R * 2 - 4), 1);
+    }
+  }
+  function hookWorldFx() {
+    if (!G.ui || !G.ui.drawWorld || G.ui._winterVapor) return;
+    const orig = G.ui.drawWorld;
+    G.ui.drawWorld = function (ctx) { try { drawVapor(ctx); } catch (e) { /* */ } return orig.apply(this, arguments); };
+    G.ui._winterVapor = true;
+  }
+  WN.puffs = puffs;
 
   // ═══════════════ кадр ═══════════════
   WN.update = function (dt) {
     const want = Math.max(WN.base, WN.blizzardOn ? 1 : 0);
     WN.fall += (want - WN.fall) * Math.min(1, dt * 0.6);
     WN.blizzard += ((WN.blizzardOn ? 1 : 0) - WN.blizzard) * Math.min(1, dt * 0.5);
-    if (G.state === 'play') trackPrints();
+    if (G.state === 'play') { trackPrints(); updateVapor(dt * (G.timeScale == null ? 1 : G.timeScale)); }
   };
 
   // ═══════════════ меню: тихий снігопад над фоном ═══════════════
@@ -34764,7 +34826,7 @@
     return true;
   }
   hookMenu();
-  G.events.on('state:change', () => { hookMenu(); hookFx(); hookGround(); });
+  G.events.on('state:change', () => { hookMenu(); hookFx(); hookGround(); hookWorldFx(); });
 })();
 
 
