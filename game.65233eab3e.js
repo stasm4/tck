@@ -33662,7 +33662,7 @@
 // G.brawl.grab      — поточний захват (null | {t, T, need, taps, dmg, t0, net}); під час захвату гравець стоїть і тапає УДАР
 // G.brawl.tryGrab(tck, dmg) → bool — почати захват замість звичайної шкоди; в headless вимкнено (G.cfg.fullBrawl = true — увімкнути)
 // Місто як зброя: двері підʼїзду (бʼють ТЦК поруч), ривок у смітник (шкірки під ноги), авто збивають ТЦК з ніг.
-// Вороги: дрон із гучномовцем, сітка, бус упоперек вулиці.
+// Вороги: сітка, бус упоперек вулиці. (Round 31: дрон прибрано — нереалістично.)
 // G.minigames.start(game, cb) — міні-ігри 'vlk' / 'search' (сцена 'mini'); cb({clean, hits}).
 (function () {
   const G = window.G;
@@ -33988,7 +33988,7 @@
     if (!p || p.caught || G.state !== 'play' || !G.run || G.run.ended || inStub()) return;
     B.doorCd = Math.max(0, B.doorCd - dt);
     updateLads(dt, p);
-    updateCars(dt); updateDrone(dt, p); updateNets(dt, p); updateBlock(dt, p);
+    updateCars(dt); updateNets(dt, p); // Round 31: дрона прибрано — ТЦК дронів не використовують updateBlock(dt, p);
     B.envT -= dt;
     if (B.envT <= 0) {
       B.envT = 0.4;
