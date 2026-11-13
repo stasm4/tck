@@ -12,6 +12,7 @@
     TILE: 16,
     VIEW_W: 480,
     VIEW_H: 270,
+    WINTER: true,       // Зимовий івент (сніг, сніговики, шапки ТЦК). ?winter=0 — вимкнути
     FPS: 60,
     DT: 1 / 60,               // фіксований крок симуляції, сек
     MAX_STEPS: 5,             // макс. кроків за один кадр (захист від "спіралі смерті")
@@ -22,6 +23,7 @@
     SAVE_KEY: 'tck_save_v1',
     SEED: null,               // null → випадковий seed на кожен забіг; число → детермінований (тести)
   };
+  try { if (/[?&#]winter=0\b/.test(String(window.location && window.location.search || '') + String(window.location && window.location.hash || ''))) G.cfg.WINTER = false; } catch (e) { /* */ }
 
   G.state = 'boot';
   G.prevState = null;
@@ -842,6 +844,7 @@
     const dt = G.cfg.DT;
     G.input._beginStep();
     if (G.touch && G.touch.update) G.touch.update(dt);
+    if (G.winter && G.winter.update) { try { G.winter.update(dt); } catch (e) { console.error('winter', e); G.winter.update = null; } }
     handlePause();
     const sdt = dt * G.timeScale;
     G.realTime += dt;
@@ -10435,6 +10438,38 @@
   function mixTo(c, t) { OR += (c[0] - OR) * t; OG += (c[1] - OG) * t; OB += (c[2] - OB) * t; }
   function mulO(f) { OR *= f; OG *= f; OB *= f; }
 
+  // ── Зимовий івент: сніг на землі (G.cfg.WINTER) ──
+  const WINTER = !!G.cfg.WINTER;
+  const SNOW = ramp(['#a9b8cf', '#c3cfe0', '#d8e1ec', '#e8eef5', '#f6f9fc']);
+  const SNOW_HI = hex('#ffffff'), SLUSH = hex('#9a9ea8'), ICE = hex('#cfe1ec'), ICE_HI = hex('#eef6fb');
+  function snowPx(wx, wy) {
+    rampAt(SNOW, 0.5 + (vn(wx / 22, wy / 22, 311) - 0.5) * 0.7 + (vn(wx / 6, wy / 6, 312) - 0.5) * 0.35);
+    const h = h2(wx, wy, 313);
+    if (h > 0.992) setO(SNOW_HI); else if (h < 0.025) mulO(0.95);
+  }
+  function snowGround(m, wx, wy) {
+    if (m === METRO) return;
+    if (m === WATER) { // крига на ставку
+      mixTo(ICE, 0.78);
+      if (Math.abs(vn(wx / 11, wy / 11, 321) - 0.5) < 0.018 || Math.abs(vn(wx / 17, wy / 17, 322) - 0.5) < 0.012) mixTo(ICE_HI, 0.85);
+      else if (vn(wx / 30, wy / 30, 323) > 0.68) mixTo(SNOW[3], 0.6);
+      return;
+    }
+    let cov = 0.8;
+    if (m === GRASS || m === DIRT || m === SAND) cov = 1;
+    else if (m === YARD) cov = 0.86 - Math.max(0, vn(wx / 26, wy / 26, 331) - 0.6) * 1.2;
+    else if (m === PLAZA) cov = 0.52;
+    else if (m === SIDE) cov = 0.4;
+    else if (m === PARKING) cov = 0.46;
+    else if (m === ROAD || m === CROSS) cov = 0.1;
+    if (cov >= 1) { snowPx(wx, wy); return; }
+    const s = cov + (vn(wx / 9, wy / 9, 332) - 0.5) * 0.55 + (vn(wx / 3, wy / 3, 333) - 0.5) * 0.18;
+    if (s > 0.55) snowPx(wx, wy);
+    else if (s > 0.42) { mixTo(SNOW[1], 0.6); }
+    else if (m === ROAD || m === CROSS || m === PARKING) { mulO(0.9); OB *= 1.04; } // мокрий асфальт на дорозі
+    else { mixTo(SLUSH, 0.4); mixTo(SNOW[1], 0.25); } // протоптаний сніг
+  }
+
   const PAL = {
     grass: ramp(['#2b5a2f', '#3a7533', '#4d8c38', '#66a443', '#86bb52']),
     grassDry: hex('#a9a75a'), grassHi: hex('#cfe58a'), grassLo: hex('#1a3d22'),
@@ -10691,6 +10726,7 @@
       }
       default: shadeGrass(wx, wy);
     }
+    if (WINTER) snowGround(m, wx, wy);
     if (m !== WATER) { const ao = aoAt(wx, wy, tx, ty); if (ao < 1) { mulO(ao); OB *= 1 + (1 - ao) * 0.25; } }
   }
 
@@ -10726,15 +10762,15 @@
   }
   function stampChunk(d, ox, oy, S) {
     const st = makeStamper(d, ox, oy, S);
-    // трава: пучки, квіти, камінці
-    cells(ox, oy, S, 5, 8, (cx, cy) => {
+    // трава: пучки, квіти, камінці (взимку — під снігом)
+    if (!WINTER) cells(ox, oy, S, 5, 8, (cx, cy) => {
       const h = h2(cx, cy, 101);
       if (h > 0.78) return;
       const x = cx * 5 + Math.floor(h2(cx, cy, 102) * 5), y = cy * 5 + Math.floor(h2(cx, cy, 103) * 5);
       if (!groundTop(x, y) || matAt(x, y) !== GRASS) return;
       tuft(st, x, y, 104, h < 0.08);
     });
-    cells(ox, oy, S, 22, 10, (cx, cy) => {
+    if (!WINTER) cells(ox, oy, S, 22, 10, (cx, cy) => {
       if (h2(cx, cy, 111) > 0.17) return;
       const n = 3 + Math.floor(h2(cx, cy, 112) * 6), col = PAL.flowers[Math.floor(h2(cx, cy, 113) * PAL.flowers.length)];
       for (let k = 0; k < n; k++) {
@@ -10745,7 +10781,7 @@
         else { st.set(x, y, col); st.mul(x + 1, y + 1, 0.8); }
       }
     });
-    cells(ox, oy, S, 9, 4, (cx, cy) => { // камінці / ґрунтові дрібниці
+    if (!WINTER) cells(ox, oy, S, 9, 4, (cx, cy) => { // камінці / ґрунтові дрібниці
       const h = h2(cx, cy, 121);
       const x = cx * 9 + Math.floor(h2(cx, cy, 122) * 9), y = cy * 9 + Math.floor(h2(cx, cy, 123) * 9);
       if (!groundTop(x, y)) return;
@@ -10760,8 +10796,8 @@
         st.set(x, y, c); st.set(x + 1, y, c, 0.7); st.mul(x + 1, y + 1, 0.8);
       }
     });
-    // тріщини (двір, дорога) — з травинками у дворі
-    cells(ox, oy, S, 34, 40, (cx, cy) => {
+    // тріщини (двір, дорога) — з травинками у дворі (взимку під снігом)
+    if (!WINTER) cells(ox, oy, S, 34, 40, (cx, cy) => {
       const h = h2(cx, cy, 131);
       let x = cx * 34 + Math.floor(h2(cx, cy, 132) * 34), y = cy * 34 + Math.floor(h2(cx, cy, 133) * 34);
       const m0 = matAt(x, y);
@@ -10779,7 +10815,7 @@
       }
     });
     // калюжі
-    cells(ox, oy, S, 60, 24, (cx, cy) => {
+    if (!WINTER) cells(ox, oy, S, 60, 24, (cx, cy) => {
       const h = h2(cx, cy, 141);
       const x = cx * 60 + 10 + Math.floor(h2(cx, cy, 142) * 40), y = cy * 60 + 10 + Math.floor(h2(cx, cy, 143) * 40);
       const m0 = matAt(x, y);
@@ -10800,7 +10836,7 @@
     // листя під деревами (каштани й липи вже сиплють)
     for (const tr of trees) {
       const bx = tr.x * T + 8, by = tr.y * T + 12;
-      if (!st.inside(bx, by, 30) || tr.kind === 'pine') continue;
+      if (WINTER || !st.inside(bx, by, 30) || tr.kind === 'pine') continue;
       const n = tr.kind === 'birch' ? 8 : 16;
       for (let k = 0; k < n; k++) {
         const a = h2(tr.x * 13 + k, tr.y, 151) * Math.PI * 2, r = 5 + h2(tr.x, tr.y * 13 + k, 152) * 26;
@@ -10812,7 +10848,7 @@
       }
     }
     // бурʼян біля гаражів і парканів, очерет біля ставка, латаття
-    cells(ox, oy, S, 3, 8, (cx, cy) => {
+    if (!WINTER) cells(ox, oy, S, 3, 8, (cx, cy) => {
       const x = cx * 3 + Math.floor(h2(cx, cy, 161) * 3), y = cy * 3 + Math.floor(h2(cx, cy, 162) * 3);
       const tx = x >> 4, ty = y >> 4;
       if (!inb(tx, ty) || !groundTop(x, y)) return;
@@ -10837,7 +10873,7 @@
         }
       }
     });
-    cells(ox, oy, S, 16, 6, (cx, cy) => {
+    if (!WINTER) cells(ox, oy, S, 16, 6, (cx, cy) => {
       const x = cx * 16 + Math.floor(h2(cx, cy, 171) * 12), y = cy * 16 + Math.floor(h2(cx, cy, 172) * 12);
       if (gPx(x, y) !== WATER || x >= (RIVER_X0 - 1) * T || depthAt(x, y) < 1.6 || h2(cx, cy, 173) > 0.3) return;
       const r = 2 + Math.floor(h2(cx, cy, 174) * 2);
@@ -10850,10 +10886,28 @@
       if (h2(cx, cy, 175) < 0.4) { st.set(x - 1, y - 1, PAL.flowers[3]); st.set(x, y - 1, PAL.flowers[0]); }
     });
     // класики крейдою у дворі гравця
-    if (st.inside(150, 190, 40)) chalk(st);
+    if (!WINTER && st.inside(150, 190, 40)) chalk(st);
     // живопліт — пишні кущі (по рядах згори вниз)
     const ty0 = Math.max(0, (oy >> 4) - 1), ty1 = Math.min(H - 1, ((oy + S) >> 4) + 1), tx0 = Math.max(0, (ox >> 4) - 1), tx1 = Math.min(W - 1, ((ox + S) >> 4) + 1);
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) if (type[idx(tx, ty)] === HEDGE) bush(st, tx, ty);
+    if (WINTER) snowHedges(d, ox, oy, S, tx0, tx1, ty0, ty1);
+  }
+  // Round 32: сніг на живоплотах — зелене зверху біліє, знизу лишається темно-зеленим
+  function snowHedges(d, ox, oy, S, tx0, tx1, ty0, ty1) {
+    const green = (i) => d[i + 1] > d[i] + 8 && d[i + 1] >= d[i + 2];
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+      if (type[idx(tx, ty)] !== HEDGE) continue;
+      for (let y = ty * T - 8; y < ty * T + T; y++) for (let x = tx * T - 2; x < tx * T + T + 2; x++) {
+        const lx = x - ox, ly = y - oy;
+        if (lx < 0 || ly < 0 || lx >= S || ly >= S) continue;
+        const i = (ly * S + lx) << 2;
+        if (!green(i)) continue;
+        const up = ly > 0 ? ((ly - 1) * S + lx) << 2 : -1, up2 = ly > 1 ? ((ly - 2) * S + lx) << 2 : -1;
+        const top = up < 0 || !green(up), top2 = up2 < 0 || !green(up2);
+        const k = top ? 0.88 : top2 ? 0.6 : 0.22, c = top ? SNOW[4] : top2 ? SNOW[3] : SNOW[1];
+        d[i] += (c[0] - d[i]) * k; d[i + 1] += (c[1] - d[i + 1]) * k; d[i + 2] += (c[2] - d[i + 2]) * k;
+      }
+    }
   }
   function chalk(st) {
     const x0 = 158, y0 = 196, c = PAL.chalk;
@@ -12304,6 +12358,7 @@
       const c = G.util.makeCanvas(W, H), g = c.getContext('2d');
       const COL = { 0: '#000', 1: '#4f7a34', 2: '#3b3c40', 3: '#9d9b94', 4: '#77736b', 5: '#d8d8d0', 6: '#8a7150', 7: '#bcb5a4', 8: '#d0bb78', 9: '#55565b',
         10: '#c9b8a0', 11: '#8f8c85', 12: '#3a6ea8', 13: '#2f5f2a', 14: '#36632a', 15: '#8e6e53', 16: '#2f9e5a', 17: '#c9b8a0' };
+      if (WINTER) Object.assign(COL, { 1: '#dfe6ee', 4: '#a9b0ba', 6: '#d3dae4', 7: '#c8cfd8', 8: '#dfe6ee', 12: '#b9d2e2', 13: '#7f968c', 14: '#93a89c' });
       for (let y = 0; y < H; y++) {
         let x = 0;
         while (x < W) {
@@ -30699,7 +30754,7 @@
       startBlackoutFx();
     } else if (type === 'rain') {
       S.ev[type] = e;
-      if (G.ui) G.ui.banner('Злива! ТЦК мокнуть і гірше бачать.', 3500);
+      if (G.ui) G.ui.banner(G.cfg.WINTER ? 'Хуртовина! ТЦК мерзнуть і гірше бачать.' : 'Злива! ТЦК мокнуть і гірше бачать.', 3500);
     } else if (type === 'checkpoint') {
       const cp = placeCheckpoint(null, false);
       if (cp) toast('Чат «Де ТЦК Київ»: бус ТЦК чатує на твоєму маршруті! Обійди.', 3500);
@@ -30738,7 +30793,7 @@
       clearEnts('gen');
       if (G.audio && G.audio.loop) G.audio.loop('generator', 0);
     }
-    else if (type === 'rain') toast('Дощ ущух.', 1800);
+    else if (type === 'rain') toast(G.cfg.WINTER ? 'Хуртовина вщухла.' : 'Дощ ущух.', 1800);
     G.events.emit('mission:event', { type, state: 'end' });
   }
   // ── сутності-ефекти подій (генератори, таблички укриттів) ──
@@ -31314,7 +31369,7 @@
     const VW = G.cfg.VIEW_W, VH = G.cfg.VIEW_H;
     const night = (G.lighting && G.lighting.night) || 0;
     if (part !== 'ui') {
-    if (S.ev.rain) {
+    if (S.ev.rain && !G.cfg.WINTER) {
       // Round 20: мʼякий дощ — тонкі косі краплі з різною швидкістю (плавно, без мерехтіння), легкі бризки, ледь сірий тон
       const e = S.ev.rain, k = Math.min(1, e.t / 2, Math.max(0, e.dur - e.t) / 2);
       ctx.save();
@@ -31396,7 +31451,7 @@
     // тривога і відключення — окремими сповіщеннями внизу екрана (drawScreenFx); тут лише наслідок для гри
     if (S.ev.air_raid) evRows.push({ c: '#ff6050', text: 'ТЦК в укритті — біжи!' });
     if (S.ev.blackout) evRows.push({ c: '#8fc7e4', text: 'Темно: тебе гірше видно' });
-    if (S.ev.rain) evRows.push({ c: '#8fc7e4', text: 'Злива ' + fmtSec(S.ev.rain.dur - S.ev.rain.t) });
+    if (S.ev.rain) evRows.push({ c: '#8fc7e4', text: (G.cfg.WINTER ? 'Хуртовина ' : 'Злива ') + fmtSec(S.ev.rain.dur - S.ev.rain.t) });
     // перенос: довгі рядки — у 2 рядки (слова не ріжемо); якщо й так не влазить — панель ширша
     const lh = 10;
     const wrapAll = (tw) => {
@@ -31898,7 +31953,7 @@
   // ═══════════════════════════ Round 13: модифікатори хвиль ═══════════════════════════
   // Показуються на старті хвилі (диктор), діють до кінця хвилі.
   const MODS = {
-    rain: { name: 'ДОЩ', desc: 'мокро й сіро — тебе гірше видно', color: '#8fc7e4' },
+    rain: G.cfg.WINTER ? { name: 'ХУРТОВИНА', desc: 'сніг стіною — тебе гірше видно', color: '#cfe1ec' } : { name: 'ДОЩ', desc: 'мокро й сіро — тебе гірше видно', color: '#8fc7e4' },
     blackout: { name: 'БЛЕКАУТ', desc: 'світла нема — ховайся в темряві', color: '#b4abb2' },
     alarm: { name: 'ТРИВОГА', desc: 'буси ховаються на 20 с — спринт!', color: '#ff6050' },
     sprint: { name: 'СПРИНТЕРИ', desc: 'ТЦК бігають швидше за тебе', color: '#ef8a3b' },
@@ -34263,6 +34318,453 @@
     const u = G.ui.gfx;
     if (MG.game === 'vlk') drawVlk(ctx, u); else if (MG.game === 'search') drawSearch(ctx, u);
   };
+})();
+
+
+/* ===== 85_winter.js ===== */
+// 85_winter.js — Зимовий івент (G.cfg.WINTER, вимкнути: ?winter=0).
+// Сніг на землі й живоплотах малює 30_world (snowGround / snowHedges). Тут:
+//   • сніг на дахах і бурульки (обробка спрайтів будівель), сніг на кронах дерев і кущах;
+//   • шапки Діда Мороза на ТЦК (обробка спрайта 'tck');
+//   • снігопад (екранний, три шари з паралаксом, вітер, хуртовина замість зливи) — місії через одну;
+//   • сніговики у дворах, діти грають у сніжки й ліплять сніговика (декор, без колізій);
+//   • сліди героя на снігу;
+//   • сніг над меню.
+// G.winter = { on, fall, base, blizzard, drawSnow(ctx, k, opts), snowman() }
+(function () {
+  const G = window.G;
+  if (!G.cfg.WINTER) { G.winter = { on: false }; return; }
+  const T = G.cfg.TILE;
+  const WN = G.winter = { on: true, fall: 0, base: 0, blizzard: 0 };
+  const rt = () => G.realTime || 0;
+  const night = () => (G.lighting && G.lighting.night) || 0;
+  function hsh(i, m) { let h = (i * 2654435761 + m * 40503) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13; return (h >>> 0) / 4294967296; }
+  function mk(w, h) { return G.util.makeCanvas(w, h); }
+
+  // ═══════════════ обробка спрайтів ═══════════════
+  const SNOW = [[169, 184, 207], [195, 207, 224], [216, 225, 236], [232, 238, 245], [246, 249, 252]];
+  const ICICLE = [[214, 232, 244], [176, 204, 228]];
+  function mixPx(d, i, c, k) { d[i] += (c[0] - d[i]) * k; d[i + 1] += (c[1] - d[i + 1]) * k; d[i + 2] += (c[2] - d[i + 2]) * k; }
+  function copyOf(src, padTop) {
+    const c = mk(src.width, src.height + (padTop || 0));
+    c.getContext('2d').drawImage(src, 0, padTop || 0);
+    return c;
+  }
+  // будівля: верхні (h − fh)·16 px — дах; засипаємо снігом, під краєм — бурульки
+  function roofSnow(src, opts) {
+    const roofH = Math.round((opts.h - opts.fh) * T);
+    if (!(roofH > 2) || roofH >= src.height) return src;
+    const c = copyOf(src), g = c.getContext('2d');
+    let im;
+    try { im = g.getImageData(0, 0, c.width, c.height); } catch (e) { return src; }
+    const d = im.data, W = c.width;
+    for (let y = 0; y < roofH; y++) for (let x = 0; x < W; x++) {
+      const i = (y * W + x) << 2;
+      if (d[i + 3] < 40) continue;
+      const lum = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+      const up = y > 0 ? d[(((y - 1) * W + x) << 2) + 3] : 0;
+      const n = hsh(x * 31 + y, opts.frame | 0);
+      const k = lum < 40 ? 0.55 : up < 40 ? 0.97 : 0.88 + n * 0.08;
+      mixPx(d, i, SNOW[lum > 140 ? 4 : lum > 90 ? 3 : 2], k);
+      if (n > 0.985) mixPx(d, i, [255, 255, 255], 1);
+    }
+    // карниз: смужка снігу і бурульки
+    for (let x = 1; x < W - 1; x++) {
+      const i0 = ((roofH - 1) * W + x) << 2;
+      if (d[i0 + 3] < 40) continue;
+      const i1 = (roofH * W + x) << 2;
+      if (roofH < c.height && d[i1 + 3] > 40) mixPx(d, i1, SNOW[3], 0.55);
+      const h = hsh(x, 977 + (opts.frame | 0));
+      if (h < 0.22) {
+        const len = 1 + Math.floor(hsh(x, 978) * 3);
+        for (let j = 1; j <= len; j++) {
+          const yy = roofH + j; if (yy >= c.height) break;
+          const ii = (yy * W + x) << 2; if (d[ii + 3] < 40) break;
+          mixPx(d, ii, ICICLE[j === len ? 1 : 0], 0.9);
+        }
+      }
+    }
+    g.putImageData(im, 0, 0);
+    return c;
+  }
+  // крона / кущ: верхні пікселі білі, усередині — холодніший тон і сніг на світлих листках
+  function crownSnow(src, pine) {
+    const c = copyOf(src), g = c.getContext('2d');
+    let im;
+    try { im = g.getImageData(0, 0, c.width, c.height); } catch (e) { return src; }
+    const d = im.data, W = c.width, H = c.height;
+    const a = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : d[((y * W + x) << 2) + 3]);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = (y * W + x) << 2;
+      if (d[i + 3] < 40) continue;
+      const lum = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+      const top1 = a(x, y - 1) < 40, top2 = !top1 && a(x, y - 2) < 40;
+      if (top1) mixPx(d, i, SNOW[4], pine ? 0.85 : 0.95);
+      else if (top2) mixPx(d, i, SNOW[3], pine ? 0.55 : 0.75);
+      else if (lum > (pine ? 120 : 105)) mixPx(d, i, SNOW[3], pine ? 0.45 : 0.62);
+      else mixPx(d, i, [92, 108, 128], pine ? 0.12 : 0.32);
+    }
+    g.putImageData(im, 0, 0);
+    return c;
+  }
+  // шапка Діда Мороза: червоний ковпак з білим хутром і помпоном (полотно вище на 6 px — низ спрайта на місці)
+  function santaHat(src) {
+    const P = 6, c = copyOf(src, P), g = c.getContext('2d');
+    let im;
+    try { im = g.getImageData(0, 0, c.width, c.height); } catch (e) { return src; }
+    const d = im.data, W = c.width, H = c.height;
+    let ty = -1;
+    for (let y = 0; y < H && ty < 0; y++) for (let x = 0; x < W; x++) if (d[((y * W + x) << 2) + 3] > 60) { ty = y; break; }
+    if (ty < 0) return src;
+    let x0 = W, x1 = -1;
+    for (let y = ty; y < ty + 2; y++) for (let x = 0; x < W; x++) if (d[((y * W + x) << 2) + 3] > 60) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+    if (x1 < x0) return src;
+    if (x1 - x0 < 4) { const cx = (x0 + x1) >> 1; x0 = cx - 2; x1 = cx + 3; }
+    const R = '#d42a2a', RD = '#9e1a22', RH = '#ff6a5a', F = '#f6f3ee', FD = '#d6d0c6';
+    const px = (x, y, col) => { if (x >= 0 && y >= 0 && x < W && y < H) { g.fillStyle = col; g.fillRect(x, y, 1, 1); } };
+    g.putImageData(im, 0, 0);
+    const w = x1 - x0 + 1;
+    // ковпак: рядки над головою, звужується і нахиляється праворуч
+    for (let r = 0; r < 5; r++) {
+      const y = ty - r, l = x0 + Math.round(r * 0.9) + (r >= 3 ? 1 : 0), rr = x1 - Math.floor(r * 0.5) + (r >= 2 ? 1 : 0);
+      for (let x = l; x <= rr; x++) px(x, y, x === l ? RD : (r === 1 && x === rr - 1) ? RH : R);
+      if (rr - l < 1) break;
+    }
+    // помпон
+    const pxx = x1 + 2, pyy = ty - 4;
+    px(pxx, pyy, F); px(pxx + 1, pyy, F); px(pxx, pyy + 1, FD); px(pxx + 1, pyy + 1, F);
+    // хутряна облямівка
+    for (let x = x0 - 1; x <= x1 + 1; x++) { px(x, ty + 1, F); px(x, ty + 2, (x + ty) % 3 === 0 ? FD : F); }
+    void w;
+    return c;
+  }
+
+  // фон меню (480×270): сніг на дахах і кронах, засніжений тротуар, кучугури біля бордюру
+  function menuSnow(src) {
+    const c = copyOf(src), g = c.getContext('2d');
+    let im;
+    try { im = g.getImageData(0, 0, c.width, c.height); } catch (e) { return src; }
+    const d = im.data, W = c.width, H = c.height, sy = H / 270;
+    const at = (x, y) => ((y * W + x) << 2);
+    const sat = (i) => { const mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]); return mx ? (mx - mn) / mx : 0; };
+    const lum = (i) => d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+    const green = (i) => d[i + 1] > d[i] + 6 && d[i + 1] >= d[i + 2] - 4;
+    // крони дерев
+    for (let y = Math.round(140 * sy); y < Math.round(224 * sy); y++) for (let x = 0; x < W; x++) {
+      const i = at(x, y); if (!green(i)) continue;
+      const top1 = !green(at(x, y - 1)), top2 = !top1 && !green(at(x, y - 2));
+      if (top1) mixPx(d, i, SNOW[4], 0.92); else if (top2) mixPx(d, i, SNOW[3], 0.7);
+      else if (lum(i) > 95) mixPx(d, i, SNOW[3], 0.55); else mixPx(d, i, [92, 108, 128], 0.3);
+    }
+    // дахи: перший «будинковий» піксель зверху в колонці (низька насиченість) — шапка снігу
+    for (let x = 0; x < W; x++) {
+      for (let y = Math.round(36 * sy); y < Math.round(200 * sy); y++) {
+        const i = at(x, y);
+        if (sat(i) < 0.24 && lum(i) > 45 && sat(at(x, y + 2)) < 0.3 && sat(at(x, y - 1)) >= 0.22) {
+          mixPx(d, i, SNOW[4], 0.95); mixPx(d, at(x, y + 1), SNOW[3], 0.75);
+          if (hsh(x, 51) < 0.5) mixPx(d, at(x, y - 1), SNOW[3], 0.7);
+          break;
+        }
+      }
+    }
+    // тротуар — під снігом; бордюр — кучугура
+    const s0 = Math.round(221 * sy), s1 = Math.round(233 * sy);
+    for (let y = s0; y < s1; y++) for (let x = 0; x < W; x++) {
+      const i = at(x, y); const l = lum(i);
+      mixPx(d, i, l < 70 ? SNOW[1] : SNOW[3 + (hsh(x * 7 + y, 61) > 0.8 ? 1 : 0)], 0.82);
+    }
+    for (let x = 0; x < W; x++) {
+      const hgt = 1 + Math.round(hsh(x >> 2, 71) * 2);
+      for (let j = 0; j < hgt; j++) mixPx(d, at(x, s1 + j), SNOW[j === 0 ? 3 : 2], 0.85);
+      if (hsh(x, 72) < 0.3) mixPx(d, at(x, H - 1), SNOW[2], 0.6);
+    }
+    g.putImageData(im, 0, 0);
+    return c;
+  }
+
+  const cache = new WeakMap();
+  const TREEISH = { tree_crown: 1, bush: 1, shrub: 1 };
+  const origGet = G.sprites.get.bind(G.sprites);
+  G.sprites.get = function (key, opts) {
+    const img = origGet(key, opts);
+    if (!img || !WN.on || (opts && opts.layer === 'glow')) return img;
+    let kind = null;
+    if (key === 'tck') kind = 'hat';
+    else if (key === 'bg' && opts && opts.variant === 'menu') kind = 'menu';
+    else if (key === 'prop' && opts) {
+      if (TREEISH[opts.variant]) kind = 'crown';
+      else if (opts.h > 0 && opts.fh > 0 && opts.fh < opts.h) kind = 'roof';
+    }
+    if (!kind) return img;
+    let out = cache.get(img);
+    if (out) return out;
+    try {
+      out = kind === 'menu' ? menuSnow(img) : kind === 'hat' ? santaHat(img) : kind === 'crown' ? crownSnow(img, /pine|spruce|ялин|сосн/i.test(String(opts.type || ''))) : roofSnow(img, opts);
+    } catch (e) { out = img; }
+    cache.set(img, out);
+    return out;
+  };
+
+  // ═══════════════ снігопад ═══════════════
+  const LAYERS = [
+    { n: 70, sz: 1, sp: 15, sw: 3, par: 0.35, a: 0.5 },
+    { n: 46, sz: 1, sp: 25, sw: 5, par: 0.65, a: 0.8 },
+    { n: 24, sz: 2, sp: 40, sw: 8, par: 1.0, a: 0.9 },
+    { n: 6, sz: 3, sp: 62, sw: 11, par: 1.35, a: 0.55 },
+  ];
+  // k — густота 0..1; opts: {cam:false} — без паралаксу (меню), {bliz} — хуртовина
+  WN.drawSnow = function (ctx, k, opts) {
+    if (!(k > 0.01)) return;
+    opts = opts || {};
+    const VW = G.cfg.VIEW_W, VH = G.cfg.VIEW_H, t = rt(), bl = opts.bliz != null ? opts.bliz : WN.blizzard;
+    const cam = opts.cam === false ? null : G.camera, z = cam ? cam.zoom || 1 : 1;
+    const cx = cam ? cam.x * z : 0, cy = cam ? cam.y * z : 0;
+    const nt = night();
+    const wind = 7 + 26 * bl + Math.sin(t * 0.35) * (4 + 10 * bl);
+    const col = nt > 0.4 ? '232,240,255' : '255,255,255';
+    ctx.save();
+    if (bl > 0.02) { ctx.fillStyle = 'rgba(225,232,242,' + (0.1 * bl).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH); }
+    const WW = VW + 24, HH = VH + 24, dens = k * (1 + 0.8 * bl) * (VW / 480);
+    for (let L = 0; L < LAYERS.length; L++) {
+      const Ly = LAYERS[L], n = Math.round(Ly.n * dens);
+      const a = Ly.a * (nt > 0.4 ? 0.85 : 1) * Math.min(1, k * 1.6);
+      ctx.fillStyle = 'rgba(' + col + ',' + a.toFixed(3) + ')';
+      for (let i = 0; i < n; i++) {
+        const sp = Ly.sp * (0.8 + hsh(i, L * 7 + 1) * 0.4) * (1 + 0.6 * bl);
+        const ph = hsh(i, L * 7 + 2) * 6.28, fr = 0.6 + hsh(i, L * 7 + 3) * 0.9;
+        let y = (hsh(i, L * 7 + 4) * HH + t * sp - cy * Ly.par) % HH; if (y < 0) y += HH;
+        let x = (hsh(i, L * 7 + 5) * WW + t * wind * (0.5 + Ly.par * 0.5) + Math.sin(t * fr + ph) * Ly.sw - cx * Ly.par) % WW; if (x < 0) x += WW;
+        const xi = Math.round(x) - 12, yi = Math.round(y) - 12;
+        if (Ly.sz === 1) ctx.fillRect(xi, yi, 1, 1);
+        else if (Ly.sz === 2) { ctx.fillRect(xi, yi, 2, 2); }
+        else { ctx.fillRect(xi, yi, 2, 2); ctx.globalAlpha = 0.5; ctx.fillRect(xi - 1, yi, 1, 2); ctx.fillRect(xi + 2, yi, 1, 2); ctx.fillRect(xi, yi - 1, 2, 1); ctx.fillRect(xi, yi + 2, 2, 1); ctx.globalAlpha = 1; }
+      }
+    }
+    // хуртовина: косі пориви
+    if (bl > 0.05) {
+      ctx.fillStyle = 'rgba(' + col + ',' + (0.35 * bl).toFixed(3) + ')';
+      for (let i = 0; i < Math.round(26 * bl * VW / 480); i++) {
+        const sp = 160 + hsh(i, 91) * 90;
+        const x = (hsh(i, 92) * WW + t * sp) % WW - 12, y = (hsh(i, 93) * HH + t * sp * 0.25) % HH - 12;
+        ctx.fillRect(Math.round(x), Math.round(y), 3, 1); ctx.fillRect(Math.round(x) + 3, Math.round(y) + 1, 2, 1);
+      }
+    }
+    ctx.restore();
+  };
+
+  // погода забігу: сюжет — снігопад через місію (кожна третя — густий), ВТЕЧА/щоденна — 55 %
+  function planWeather() {
+    const run = G.run, m = run && run.mission;
+    WN.blizzard = 0;
+    if (!m) { WN.base = 0; return; }
+    if (m.mode) { const r = G.rng && G.rng.next ? G.rng.next() : Math.random(); WN.base = r < 0.55 ? 0.45 + r * 0.6 : 0; }
+    else { const n = run.day || 1; WN.base = n % 2 === 1 ? (n % 3 === 0 ? 0.9 : 0.55) : 0; }
+    WN.fall = WN.base;
+  }
+  G.events.on('run:start', planWeather);
+  G.events.on('mission:event', (e) => { if (e && e.type === 'rain') WN.blizzardOn = e.state === 'start'; });
+  G.events.on('run:end', () => { WN.blizzardOn = false; });
+
+  // малювання снігопаду — разом з ефектами місій (над світом, під HUD)
+  function hookFx() {
+    if (!G.missions || !G.missions.drawScreenFx || G.missions._winterFx) return;
+    const orig = G.missions.drawScreenFx;
+    G.missions.drawScreenFx = function (ctx, part) {
+      if (part !== 'ui' && G.isWorldState()) WN.drawSnow(ctx, WN.fall);
+      return orig.apply(this, arguments);
+    };
+    G.missions._winterFx = true;
+  }
+
+  // ═══════════════ сліди на снігу ═══════════════
+  const SNOWY = { grass: 1, yard: 1, dirt: 1, sand: 1, plaza: 1, sidewalk: 1, parking: 1 };
+  const prints = [];
+  let lastP = null, side = 1;
+  function trackPrints() {
+    const p = G.player, W = G.world;
+    if (!p || !W || p.hidden || p.riding || p.scoot) { lastP = null; return; }
+    if (!lastP) { lastP = { x: p.x, y: p.y }; return; }
+    const dx = p.x - lastP.x, dy = p.y - lastP.y, d = Math.hypot(dx, dy);
+    if (d < 6) return;
+    lastP = { x: p.x, y: p.y };
+    let ty = null; try { ty = W.typeAt(p.x, p.y + 4); } catch (e) { ty = null; }
+    if (!SNOWY[ty]) return;
+    side = -side;
+    const nx = -dy / d, ny = dx / d;
+    prints.push({ x: Math.round(p.x + nx * 2 * side), y: Math.round(p.y + 5 + ny * 1.5 * side), t: rt(), h: Math.abs(dy) > Math.abs(dx) });
+    if (prints.length > 160) prints.shift();
+  }
+  function drawPrints(ctx) {
+    const now = rt();
+    for (const q of prints) {
+      const age = now - q.t; if (age > 16) continue;
+      ctx.globalAlpha = 0.45 * (1 - age / 16);
+      ctx.fillStyle = '#7d8aa8';
+      if (q.h) ctx.fillRect(q.x, q.y, 1, 2); else ctx.fillRect(q.x, q.y, 2, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+  function hookGround() {
+    if (!G.world || G.world._winterGround) return;
+    const orig = G.world.drawGround;
+    G.world.drawGround = function (ctx, r) { const res = orig.apply(this, arguments); try { drawPrints(ctx); } catch (e) { /* */ } return res; };
+    G.world._winterGround = true;
+  }
+
+  // ═══════════════ сніговики й діти ═══════════════
+  let snowmanC = null, smallC = null;
+  function drawBall(c, cx, cy, r) {
+    for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+      const e = (x * x + y * y) / (r * r); if (e > 1.02) continue;
+      const l = (-x - y) / (r * 1.6);
+      const col = e > 0.82 && x + y > 0 ? '#a9b8cf' : l > 0.35 ? '#ffffff' : l > -0.15 ? '#eef3f8' : l > -0.5 ? '#d6dfea' : '#bccadb';
+      c.fillStyle = col; c.fillRect(cx + x, cy + y, 1, 1);
+    }
+  }
+  WN.snowman = function (small) {
+    if (small && smallC) return smallC;
+    if (!small && snowmanC) return snowmanC;
+    const c = mk(22, 30), g = c.getContext('2d');
+    const bx = 11;
+    // тінь
+    g.fillStyle = 'rgba(70,86,120,0.35)'; g.fillRect(4, 27, 14, 2); g.fillRect(6, 29, 10, 1);
+    drawBall(g, bx, 22, 6);
+    drawBall(g, bx, 13, 4);
+    if (!small) {
+      drawBall(g, bx, 6, 3);
+      // відро-капелюх
+      g.fillStyle = '#3a6fb4'; g.fillRect(bx - 3, 1, 6, 2); g.fillStyle = '#2a4f86'; g.fillRect(bx - 4, 3, 8, 1); g.fillStyle = '#6fa0d8'; g.fillRect(bx - 2, 1, 1, 1);
+      // очі, ніс-морква
+      g.fillStyle = '#1a1620'; g.fillRect(bx - 2, 5, 1, 1); g.fillRect(bx + 1, 5, 1, 1);
+      g.fillStyle = '#ef8a3b'; g.fillRect(bx, 7, 3, 1); g.fillStyle = '#c8682a'; g.fillRect(bx + 2, 7, 1, 1);
+      // шарф
+      g.fillStyle = '#d42a2a'; g.fillRect(bx - 3, 9, 7, 2); g.fillRect(bx + 2, 10, 2, 4); g.fillStyle = '#9e1a22'; g.fillRect(bx - 3, 10, 7, 1);
+    }
+    // ґудзики
+    g.fillStyle = '#1a1620'; g.fillRect(bx, 12, 1, 1); g.fillRect(bx, 15, 1, 1); g.fillRect(bx, 20, 1, 1);
+    // руки-гілки
+    g.fillStyle = '#6a4630'; g.fillRect(bx - 8, 11, 4, 1); g.fillRect(bx - 9, 10, 1, 1); g.fillRect(bx + 5, 12, 4, 1); g.fillRect(bx + 9, 11, 1, 1);
+    if (small) smallC = c; else snowmanC = c;
+    return c;
+  };
+
+  class WDecor extends G.Entity {
+    constructor(x, y, fn) { super(x, y, 12, 4, 'decor'); this.body = 'manual'; this.fn = fn; this._winterDecor = true; }
+    get shadow() { return false; }
+    update() {}
+    draw(ctx) { try { this.fn(ctx, this); } catch (e) { /* */ } }
+  }
+  function kidImg(dir, frame, skin) { try { return G.sprites.get('npc', { variant: 'kid', dir, frame, skin }); } catch (e) { return null; } }
+  function drawKid(ctx, x, y, dir, frame, skin, bob) {
+    const img = kidImg(dir, frame, skin);
+    if (!img) return;
+    ctx.fillStyle = 'rgba(70,86,120,0.3)'; ctx.fillRect(Math.round(x - 4), Math.round(y), 8, 2);
+    ctx.drawImage(img, Math.round(x - img.width / 2), Math.round(y - img.height + 1 - (bob || 0)));
+  }
+  function kidsVisible() { return night() < 0.55 && !(G.missions && G.missions.state && G.missions.state.ev && G.missions.state.ev.air_raid); }
+  const KID_LINES = ['Лови!', 'Ха-ха, влучив!', 'Не в обличчя!', 'Дядьку, грайте з нами!', 'Ще одну!', 'Мама кличе!'];
+  function maybeShout(ent) {
+    const p = G.player; if (!p || !G.ui || !G.ui.bubble) return;
+    ent._sayT = (ent._sayT || 0);
+    if (rt() < ent._sayT || Math.hypot(p.x - ent.x, p.y - ent.y) > 120) return;
+    ent._sayT = rt() + 6 + hsh(Math.round(ent.x), Math.round(rt())) * 5;
+    G.ui.bubble({ x: ent.x + (hsh(Math.round(rt() * 10), 3) < 0.5 ? -20 : 20), y: ent.y - 22 }, KID_LINES[Math.floor(hsh(Math.round(rt() * 7), 5) * KID_LINES.length)], 1300);
+  }
+  // бій сніжками: двоє дітей кидають по черзі
+  function snowballFight(x, y, seed) {
+    return new WDecor(x, y, (ctx, e) => {
+      if (!kidsVisible()) return;
+      const t = rt() + seed * 1.7, per = 1.5, k = (t % (per * 2)) / per, leftThrows = k < 1, u = k % 1;
+      const ax = x - 22, bx = x + 22;
+      const flightU = Math.min(1, u / 0.55);
+      const thrower = leftThrows ? ax : bx, target = leftThrows ? bx : ax;
+      const hit = u >= 0.55 && u < 0.8;
+      drawKid(ctx, ax, y, 'right', leftThrows && u < 0.15 ? 1 : 0, seed % 4, !leftThrows && hit ? 1 : 0);
+      drawKid(ctx, bx, y, 'left', !leftThrows && u < 0.15 ? 1 : 0, (seed + 1) % 4, leftThrows && hit ? 1 : 0);
+      if (u < 0.55) {
+        const sx = thrower + (leftThrows ? 6 : -6), ex = target + (leftThrows ? -4 : 4);
+        const bxp = sx + (ex - sx) * flightU, byp = y - 12 - Math.sin(flightU * Math.PI) * 12;
+        ctx.fillStyle = 'rgba(70,86,120,0.25)'; ctx.fillRect(Math.round(bxp), y, 2, 1);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(bxp), Math.round(byp), 2, 2); ctx.fillStyle = '#c3cfe0'; ctx.fillRect(Math.round(bxp) + 1, Math.round(byp) + 1, 1, 1);
+      } else if (hit) {
+        const pu = (u - 0.55) / 0.25, hx = target + (leftThrows ? -3 : 3), hy = y - 12;
+        ctx.fillStyle = 'rgba(255,255,255,' + (1 - pu).toFixed(2) + ')';
+        for (let i = 0; i < 5; i++) { const a = i * 1.25 + seed; ctx.fillRect(Math.round(hx + Math.cos(a) * pu * 6), Math.round(hy + Math.sin(a) * pu * 5), 1, 1); }
+      }
+      maybeShout(e);
+    });
+  }
+  // ліплять сніговика: недоліплений сніговик, дитина катає грудку поруч
+  function buildingSnowman(x, y, seed) {
+    return new WDecor(x, y, (ctx, e) => {
+      const sm = WN.snowman(true);
+      ctx.drawImage(sm, Math.round(x - 11), Math.round(y - 29));
+      if (!kidsVisible()) return;
+      const t = rt() + seed, ph = (t % 4) / 4;
+      const kx = x + 26 + Math.round(Math.sin(ph * Math.PI * 2) * 6), ky = y + 2;
+      const r = 2 + Math.round(1.5 + Math.sin(ph * Math.PI * 2) * 1.5);
+      ctx.fillStyle = 'rgba(70,86,120,0.3)'; ctx.fillRect(kx - 9 - r, ky, r * 2, 1);
+      for (let yy = -r; yy <= r; yy++) for (let xx = -r; xx <= r; xx++) if (xx * xx + yy * yy <= r * r) { ctx.fillStyle = xx + yy < 0 ? '#ffffff' : '#d6dfea'; ctx.fillRect(kx - 9 + xx, ky - r + yy, 1, 1); }
+      drawKid(ctx, kx, ky, 'left', Math.floor(t * 4) % 2, (seed + 2) % 4, 0);
+      maybeShout(e);
+    });
+  }
+  function plainSnowman(x, y) {
+    return new WDecor(x, y, (ctx) => { const sm = WN.snowman(false); ctx.drawImage(sm, Math.round(x - 11), Math.round(y - 29)); });
+  }
+
+  // місця: трава/двір, вільна ділянка 3×2 тайли, подалі від доріг і одне від одного
+  let spots = null, spotsSeed = null;
+  function findSpots() {
+    const W = G.world; if (!W || !W.w) return [];
+    const key = W.seed + ':' + W.w + 'x' + W.h;
+    if (spots && spotsSeed === key) return spots;
+    const ok = (tx, ty) => { let t; try { t = W.typeAt(tx * T + 8, ty * T + 8); } catch (e) { return false; } return t === 'grass' || t === 'yard'; };
+    const out = [];
+    const tries = 4000;
+    for (let i = 0; i < tries && out.length < 34; i++) {
+      const tx = 2 + Math.floor(hsh(i, 701) * (W.w - 6)), ty = 2 + Math.floor(hsh(i, 702) * (W.h - 6));
+      let good = true;
+      for (let yy = -1; yy <= 1 && good; yy++) for (let xx = -2; xx <= 2 && good; xx++) if (!ok(tx + xx, ty + yy)) good = false;
+      if (!good) continue;
+      const x = tx * T + 8, y = ty * T + 10;
+      if (out.some((q) => Math.hypot(q.x - x, q.y - y) < 150)) continue;
+      out.push({ x, y, i });
+    }
+    spots = out; spotsSeed = key;
+    return out;
+  }
+  function spawnDecor() {
+    for (const e of G.entities) if (e && e._winterDecor) e.alive = false;
+    const S = findSpots();
+    S.forEach((q, k) => {
+      const kind = k % 5;
+      if (kind === 1) G.addEntity(snowballFight(q.x, q.y, k));
+      else if (kind === 3) G.addEntity(buildingSnowman(q.x, q.y, k));
+      else G.addEntity(plainSnowman(q.x, q.y));
+    });
+  }
+  G.events.on('run:start', () => { hookFx(); hookGround(); prints.length = 0; lastP = null; spawnDecor(); });
+
+  // ═══════════════ кадр ═══════════════
+  WN.update = function (dt) {
+    const want = Math.max(WN.base, WN.blizzardOn ? 1 : 0);
+    WN.fall += (want - WN.fall) * Math.min(1, dt * 0.6);
+    WN.blizzard += ((WN.blizzardOn ? 1 : 0) - WN.blizzard) * Math.min(1, dt * 0.5);
+    if (G.state === 'play') trackPrints();
+  };
+
+  // ═══════════════ меню: тихий снігопад над фоном ═══════════════
+  function hookMenu() {
+    const S = G.scenes && G.scenes.menu;
+    if (!S || S._winter || !S.drawBg) return false;
+    const orig = S.drawBg;
+    S.drawBg = function (ctx) { const r = orig.apply(this, arguments); try { WN.drawSnow(ctx, 0.5, { cam: false, bliz: 0 }); } catch (e) { /* */ } return r; };
+    S._winter = true;
+    return true;
+  }
+  hookMenu();
+  G.events.on('state:change', () => { hookMenu(); hookFx(); hookGround(); });
 })();
 
 

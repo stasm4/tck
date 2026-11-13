@@ -60,10 +60,10 @@
 <body>
 <div id="boot"><canvas id="bootc" width="240" height="135"></canvas><div id="bootmsg">Прогріваємо бусик…</div></div>
 <script>
-(function () { // заставка завантаження: вечірній Київ пропливає, герой тікає, за ним їде бус
+(function () { // заставка завантаження: зимовий вечірній Київ пропливає, сніг, герой тікає, за ним їде бус
   var c = document.getElementById('bootc'), g = c.getContext('2d'), H = 135, W = 240, t0 = performance.now();
   var msg = document.getElementById('bootmsg');
-  var tips = ['Прогріваємо бусик…', 'Шукаємо твої документи…', 'Катя малює серденько на каві…', 'Рахуємо бабусь у черзі…', 'Заряджаємо самокати…', 'Майор налаштовує мегафон…', 'Мама питає, чи ти поїв…', 'Вася вперше за два роки вдягає штани…'];
+  var tips = ['Прогріваємо бусик…', 'Ліпимо сніговика…', 'Вдягаємо на ТЦК новорічні шапки…', 'Розчищаємо двір від снігу…', 'Шукаємо твої документи…', 'Катя малює серденько на каві…', 'Рахуємо бабусь у черзі…', 'Заряджаємо самокати…', 'Майор налаштовує мегафон…', 'Мама питає, чи ти поїв…', 'Вася вперше за два роки вдягає штани…'];
   var tip = 0, tipT = setInterval(function () {
     if (window.__bootFail) { clearInterval(tipT); return; }
     msg.style.opacity = 0;
@@ -77,7 +77,7 @@
     var first = Math.floor(off / bw), n = Math.ceil(W / bw) + 2;
     for (var i = 0; i < n; i++) {
       var id = first + i, x = id * bw - off, h = hmin + Math.floor(hash(id + seed) * hvar), w = bw - 2 - Math.floor(hash(id * 3 + seed) * 5);
-      R(col, x, base - h, w, h);
+      R(col, x, base - h, w, h); R('#e6edf5', x - 1, base - h - 1, w + 2, 2); R('#c3cfe0', x, base - h + 1, w, 1);
       for (var wy = base - h + 3; wy < base - 3; wy += 5) for (var wx = 2; wx < w - 3; wx += 4) R(hash(id * 7 + wx * 13 + wy * 3 + seed) < 0.3 ? lit : dark, x + wx, wy, 2, 3);
     }
   }
@@ -93,28 +93,38 @@
     var b = Math.floor(t * 8) % 2;
     y -= b;
     R('rgba(0,0,0,.3)', x - 1, y + b + 1, 46, 2);
-    R('#3f4a2c', x, y - 21, 42, 18); R('#5a6a3a', x + 3, y - 24, 30, 4); R('#6f7f47', x + 5, y - 19, 8, 4); R('#2f3a24', x + 16, y - 16, 9, 5); R('#6f7f47', x + 28, y - 11, 7, 4);
+    R('#3f4a2c', x, y - 21, 42, 18); R('#5a6a3a', x + 3, y - 24, 30, 4); R('#eef3f8', x + 3, y - 26, 30, 2); R('#cfd9e6', x + 5, y - 24, 26, 1); R('#6f7f47', x + 5, y - 19, 8, 4); R('#2f3a24', x + 16, y - 16, 9, 5); R('#6f7f47', x + 28, y - 11, 7, 4);
     R('#a9d6e8', x + 33, y - 20, 8, 7); R('#a9d6e8', x + 21, y - 20, 9, 5); R('#fde98f', x + 41, y - 9, 2, 3);
     R('#17161c', x + 6, y - 4, 8, 5); R('#17161c', x + 30, y - 4, 8, 5); R(Math.floor(t * 14) % 2 ? '#6a6872' : '#3a3842', x + 9, y - 2, 2, 2); R(Math.floor(t * 14) % 2 ? '#6a6872' : '#3a3842', x + 33, y - 2, 2, 2);
     for (var i = 0; i < 3; i++) { var k = (t * 2 + i / 3) % 1; g.fillStyle = 'rgba(220,210,200,' + (0.35 * (1 - k)).toFixed(2) + ')'; g.fillRect(Math.round(x - 3 - k * 16), Math.round(y - 2 - k * 4), 2 + Math.round(k * 2), 2); }
   }
   function frame(now) {
     if (!document.getElementById('boot')) { clearInterval(tipT); window.removeEventListener('resize', fit); return; }
-    var t = (now - t0) / 1000, sky = ['#2a1a3e', '#3d2550', '#5a3060', '#8a4a66', '#c06a5e', '#e8935a', '#f4b86a'];
+    var t = (now - t0) / 1000, sky = ['#1c2140', '#262c56', '#363c6c', '#544f84', '#86699a', '#bb87a2', '#e2b2ae'];
     for (var i = 0; i < sky.length; i++) R(sky[i], 0, i * 13, W, 14);
     for (var s = 0; s < 26; s++) { if (hash(s * 11) * 40 < 30) R('rgba(255,248,220,' + (0.35 + 0.35 * Math.sin(t * 1.5 + s)).toFixed(2) + ')', hash(s) * W, hash(s + 50) * 34, 1, 1); }
-    R('#fde98f', W * 0.68 - 12, 60, 24, 24); R('#fff3c4', W * 0.68 - 9, 63, 18, 18);
+    R('#f6e3c0', W * 0.68 - 12, 60, 24, 24); R('#fff6e4', W * 0.68 - 9, 63, 18, 18);
     for (var k = 0; k < 4; k++) { var cx = ((k * 83 - t * 3) % (W + 60) + W + 60) % (W + 60) - 40; R('rgba(255,190,150,.55)', cx, 20 + k * 11, 36 + k * 6, 3); R('rgba(255,190,150,.35)', cx + 8, 17 + k * 11, 18, 3); }
     city(t * 5, 92, 22, 16, 22, '#5a3a68', '#d8a060', '#4a2f5a', 1);
     city(t * 13, 96, 30, 22, 34, '#2e2138', '#f7c948', '#3e2f4a', 9);
-    R('#6a5a70', 0, 96, W, 7); R('#8c8494', 0, 96, W, 1);
+    R('#d9e2ee', 0, 96, W, 7); R('#f4f8fc', 0, 96, W, 1); R('#b9c6d8', 0, 102, W, 1);
     var lo = t * 46, per = 56, f2 = Math.floor(lo / per);
     for (var j = 0; j < Math.ceil(W / per) + 2; j++) { var lx = (f2 + j) * per - lo; R('#2a2632', lx, 70, 2, 28); R('#2a2632', lx, 70, 11, 2); R('#fde98f', lx + 8, 72, 4, 2); g.fillStyle = 'rgba(255,205,120,.09)'; g.beginPath(); g.moveTo(lx + 8, 74); g.lineTo(lx + 1, 97); g.lineTo(lx + 19, 97); g.closePath(); g.fill(); }
-    R('#3e3a48', 0, 103, W, 26); R('#8c8494', 0, 103, W, 1); R('#2e2a36', 0, 128, W, 2);
+    R('#3a3a4a', 0, 103, W, 26); R('#cfd9e6', 0, 103, W, 2); R('#2e2a36', 0, 128, W, 2); R('#e2e9f2', 0, 128, W, 2);
     var d = (t * 62) % 32; for (var x = -d; x < W; x += 32) R('#efe4d2', x, 115, 16, 2);
-    R('#45293f', 0, 130, W, 5);
+    R('#cdd7e4', 0, 130, W, 5); R('#f2f6fa', 0, 130, W, 1);
     van(W * 0.16 + Math.sin(t * 0.8) * 7, 125, t);
     hero(W * 0.62, 112, t);
+    // сніг: три шари, з вітром і погойдуванням
+    for (var L = 0; L < 3; L++) {
+      var n = [40, 26, 12][L], sp = [10, 18, 30][L], sz = L === 2 ? 2 : 1;
+      g.fillStyle = 'rgba(245,248,255,' + [0.5, 0.8, 0.95][L] + ')';
+      for (var q = 0; q < n; q++) {
+        var sx = ((hash(q * 7 + L * 101) * (W + 20) + t * (6 + L * 5) + Math.sin(t * (0.8 + hash(q + L) * 0.8) + q) * (2 + L * 2)) % (W + 20) + W + 20) % (W + 20) - 10;
+        var sy2 = ((hash(q * 13 + L * 57) * (H + 20) + t * sp) % (H + 20)) - 10;
+        g.fillRect(Math.round(sx), Math.round(sy2), sz, sz);
+      }
+    }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -124,6 +134,6 @@
 <div id="sa"></div>
 <div id="rotate"><div class="ph"></div>Поверни екран<small>гра — лише в альбомній орієнтації</small></div>
 <div id="fshint" role="note"><b>Для повного екрана:</b> ⋯ → Відкрити в Safari, або Поділитися → На початковий екран<span class="x" aria-label="Закрити">✕</span></div>
-<script>(function(){try{var me='game.65233eab3e.js';fetch(location.pathname+'?c='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():''}).then(function(t){var m=t.match(/game\.[0-9a-f]{10}\.js/);if(m&&m[0]!==me&&!sessionStorage.getItem('u'+m[0])){sessionStorage.setItem('u'+m[0],1);location.replace(location.pathname+'?v='+m[0].slice(5,15));}}).catch(function(){});}catch(e){}})();</script><script src="game.65233eab3e.js" onerror="window.__bootFail=1;var m=document.getElementById('bootmsg');if(m)m.textContent='Не вдалося завантажити. Перевір інтернет і онови сторінку.'"></script>
+<script>(function(){try{var me='game.3ab154c716.js';fetch(location.pathname+'?c='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():''}).then(function(t){var m=t.match(/game\.[0-9a-f]{10}\.js/);if(m&&m[0]!==me&&!sessionStorage.getItem('u'+m[0])){sessionStorage.setItem('u'+m[0],1);location.replace(location.pathname+'?v='+m[0].slice(5,15));}}).catch(function(){});}catch(e){}})();</script><script src="game.3ab154c716.js" onerror="window.__bootFail=1;var m=document.getElementById('bootmsg');if(m)m.textContent='Не вдалося завантажити. Перевір інтернет і онови сторінку.'"></script>
 </body>
 </html>
