@@ -35181,45 +35181,131 @@
     if (x1 - x0 < 4) { const c = (x0 + x1) >> 1; x0 = c - 2; x1 = c + 3; }
     return { x0, x1 };
   }
+  // малює шапку через px(x, y, колір) у «піксельних» координатах: голова x0..x1, верх волосся ty
+  function paintHat(px, id, x0, x1, ty, dir) {
+    const cx = Math.round((x0 + x1) / 2);
+    const row = (y, a, b, c) => { for (let x = a; x <= b; x++) px(x, y, typeof c === 'function' ? c(x) : c); };
+    if (id === 'hat_santa') {
+      for (let r = 0; r < 5; r++) { const l = x0 + Math.round(r * 0.9) + (r >= 3 ? 1 : 0), rr = x1 - Math.floor(r * 0.5) + (r >= 2 ? 1 : 0); if (rr < l) break; row(ty - r, l, rr, (x) => (x === l ? '#9e1a22' : r === 1 && x === rr - 1 ? '#ff6a5a' : '#d42a2a')); }
+      px(x1 + 2, ty - 4, '#f6f3ee'); px(x1 + 3, ty - 4, '#f6f3ee'); px(x1 + 2, ty - 3, '#d6d0c6'); px(x1 + 3, ty - 3, '#f6f3ee');
+      row(ty + 1, x0 - 1, x1 + 1, '#f6f3ee'); row(ty + 2, x0 - 1, x1 + 1, (x) => ((x + ty) % 3 === 0 ? '#d6d0c6' : '#f6f3ee'));
+    } else if (id === 'hat_beanie_red' || id === 'hat_beanie_blue') {
+      const M = id === 'hat_beanie_red' ? '#c82a2a' : '#2a6ab8', D = id === 'hat_beanie_red' ? '#8e1c22' : '#1c4a86', Fp = '#f4f2ee';
+      row(ty - 1, x0 + 1, x1 - 1, M); row(ty, x0, x1, (x) => (x === x0 ? D : M)); row(ty + 1, x0, x1, (x) => ((x + ty) % 2 ? M : D)); row(ty + 2, x0, x1, D);
+      px(cx - 1, ty - 3, Fp); px(cx, ty - 3, Fp); px(cx - 1, ty - 2, Fp); px(cx, ty - 2, Fp);
+    } else if (id === 'hat_cap') {
+      const M = '#2a4a8a', D = '#1c3260', L = '#4a6ab0';
+      row(ty - 1, x0 + 1, x1 - 1, M); row(ty, x0, x1, (x) => (x === x0 ? D : x === cx ? '#f4f2ee' : M)); row(ty + 1, x0, x1, D);
+      if (dir === 'left') row(ty + 1, x0 - 4, x0, L); else if (dir === 'right') row(ty + 1, x1, x1 + 4, L); else if (dir !== 'up') row(ty + 2, x0, x1, L);
+      px(cx, ty - 2, D);
+    } else if (id === 'hat_panama') {
+      const M = '#d8c8a0', D = '#b0a074', L = '#ece0c0';
+      row(ty - 1, x0 + 1, x1 - 1, M); row(ty, x0 + 1, x1 - 1, (x) => (x === x0 + 1 ? D : L)); row(ty + 1, x0, x1, '#8a7a50');
+      row(ty + 2, x0 - 2, x1 + 2, (x) => (x === x0 - 2 || x === x1 + 2 ? D : M));
+    } else if (id === 'hat_ushanka') {
+      const M = '#7a5434', D = '#5a3a22', L = '#b08a62';
+      row(ty - 2, x0 + 1, x1 - 1, M); row(ty - 1, x0, x1, (x) => (x === x0 ? D : M)); row(ty, x0 - 1, x1 + 1, M);
+      row(ty + 1, x0 - 1, x1 + 1, (x) => ((x + ty) % 2 ? L : '#c8a478'));
+      for (let k = 2; k <= 6; k++) { px(x0 - 1, ty + k, k % 2 ? M : D); px(x1 + 1, ty + k, k % 2 ? M : D); if (k <= 4) { px(x0 - 2, ty + k, D); px(x1 + 2, ty + k, D); } }
+    } else if (id === 'hat_crown') {
+      const M = '#f2c13a', D = '#c8901a', Lg = '#fff0a0';
+      row(ty, x0, x1, (x) => (x === x0 ? D : M)); row(ty + 1, x0, x1, D);
+      for (const sx of [x0, cx, x1]) { px(sx, ty - 1, M); px(sx, ty - 2, M); px(sx, ty - 3, Lg); }
+      px(cx - 2, ty - 1, M); px(cx + 2, ty - 1, M);
+      px(cx, ty, '#d42a2a'); px(x0 + 1, ty, '#2a8ad4'); px(x1 - 1, ty, '#2aa84a');
+    }
+  }
   function hatOn(src, id, opts) {
     if (id === 'hat_none') return src;
     const P = 6;
     return withData(src, P, (d, W, H) => {
       const F = figure(d, W, H); if (F.ty < 0) return false;
-      const ty = F.ty, { x0, x1 } = headBox(d, W, ty), cx = Math.round((x0 + x1) / 2), dir = opts.dir;
-      return (g) => {
-        const px = (x, y, c) => { if (x >= 0 && y >= 0 && x < W && y < H) { g.fillStyle = c; g.fillRect(x, y, 1, 1); } };
-        const row = (y, a, b, c) => { for (let x = a; x <= b; x++) px(x, y, typeof c === 'function' ? c(x) : c); };
-        if (id === 'hat_santa') {
-          for (let r = 0; r < 5; r++) { const l = x0 + Math.round(r * 0.9) + (r >= 3 ? 1 : 0), rr = x1 - Math.floor(r * 0.5) + (r >= 2 ? 1 : 0); if (rr < l) break; row(ty - r, l, rr, (x) => (x === l ? '#9e1a22' : r === 1 && x === rr - 1 ? '#ff6a5a' : '#d42a2a')); }
-          px(x1 + 2, ty - 4, '#f6f3ee'); px(x1 + 3, ty - 4, '#f6f3ee'); px(x1 + 2, ty - 3, '#d6d0c6'); px(x1 + 3, ty - 3, '#f6f3ee');
-          row(ty + 1, x0 - 1, x1 + 1, '#f6f3ee'); row(ty + 2, x0 - 1, x1 + 1, (x) => ((x + ty) % 3 === 0 ? '#d6d0c6' : '#f6f3ee'));
-        } else if (id === 'hat_beanie_red' || id === 'hat_beanie_blue') {
-          const M = id === 'hat_beanie_red' ? '#c82a2a' : '#2a6ab8', D = id === 'hat_beanie_red' ? '#8e1c22' : '#1c4a86', Fp = '#f4f2ee';
-          row(ty - 1, x0 + 1, x1 - 1, M); row(ty, x0, x1, (x) => (x === x0 ? D : M)); row(ty + 1, x0, x1, (x) => ((x + ty) % 2 ? M : D)); row(ty + 2, x0, x1, D);
-          px(cx - 1, ty - 3, Fp); px(cx, ty - 3, Fp); px(cx - 1, ty - 2, Fp); px(cx, ty - 2, Fp);
-        } else if (id === 'hat_cap') {
-          const M = '#2a4a8a', D = '#1c3260', L = '#4a6ab0';
-          row(ty - 1, x0 + 1, x1 - 1, M); row(ty, x0, x1, (x) => (x === x0 ? D : x === cx ? '#f4f2ee' : M)); row(ty + 1, x0, x1, D);
-          if (dir === 'left') row(ty + 1, x0 - 4, x0, L); else if (dir === 'right') row(ty + 1, x1, x1 + 4, L); else if (dir !== 'up') row(ty + 2, x0, x1, L);
-          px(cx, ty - 2, D);
-        } else if (id === 'hat_panama') {
-          const M = '#d8c8a0', D = '#b0a074', L = '#ece0c0';
-          row(ty - 1, x0 + 1, x1 - 1, M); row(ty, x0 + 1, x1 - 1, (x) => (x === x0 + 1 ? D : L)); row(ty + 1, x0, x1, '#8a7a50');
-          row(ty + 2, x0 - 2, x1 + 2, (x) => (x === x0 - 2 || x === x1 + 2 ? D : M));
-        } else if (id === 'hat_ushanka') {
-          const M = '#7a5434', D = '#5a3a22', L = '#b08a62';
-          row(ty - 2, x0 + 1, x1 - 1, M); row(ty - 1, x0, x1, (x) => (x === x0 ? D : M)); row(ty, x0 - 1, x1 + 1, M);
-          row(ty + 1, x0 - 1, x1 + 1, (x) => ((x + ty) % 2 ? L : '#c8a478'));
-          for (let k = 2; k <= 6; k++) { px(x0 - 1, ty + k, k % 2 ? M : D); px(x1 + 1, ty + k, k % 2 ? M : D); if (k <= 4) { px(x0 - 2, ty + k, D); px(x1 + 2, ty + k, D); } }
-        } else if (id === 'hat_crown') {
-          const M = '#f2c13a', D = '#c8901a', Lg = '#fff0a0';
-          row(ty, x0, x1, (x) => (x === x0 ? D : M)); row(ty + 1, x0, x1, D);
-          for (const sx of [x0, cx, x1]) { px(sx, ty - 1, M); px(sx, ty - 2, M); px(sx, ty - 3, Lg); }
-          px(cx - 2, ty - 1, M); px(cx + 2, ty - 1, M);
-          px(cx, ty, '#d42a2a'); px(x0 + 1, ty, '#2a8ad4'); px(x1 - 1, ty, '#2aa84a');
+      const { x0, x1 } = headBox(d, W, F.ty);
+      return (g) => paintHat((x, y, c) => { if (x >= 0 && y >= 0 && x < W && y < H) { g.fillStyle = c; g.fillRect(x, y, 1, 1); } }, id, x0, x1, F.ty, opts.dir);
+    });
+  }
+
+  // ═══════════ великий портрет (48×48, бюст у фас): той самий одяг у масштабі ×2 ═══════════
+  const isBg = (r, g, b) => b > r + 20 && b > g && r < 190;
+  function dressPortrait(src, o) {
+    return withData(src, 0, (d, W, H) => {
+      const at = (x, y) => (y * W + x) << 2;
+      const lum = (i) => d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+      const skin = (i) => isSkin(d[i], d[i + 1], d[i + 2]);
+      // верх голови: перший рядок, де є суцільний відрізок ≥ 8 px, що не схожий на фон (фон — кольори з кутків рамки)
+      const bg = [];
+      for (const [x, y] of [[2, 2], [3, 3], [2, 4], [4, 2], [W - 3, 2], [W - 4, 3], [2, 6], [3, 8]]) { const i = at(x, y); bg.push([d[i], d[i + 1], d[i + 2]]); }
+      const nearBg = (i) => bg.some((c) => Math.abs(c[0] - d[i]) + Math.abs(c[1] - d[i + 1]) + Math.abs(c[2] - d[i + 2]) < 60);
+      const runAt = (y) => { let best = null, st = -1; for (let x = 6; x <= W - 6; x++) { const i = at(x, y), on = x < W - 6 && d[i + 3] > 60 && !nearBg(i) && lum(i) > 25; if (on && st < 0) st = x; if (!on && st >= 0) { if (x - st >= 8 && (!best || (st <= 24 && x - 1 >= 24) || x - st > best[1] - best[0])) best = [st, x - 1]; st = -1; } } return best; };
+      let ty = -1, hx0 = W, hx1 = -1;
+      for (let y = 4; y < 26 && ty < 0; y++) { const r = runAt(y); if (r && r[0] <= 26 && r[1] >= 22) ty = y; }
+      if (ty >= 0) for (let y = ty; y < ty + 7; y++) { const r = runAt(y); if (r) { hx0 = Math.min(hx0, r[0]); hx1 = Math.max(hx1, r[1]); } }
+      if (hx1 - hx0 > 30) { const c = (hx0 + hx1) >> 1; hx0 = c - 14; hx1 = c + 14; }
+      // тулуб: перший рядок нижче обличчя з ≥10 «одяговими» пікселями
+      let torsoY = -1;
+      for (let y = 28; y < H - 1 && torsoY < 0; y++) { let n = 0; for (let x = 4; x < 35; x++) { const i = at(x, y); if (d[i + 3] > 60 && !skin(i) && !isBg(d[i], d[i + 1], d[i + 2]) && lum(i) > 60) n++; } if (n >= 10) torsoY = y; }
+      // рот (зуби) і центр обличчя
+      let mouthY = -1, fcx = 24;
+      for (let y = torsoY > 0 ? torsoY - 6 : 30; y < (torsoY > 0 ? torsoY : H) && mouthY < 0; y++) { let n = 0, sx = 0; for (let x = 14; x < 34; x++) { const i = at(x, y); if (lum(i) > 200 && !isBg(d[i], d[i + 1], d[i + 2])) { n++; sx += x; } } if (n >= 3) { mouthY = y; fcx = Math.round(sx / n); } }
+      if (mouthY < 0 && torsoY > 0) { mouthY = torsoY - 3; let sx = 0, n = 0; for (let x = 10; x < 38; x++) if (skin(at(x, mouthY))) { sx += x; n++; } if (n) fcx = Math.round(sx / n); }
+      // ── кофта ──
+      const st = TOPS[o.top];
+      if (st && torsoY > 0) {
+        const J = st.pal.map(hexA);
+        let tieX = -1; for (let x = 4; x < 35; x++) { const i = at(x, torsoY + 2); if (d[i] > 140 && d[i + 1] < 95 && d[i + 2] < 95) { tieX = x + 1; break; } }
+        if (tieX < 0) tieX = fcx;
+        for (let y = torsoY - 1; y < H - 1; y++) {
+          let x0 = -1, x1 = -1;
+          for (let x = 2; x < 35; x++) { const i = at(x, y); if (d[i + 3] > 60 && !isBg(d[i], d[i + 1], d[i + 2]) && lum(i) > 45 && !skin(i)) { if (x0 < 0) x0 = x; x1 = x; } }
+          if (x0 < 0) continue;
+          for (let x = x0; x <= x1; x++) {
+            const i = at(x, y);
+            if (d[i + 3] < 60 || isBg(d[i], d[i + 1], d[i + 2]) || skin(i)) continue;
+            const L = lum(i); if (L < 45) continue;
+            const red = d[i] > 140 && d[i + 1] < 95 && d[i + 2] < 95;
+            if (red && !st.hideTie) continue;
+            if (st.collar && Math.abs(x - tieX) <= 5 && y < torsoY + 4) continue;
+            const ry = y - torsoY, t = L > 205 ? 2 : L > 150 ? 1 : red ? 1 : 0;
+            let c = J[st.quilt && ry % 4 === 3 && t > 0 ? t - 1 : t];
+            if (st.stripes && (x === x0 + 2 || x === x0 + 3 || x === x1 - 3 || x === x1 - 2)) c = hexA(st.stripes);
+            if (st.zip && Math.abs(x - tieX) <= 0) c = hexA(st.zip);
+            if (st.knit && (ry === 3 || ry === 4) && ((x >> 1) + (ry >> 1)) % 2 === 0) c = hexA(st.knit);
+            if (st.knit && (ry === 6) && x % 6 < 2) c = hexA(st.knit);
+            if (st.emb && Math.abs(x - tieX) <= 1 && ry >= 1 && ry <= 8) c = hexA(((ry >> 1) % 2) ? st.emb[1] : st.emb[0]);
+            if (st.emb && ry === 2 && Math.abs(x - tieX) >= 3 && Math.abs(x - tieX) <= 4) c = hexA(st.emb[0]);
+            if (st.pocket && ry >= 5 && Math.abs(x - tieX) <= 4 && (ry === 5 || Math.abs(x - tieX) === 4)) c = J[0];
+            d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2];
+          }
         }
-      };
+      }
+      // ── борода ──
+      if (o.beard && o.beard !== 'beard_none' && mouthY > 0) {
+        const B = BEARD, BH = BEARD_H;
+        const paint = (x, y, c) => { if (x < 0 || y < 0 || x >= W || y >= H) return; const i = at(x, y); if (!skin(i)) return; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; };
+        const paintAny = (x, y, c) => { if (x < 0 || y < 0 || x >= W || y >= H) return; const i = at(x, y); d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; };
+        const chin = torsoY > 0 ? torsoY : mouthY + 6;
+        if (o.beard === 'beard_stubble') {
+          for (let y = mouthY - 1; y < chin; y++) for (let x = fcx - 10; x <= fcx + 10; x++) { const i = at(x, y); if (skin(i) && hsh(x * 7 + y, 3) < 0.55) { d[i] += (STUB[0] - d[i]) * 0.55; d[i + 1] += (STUB[1] - d[i + 1]) * 0.55; d[i + 2] += (STUB[2] - d[i + 2]) * 0.55; } }
+        }
+        if (o.beard === 'beard_mustache' || o.beard === 'beard_goatee' || o.beard === 'beard_cossack') {
+          for (let x = fcx - 6; x <= fcx + 6; x++) { paint(x, mouthY - 1, B); paint(x, mouthY - 2, Math.abs(x - fcx) > 4 ? BH : B); }
+          if (o.beard === 'beard_goatee') for (let y = chin - 3; y < chin; y++) for (let x = fcx - 2; x <= fcx + 2; x++) paint(x, y, (x + y) % 3 ? B : BH);
+          if (o.beard === 'beard_cossack') for (const ex of [fcx - 7, fcx - 6, fcx + 6, fcx + 7]) for (let y = mouthY - 1; y < chin + 1; y++) paintAny(ex, y, y > chin - 2 ? BH : B);
+        }
+        if (o.beard === 'beard_full') {
+          for (let y = mouthY - 2; y < chin + 2; y++) for (let x = fcx - 12; x <= fcx + 12; x++) {
+            const i = at(x, y); if (lum(i) > 200 && y >= mouthY && y < mouthY + 4 && Math.abs(x - fcx) < 6) continue; // зуби видно
+            if (skin(i) && (y >= mouthY || Math.abs(x - fcx) >= 6)) paint(x, y, (x + y) % 3 === 0 ? BH : B);
+          }
+          for (let y = chin; y < chin + 3; y++) for (let x = fcx - 5 + (y - chin); x <= fcx + 5 - (y - chin); x++) paintAny(x, y, (x + y) % 2 ? B : BH);
+        }
+      }
+      // ── шапка (×2) ──
+      if (o.hat && o.hat !== 'hat_none' && ty >= 0 && hx1 > hx0) {
+        const u0 = Math.floor(hx0 / 2), u1 = Math.ceil(hx1 / 2), tyu = Math.floor(ty / 2);
+        return (g) => paintHat((x, y, c) => { g.fillStyle = c; g.fillRect(x * 2, y * 2 + 1, 2, 2); }, o.hat, u0 + 1, u1 - 1, tyu, 'down');
+      }
+      return true;
     });
   }
 
@@ -35239,13 +35325,14 @@
   const origGet = G.sprites.get.bind(G.sprites);
   G.sprites.get = function (key, opts) {
     const img = origGet(key, opts);
-    if (key !== 'player' || !img || (opts && opts.layer === 'glow')) return img;
-    const o = O.current(), k = o.hat + '|' + o.beard + '|' + o.top + '|' + ((opts && opts.dir) || 'down');
+    const portrait = key === 'portrait' && opts && opts.type === 'player';
+    if ((key !== 'player' && !portrait) || !img || (opts && opts.layer === 'glow')) return img;
+    const o = O.current(), k = o.hat + '|' + o.beard + '|' + o.top + '|' + (portrait ? 'P' : (opts && opts.dir) || 'down');
     let m = cache.get(img);
     if (!m) { m = {}; cache.set(img, m); }
     if (m[k]) return m[k];
     let out = img;
-    try { out = O.dress(img, o, opts || {}); } catch (e) { out = img; }
+    try { out = portrait ? dressPortrait(img, o) : O.dress(img, o, opts || {}); } catch (e) { out = img; }
     m[k] = out;
     return out;
   };
