@@ -24161,97 +24161,154 @@
   };
 
   // ═══════════════════════════ Гардероб ═══════════════════════════
-  const WD = { sel: 0, t: 0, cols: 7, backFocus: false };
-  const WG = { x0: 14, y0: 34, cw: 38, ch: 50, gap: 4 };
+  // Round 33: вкладки СКІНИ / ШАПКИ / БОРОДИ / КОФТИ. Закрите — купується за гривні прямо тут; куплене — одягається.
+  const WD = { sel: 0, t: 0, cols: 7, focus: 'grid', tab: 0, msg: null, msgT: 0, flash: 0 };
+  const WTABS = [{ id: 'skins', label: 'СКІНИ' }, { id: 'hat', label: 'ШАПКИ' }, { id: 'beard', label: 'БОРОДИ' }, { id: 'top', label: 'КОФТИ' }];
+  const WG = { x0: 14, y0: 50, cw: 38, ch: 50, gap: 4 };
   const cellRect = (i) => ({ x: WG.x0 + (i % WD.cols) * (WG.cw + WG.gap), y: WG.y0 + Math.floor(i / WD.cols) * (WG.ch + WG.gap), w: WG.cw, h: WG.ch });
+  const tabRect = (i) => ({ x: 14 + i * 72, y: 30, w: 68, h: 15 });
   const backRect = { x: 14, y: 240, w: 80, h: 20 };
   function skinsList() {
     if (G.progress && G.progress.skins && G.progress.skins.length) return G.progress.skins;
     return [{ id: 'office', name: 'Офісний Андрій', unlocked: true, cond: '', desc: '', bonusText: '' }];
   }
   function equipped() { return G.progress ? G.progress.equipped : 'office'; }
-  function tryEquip(s) {
-    if (!s) return;
-    if (!s.unlocked) { click('click'); return; }
-    if (G.progress && G.progress.equip && G.progress.equip(s.id)) click('pickup');
+  function wdList() {
+    const t = WTABS[WD.tab].id;
+    if (t === 'skins') return skinsList();
+    return G.progress && G.progress.accItems ? G.progress.accItems(t) : [];
+  }
+  function wdMsg(m) { WD.msg = m; WD.msgT = 2; }
+  function wdAct(it) {
+    const P = G.progress;
+    if (!it || !P) return;
+    if (WTABS[WD.tab].id === 'skins') {
+      if (it.unlocked) { if (P.equip && P.equip(it.id)) click('pickup'); return; }
+      if (!it.price) { click('click'); wdMsg('Цей скін лише за умову'); return; }
+      const r = P.buySkin ? P.buySkin(it.id) : 'Нема';
+      if (r === true) { click('unlock'); WD.flash = 0.6; wdMsg('Куплено: ' + (it.realName || it.name) + '!'); if (P.equip) P.equip(it.id); }
+      else { click('click'); wdMsg(r); }
+      return;
+    }
+    if (it.owned) { if (P.equipAcc(it.id)) click('pickup'); return; }
+    const r = P.buyAcc(it.id);
+    if (r === true) { click('unlock'); WD.flash = 0.6; wdMsg('Куплено: ' + it.name + '!'); P.equipAcc(it.id); }
+    else { click('click'); wdMsg(r); }
+  }
+  function wdSetTab(i) {
+    WD.tab = (i + WTABS.length) % WTABS.length;
+    const L = wdList();
+    const k = WTABS[WD.tab].id === 'skins' ? L.findIndex((s) => s.id === equipped()) : L.findIndex((x) => x.equipped);
+    WD.sel = Math.max(0, k);
   }
   S.wardrobe.enter = function () {
-    const list = skinsList();
     if (G.progress && G.progress.seenSkins) G.progress.seenSkins();
-    WD.sel = Math.max(0, list.findIndex((s) => s.id === equipped()));
-    WD.t = 0; WD.backFocus = false;
+    WD.t = 0; WD.focus = 'grid'; WD.msg = null; WD.msgT = 0; WD.flash = 0;
+    wdSetTab(WD.tab || 0);
   };
+  S.wardrobe.exit = function () { if (G.outfit) G.outfit.override = null; };
   S.wardrobe.update = function (dt, realDt) {
-    WD.t += realDt;
-    const list = skinsList(), n = list.length;
+    WD.t += realDt; WD.msgT = Math.max(0, WD.msgT - realDt); WD.flash = Math.max(0, WD.flash - realDt);
+    const list = wdList(), n = list.length;
     if (back()) { G.input.consume('pause'); click(); G.setState('menu'); return; }
-    if (WD.backFocus) {
-      if (navUp() || navRight()) { WD.backFocus = false; click(); }
+    if (WD.focus === 'back') {
+      if (navUp() || navRight()) { WD.focus = 'grid'; click(); }
       else if (ok()) { click(); G.setState('menu'); return; }
+    } else if (WD.focus === 'tabs') {
+      if (navLeft()) { wdSetTab(WD.tab - 1); click(); }
+      if (navRight()) { wdSetTab(WD.tab + 1); click(); }
+      if (navDown() || ok()) { WD.focus = 'grid'; click(); }
     } else {
       if (navLeft()) { WD.sel = (WD.sel + n - 1) % n; click(); }
       if (navRight()) { WD.sel = (WD.sel + 1) % n; click(); }
-      if (navUp()) { if (WD.sel >= WD.cols) WD.sel -= WD.cols; click(); }
-      if (navDown()) { if (WD.sel + WD.cols < n) WD.sel += WD.cols; else WD.backFocus = true; click(); }
-      if (ok()) tryEquip(list[WD.sel]);
+      if (navUp()) { if (WD.sel >= WD.cols) WD.sel -= WD.cols; else WD.focus = 'tabs'; click(); }
+      if (navDown()) { if (WD.sel + WD.cols < n) WD.sel += WD.cols; else WD.focus = 'back'; click(); }
+      if (ok()) wdAct(list[WD.sel]);
     }
     const m = G.input.mouse, moved = mouseMoved();
     if (U.inRect(m.x, m.y, backRect)) {
-      if (moved) WD.backFocus = true;
+      if (moved) WD.focus = 'back';
       if (m.clicked) { click(); G.setState('menu'); return; }
     }
+    for (let i = 0; i < WTABS.length; i++) if (U.inRect(m.x, m.y, tabRect(i)) && m.clicked) { wdSetTab(i); WD.focus = 'grid'; click(); return; }
     for (let i = 0; i < n; i++) {
       if (!U.inRect(m.x, m.y, cellRect(i))) continue;
-      if (moved && WD.sel !== i) { WD.sel = i; WD.backFocus = false; }
-      if (m.clicked) { if (WD.sel === i) tryEquip(list[i]); WD.sel = i; WD.backFocus = false; }
+      if (moved && WD.sel !== i) { WD.sel = i; WD.focus = 'grid'; }
+      if (m.clicked) { if (WD.sel === i) wdAct(list[i]); WD.sel = i; WD.focus = 'grid'; }
     }
   };
+  function wdFigure(skin, override, dir, frame) {
+    if (G.outfit) G.outfit.override = override || null;
+    const img = U.person('player', skin, dir, frame);
+    if (G.outfit) G.outfit.override = null;
+    return img;
+  }
   S.wardrobe.draw = function (ctx) {
     U.rect(ctx, '#2a1e34', 0, 0, VW(), VH());
     for (let y = 0; y < VH(); y += 8) U.rect(ctx, 'rgba(255,255,255,0.025)', 0, y, VW(), 4);
-    U.text(ctx, 'ГАРДЕРОБ', 14, 10, { size: 18, color: '#fde98f', shadow: true });
-    const esc = G.progress ? G.progress.escapes : 0;
-    U.text(ctx, 'Втеч: ' + esc, 304, 16, { size: 8, align: 'right', color: '#b4abb2' });
-    const list = skinsList(), eq = equipped(), t = WD.t;
+    U.text(ctx, 'ГАРДЕРОБ', 14, 8, { size: 18, color: '#fde98f', shadow: true });
+    const money = G.progress ? G.progress.money : 0;
+    U.icon(ctx, 'coin', 230, 14); U.text(ctx, money + ' грн', 238, 12, { size: 10, color: '#f7c948', shadow: true });
+    const tabId = WTABS[WD.tab].id, isSkins = tabId === 'skins';
+    for (let i = 0; i < WTABS.length; i++) {
+      const r = tabRect(i), on = i === WD.tab;
+      U.panel(ctx, r.x, r.y, r.w, r.h, { fill: on ? '#5e9846' : 'rgba(58,46,68,0.95)', border: WD.focus === 'tabs' && on ? '#fde98f' : '#1a0e20' });
+      U.text(ctx, WTABS[i].label, r.x + r.w / 2, r.y + 3, { size: 8, align: 'center', color: on ? '#fff8e0' : '#b4abb2' });
+    }
+    const list = wdList(), eq = equipped(), t = WD.t;
     const dirs = ['down', 'left', 'up', 'right'];
     for (let i = 0; i < list.length; i++) {
-      const s = list[i], r = cellRect(i), sel = i === WD.sel && !WD.backFocus;
-      U.panel(ctx, r.x, r.y, r.w, r.h, { fill: s.unlocked ? (s.id === eq ? 'rgba(94,152,70,0.55)' : 'rgba(69,41,63,0.95)') : 'rgba(30,24,36,0.95)', border: sel ? '#fde98f' : '#1a0e20' });
-      const img = U.person('player', s.id, sel && s.unlocked ? dirs[Math.floor(t * 2) % 4] : 'down', sel && s.unlocked ? 1 + Math.floor(t * 6) % 3 : 0);
+      const it = list[i], r = cellRect(i), sel = i === WD.sel && WD.focus === 'grid';
+      const have = isSkins ? it.unlocked : it.owned, worn = isSkins ? it.id === eq : it.equipped;
+      U.panel(ctx, r.x, r.y, r.w, r.h, { fill: have ? (worn ? 'rgba(94,152,70,0.55)' : 'rgba(69,41,63,0.95)') : 'rgba(30,24,36,0.95)', border: sel ? '#fde98f' : '#1a0e20' });
+      const dir = sel ? dirs[Math.floor(t * 2) % 4] : 'down', fr = sel ? 1 + Math.floor(t * 6) % 3 : 0;
+      const img = isSkins ? U.person('player', it.id, have ? dir : 'down', have ? fr : 0) : wdFigure(eq, { [tabId]: it.id }, dir, fr);
       if (img) {
-        const pic = s.unlocked ? img : U.silhouette(img, '#4a4550');
-        U.drawScaled(ctx, pic, r.x + r.w / 2 - img.width / 2, r.y + 5, 1, s.id === 'invisible' && s.unlocked ? 0.5 : 1);
+        const pic = isSkins && !have ? U.silhouette(img, '#4a4550') : img;
+        U.drawScaled(ctx, pic, r.x + r.w / 2 - img.width / 2, r.y + r.h - 16 - img.height + 2, 1, isSkins && it.id === 'invisible' && have ? 0.5 : 1);
       }
-      if (!s.unlocked) {
-        U.icon(ctx, 'unlock', r.x + r.w - 9, r.y + 3);
-        const need = s.need || 0, cur = Math.min(s.cur || 0, need);
-        U.text(ctx, need > 1 ? cur + '/' + need : '?', r.x + r.w / 2, r.y + r.h - 13, { size: 8, align: 'center', color: '#7a7280' });
-      } else if (s.id === eq) U.icon(ctx, 'check', r.x + r.w / 2 - 3, r.y + r.h - 10);
+      if (!have) {
+        if (it.price) { U.icon(ctx, 'coin', r.x + 3, r.y + r.h - 11); U.text(ctx, String(it.price), r.x + r.w / 2 + 3, r.y + r.h - 12, { size: 8, align: 'center', color: money >= it.price ? '#f7c948' : '#8c8494' }); }
+        else { U.icon(ctx, 'unlock', r.x + r.w - 9, r.y + 3); U.text(ctx, '?', r.x + r.w / 2, r.y + r.h - 12, { size: 8, align: 'center', color: '#7a7280' }); }
+      } else if (worn) U.icon(ctx, 'check', r.x + r.w / 2 - 3, r.y + r.h - 10);
     }
-    // нижня ліва панель: опис і умова
-    const s = list[WD.sel] || list[0];
-    U.panel(ctx, 14, 146, 290, 88);
-    U.text(ctx, s.unlocked ? (s.name || s.id) : (s.name || '???'), 22, 152, { size: 10, color: s.unlocked ? '#fde98f' : '#b4abb2', shadow: true });
-    const desc = s.desc || '';
-    const dl = U.wrap(s.id === 'secret' && !s.unlocked ? 'Щось тут нечисто. І пахне.' : desc, 274, 8);
-    for (let i = 0; i < dl.length && i < 3; i++) U.text(ctx, dl[i], 22, 168 + i * U.lineH(8), { size: 8, color: '#e8dcc8' });
-    U.text(ctx, 'Бонус: ' + (s.bonusText || 'суто косметичний') + (s.bonusText ? ' (лише Андрію)' : ''), 22, 204, { size: 8, color: '#8fc7e4' });
-    if (!s.unlocked) U.text(ctx, 'Умова: ' + (s.cond || '?'), 22, 218, { size: 8, color: '#ef8a3b' });
-    else U.text(ctx, s.id === eq ? 'Одягнено' : (isTouch() ? 'Торкнись — одягти' : 'Enter / клік — одягти'), 22, 218, { size: 8, color: s.id === eq ? '#93c25b' : '#fbf6ea' });
-    // права панель: превʼю, що крутиться
-    U.panel(ctx, 314, 34, 154, 200, { fill: 'rgba(58,46,68,0.95)' });
-    U.rect(ctx, 'rgba(0,0,0,0.25)', 320, 40, 142, 150);
-    for (let x = 320; x < 462; x += 8) U.rect(ctx, 'rgba(255,255,255,0.04)', x, 40, 4, 150);
-    const big = U.person('player', s.id, dirs[Math.floor(t * 1.6) % 4], s.unlocked ? 1 + Math.floor(t * 6) % 3 : 0);
+    // опис
+    const it = list[WD.sel] || list[0] || {};
+    const have = isSkins ? it.unlocked : it.owned, worn = isSkins ? it.id === eq : it.equipped;
+    U.panel(ctx, 14, 160, 290, 74);
+    U.text(ctx, it.name || '???', 22, 165, { size: 10, color: have ? '#fde98f' : '#e8dcc8', shadow: true });
+    const dl = U.wrap(isSkins && it.id === 'secret' && !have ? 'Щось тут нечисто. І пахне.' : it.desc || '', 274, 8);
+    for (let i = 0; i < dl.length && i < 2; i++) U.text(ctx, dl[i], 22, 180 + i * U.lineH(8), { size: 8, color: '#e8dcc8' });
+    if (isSkins) U.text(ctx, 'Бонус: ' + (it.bonusText || 'суто косметичний') + (it.bonusText ? ' (лише Андрію)' : ''), 22, 202, { size: 8, color: '#8fc7e4' });
+    const act = isTouch() ? 'торкнись ще раз' : 'Enter';
+    let line, col;
+    if (worn) { line = '✓ Одягнено'; col = '#93c25b'; }
+    else if (have) { line = act + ' — одягти'; col = '#fbf6ea'; }
+    else if (it.price) { line = 'КУПИТИ за ' + it.price + ' грн · ' + act + (isSkins && it.cond ? '' : ''); col = money >= it.price ? '#f7c948' : '#ef8a3b'; }
+    else { line = 'Умова: ' + (it.cond || '?'); col = '#ef8a3b'; }
+    U.text(ctx, line, 22, 218, { size: 8, color: col });
+    if (isSkins && !have && it.cond && it.price) U.text(ctx, it.cond, 296, 218, { size: 7, align: 'right', color: '#8c8494' });
+    // превʼю
+    U.panel(ctx, 314, 50, 154, 184, { fill: 'rgba(58,46,68,0.95)' });
+    U.rect(ctx, 'rgba(0,0,0,0.25)', 320, 56, 142, 136);
+    for (let x = 320; x < 462; x += 8) U.rect(ctx, 'rgba(255,255,255,0.04)', x, 56, 4, 136);
+    const pdir = dirs[Math.floor(t * 1.6) % 4], pfr = 1 + Math.floor(t * 6) % 3;
+    const big = isSkins ? U.person('player', it.id, pdir, have ? pfr : 0) : wdFigure(eq, { [tabId]: it.id }, pdir, pfr);
     if (big) {
-      const sc = 4, pic = s.unlocked ? big : U.silhouette(big, '#4a4550');
-      if (G.drawShadow) G.drawShadow(ctx, 391, 178, 26, 0.4);
-      U.drawScaled(ctx, pic, 391 - big.width * sc / 2, 180 - big.height * sc, sc, s.id === 'invisible' && s.unlocked ? 0.5 : 1);
+      const sc = 4, pic = isSkins && !have ? U.silhouette(big, '#4a4550') : big;
+      if (G.drawShadow) G.drawShadow(ctx, 391, 186, 26, 0.4);
+      U.drawScaled(ctx, pic, 391 - big.width * sc / 2, 188 - big.height * sc, sc, isSkins && it.id === 'invisible' && have ? 0.5 : 1);
     }
-    U.text(ctx, s.unlocked ? (s.name || s.id) : 'Закрито', 391, 198, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
-    U.text(ctx, s.unlocked ? (s.id === eq ? '✓ на тобі' : 'можна одягти') : (s.cond || ''), 391, 212, { size: 8, align: 'center', color: s.unlocked ? '#93c25b' : '#ef8a3b' });
-    U.button(ctx, backRect, 'Назад', WD.backFocus, { size: 8 });
-    if (!isTouch()) U.text(ctx, 'Esc — меню', VW() - 6, VH() - 12, { size: 8, align: 'right', color: 'rgba(255,255,255,0.5)' });
+    U.text(ctx, it.name || '', 391, 204, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
+    U.text(ctx, worn ? '✓ на тобі' : have ? 'можна одягти' : it.price ? it.price + ' грн' : 'закрито', 391, 218, { size: 8, align: 'center', color: worn || have ? '#93c25b' : '#f7c948' });
+    if (WD.flash > 0) { ctx.save(); ctx.globalAlpha = WD.flash * 0.5; U.rect(ctx, '#fde98f', 314, 50, 154, 184); ctx.restore(); }
+    if (WD.msgT > 0 && WD.msg) {
+      const w = U.measure(WD.msg, 8) + 16;
+      U.panel(ctx, 240 - w / 2, 236, w, 16, { fill: 'rgba(26,14,32,0.95)', border: '#f7c948' });
+      U.text(ctx, WD.msg, 240, 240, { size: 8, align: 'center', color: '#fde98f' });
+    }
+    U.button(ctx, backRect, 'Назад', WD.focus === 'back', { size: 8 });
+    if (!isTouch()) U.text(ctx, '↑ — вкладки · Esc — меню', VW() - 6, VH() - 12, { size: 8, align: 'right', color: 'rgba(255,255,255,0.5)' });
     G.ui.drawOverlay(ctx);
   };
 
@@ -28682,7 +28739,35 @@
     radar: { name: 'Чат «Де ТЦК Київ»', price: 30, desc: 'Перші 30 с забігу всі буси видно на міні-карті.' },
     energy: { name: 'Енергетик', price: 25, desc: 'Перші 10 с забігу — прискорення і біг майже без втоми.' },
   };
-  const SKIN_PRICE = { sport: 60, courier: 120, it: 180, granny: 250, student: 320, ninja: 450, invisible: 700 };
+  const SKIN_PRICE = { sport: 60, courier: 120, it: 180, granny: 250, student: 320, ninja: 450, invisible: 700,
+    boxer: 400, marathon: 400, pacifist: 350, flash: 500, panas: 600, secret: 999 }; // Round 33: усі скіни можна купити
+  // Round 33: одяг героя — шапки, бороди, кофти (купуються за гривні в ГАРДЕРОБІ; ціна 0 — є з початку)
+  const ACC = [
+    { id: 'hat_none', slot: 'hat', name: 'Без шапки', price: 0, desc: 'Своя зачіска — теж стиль.' },
+    { id: 'hat_santa', slot: 'hat', name: 'Новорічна шапка', price: 0, desc: 'Подарунок на зиму. ТЦК теж такі носять.' },
+    { id: 'hat_beanie_red', slot: 'hat', name: 'Червона вʼязанка', price: 40, desc: 'Бабуся вʼязала. Тепла.' },
+    { id: 'hat_beanie_blue', slot: 'hat', name: 'Синя вʼязанка', price: 40, desc: 'З помпоном. Класика двору.' },
+    { id: 'hat_cap', slot: 'hat', name: 'Кепка', price: 70, desc: 'Козирок униз — обличчя менше видно (так здається).' },
+    { id: 'hat_panama', slot: 'hat', name: 'Панамка', price: 90, desc: 'Як на рибалці на Дніпрі.' },
+    { id: 'hat_ushanka', slot: 'hat', name: 'Вушанка', price: 150, desc: 'Хутро, вуха, повна готовність до зими.' },
+    { id: 'hat_crown', slot: 'hat', name: 'Корона', price: 500, desc: 'Король району. Видно здалеку.' },
+    { id: 'beard_none', slot: 'beard', name: 'Без бороди', price: 0, desc: 'Поголений. Мама задоволена.' },
+    { id: 'beard_stubble', slot: 'beard', name: 'Щетина', price: 30, desc: 'Три дні не виходив з дому.' },
+    { id: 'beard_mustache', slot: 'beard', name: 'Вуса', price: 60, desc: 'Солідно. Як у дядька на ринку.' },
+    { id: 'beard_goatee', slot: 'beard', name: 'Еспаньйолка', price: 80, desc: 'Для тих, хто працює в ІТ.' },
+    { id: 'beard_cossack', slot: 'beard', name: 'Козацькі вуса', price: 220, desc: 'Довгі, донизу. Предки схвалюють.' },
+    { id: 'beard_full', slot: 'beard', name: 'Борода лісоруба', price: 150, desc: 'Рік не виходив з дому — і ось результат.' },
+    { id: 'top_shirt', slot: 'top', name: 'Сорочка з краваткою', price: 0, desc: 'Офісна класика.' },
+    { id: 'top_puffer_navy', slot: 'top', name: 'Синій пуховик', price: 0, desc: 'Зимовий подарунок. Тепло і непомітно.' },
+    { id: 'top_puffer_red', slot: 'top', name: 'Червоний пуховик', price: 80, desc: 'Тепло, але видно за кілометр.' },
+    { id: 'top_hoodie', slot: 'top', name: 'Сіре худі', price: 70, desc: 'Як у всіх. Розчиняєшся в натовпі.' },
+    { id: 'top_sport', slot: 'top', name: 'Олімпійка', price: 120, desc: 'Чорна з білими смугами. Пацани з бурси оцінять.' },
+    { id: 'top_deer', slot: 'top', name: 'Светр з оленями', price: 160, desc: 'Новорічний. Мама подарувала.' },
+    { id: 'top_vyshyvanka', slot: 'top', name: 'Вишиванка', price: 250, desc: 'Біла з червоним орнаментом.' },
+  ];
+  const ACC_BY_ID = {};
+  for (const a of ACC) ACC_BY_ID[a.id] = a;
+  const accDefault = (slot) => (slot === 'hat' ? (G.cfg.WINTER ? 'hat_santa' : 'hat_none') : slot === 'top' ? (G.cfg.WINTER ? 'top_puffer_navy' : 'top_shirt') : 'beard_none');
   // Досягнення (гроші за них — одразу)
   const ACH = [
     { id: 'first_win', name: 'Вижив перший день', desc: 'Пройти будь-яку місію', money: 20 },
@@ -28731,7 +28816,7 @@
     return { v: SAVE_VERSION, escapes: 0, day: 1, maxDay: 1, unlocked: ['office'], equipped: 'office', counters: freshCounters(),
       money: 0, earned: 0, stars: {}, done: {}, ach: [], kit: [], streak: { last: '', n: 0, total: 0 }, endlessBest: 0,
       upg: {}, esc: freshEsc(), daily: { played: {}, hist: {} }, chal: { date: '', list: [], all: false }, tut: {}, seen: { skins: ['office'], esc: 0, daily: '', ach: 0 },
-      heroes: { sel: 'andriy', own: ['andriy'], seen: ['andriy'] } };
+      heroes: { sel: 'andriy', own: ['andriy'], seen: ['andriy'] }, acc: { own: [], hat: null, beard: null, top: null } };
   }
   const num = (v, d) => (typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : d);
   // Round 16 (B11): межі для чисел у сейві (зламаний/підроблений сейв не відкриває «місію 1e9» і не дає мільярд грн)
@@ -28826,6 +28911,10 @@
       for (const c of d.chal.list) if (c && CHAL_BY_ID[c.id] && out.chal.list.length < 3) out.chal.list.push({ id: c.id, cur: numC(c.cur, 0, LIM.COUNT), done: !!c.done });
     }
     if (d.tut && typeof d.tut === 'object') for (const k in d.tut) if (d.tut[k]) out.tut[k] = 1;
+    if (d.acc && typeof d.acc === 'object') {
+      if (Array.isArray(d.acc.own)) for (const id of d.acc.own) if (ACC_BY_ID[id] && out.acc.own.indexOf(id) < 0) out.acc.own.push(id);
+      for (const sl of ['hat', 'beard', 'top']) { const id = d.acc[sl]; if (ACC_BY_ID[id] && ACC_BY_ID[id].slot === sl && (ACC_BY_ID[id].price === 0 || out.acc.own.indexOf(id) >= 0)) out.acc[sl] = id; }
+    }
     if (d.heroes && typeof d.heroes === 'object') {
       const ok = (id) => typeof id === 'string' && (!G.heroes || !!G.heroes.get(id));
       if (Array.isArray(d.heroes.own)) for (const id of d.heroes.own) if (ok(id) && out.heroes.own.indexOf(id) < 0) out.heroes.own.push(id);
@@ -28895,12 +28984,12 @@
       cond = s.need === 0 ? 'Є з самого початку' : 'Втечі: ' + Math.min(D.escapes, s.need) + '/' + s.need + (SKIN_PRICE[s.id] && !unlocked ? ' або ' + SKIN_PRICE[s.id] + ' грн' : '');
     } else if (s.counter) {
       cur = Math.min(D.counters[s.counter] || 0, s.need);
-      cond = s.condLabel + ': ' + cur + '/' + s.need;
+      cond = s.condLabel + ': ' + cur + '/' + s.need + (SKIN_PRICE[s.id] && !unlocked ? ' або ' + SKIN_PRICE[s.id] + ' грн' : '');
     } else {
       cur = unlocked ? 1 : 0;
-      cond = s.condText;
+      cond = s.condText + (SKIN_PRICE[s.id] && !unlocked ? ' або ' + SKIN_PRICE[s.id] + ' грн' : '');
     }
-    if (s.id === 'secret' && !unlocked) cond = 'Сховайся там, де ніхто не шукає: ' + cur + '/' + s.need;
+    if (s.id === 'secret' && !unlocked) cond = 'Сховайся там, де ніхто не шукає: ' + cur + '/' + s.need + ' або ' + SKIN_PRICE.secret + ' грн';
     const b = [];
     for (const k in BONUSES) if (BONUSES[k].by[s.id] != null) b.push(k);
     return {
@@ -29252,6 +29341,30 @@
     get day() { return D.day; },
     get maxDay() { return D.maxDay; },
     get equipped() { return D.equipped; },
+    // ── Round 33: одяг героя ──
+    accOwned(id) { const a = ACC_BY_ID[id]; return !!a && (a.price === 0 || D.acc.own.indexOf(id) >= 0); },
+    outfit() { const o = {}; for (const sl of ['hat', 'beard', 'top']) o[sl] = D.acc[sl] || accDefault(sl); return o; },
+    accItems(slot) {
+      const o = this.outfit();
+      return ACC.filter((a) => a.slot === slot).map((a) => ({ id: a.id, slot: a.slot, name: a.name, price: a.price, desc: a.desc, owned: this.accOwned(a.id), equipped: o[slot] === a.id }));
+    },
+    buyAcc(id) {
+      const a = ACC_BY_ID[id];
+      if (!a) return 'Нема такого товару';
+      if (this.accOwned(id)) return 'Вже є';
+      if (D.money < a.price) return 'Не вистачає ' + (a.price - D.money) + ' грн';
+      D.money -= a.price; D.acc.own.push(id); persist();
+      return true;
+    },
+    equipAcc(id) {
+      const a = ACC_BY_ID[id];
+      if (!a || !this.accOwned(id)) return false;
+      D.acc[a.slot] = id; persist();
+      G.events.emit('outfit:change', this.outfit());
+      return true;
+    },
+    // скін за гривні прямо з гардеробу
+    buySkin(id) { return this.buy('skin:' + id); },
     get counters() { return D.counters; },
     get skins() { return SKINS.map(skinView); },
     get unlockedIds() { return D.unlocked.slice(); },
@@ -29576,7 +29689,7 @@
       for (const s of SKINS) {
         if (!SKIN_PRICE[s.id]) continue;
         out.push({ id: 'skin:' + s.id, kind: 'skin', skin: s.id, name: 'Скін «' + s.name + '»', price: SKIN_PRICE[s.id],
-          desc: s.desc + ' Бонус: ' + (s.bonusText || 'суто косметичний') + '. (Або ' + s.need + ' втеч.)', owned: isUnlocked(s.id) });
+          desc: s.desc + ' Бонус: ' + (s.bonusText || 'суто косметичний') + '.' + (s.kind === 'escapes' ? ' (Або ' + s.need + ' втеч.)' : ''), owned: isUnlocked(s.id) });
       }
       return out;
     },
@@ -34603,7 +34716,6 @@
     if (!img || !WN.on || (opts && opts.layer === 'glow')) return img;
     let kind = null;
     if (key === 'tck') kind = 'hat';
-    else if (key === 'player') kind = 'player';
     else if (key === 'npc' && opts && opts.variant !== 'pigeon') kind = 'npc';
     else if (key === 'bg' && opts && opts.variant === 'menu') kind = 'menu';
     else if (key === 'prop' && opts) {
@@ -34942,6 +35054,202 @@
   }
   hookMenu();
   G.events.on('state:change', () => { hookMenu(); hookFx(); hookGround(); hookWorldFx(); });
+})();
+
+
+/* ===== 86_outfit.js ===== */
+// 86_outfit.js — одяг героя (Round 33): шапка, борода, кофта поверх спрайта 'player' (будь-який скін і герой).
+// Дані й покупки — G.progress.accItems/buyAcc/equipAcc/outfit (80_progress). Тут лише малювання.
+// G.outfit.override = {hat?, beard?, top?} — тимчасова примірка (гардероб), G.outfit.dress(img, outfit, opts).
+(function () {
+  const G = window.G;
+  const O = G.outfit = { override: null };
+  function hsh(i, m) { let h = (i * 2654435761 + m * 40503) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13; return (h >>> 0) / 4294967296; }
+  const hexA = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  function copyOf(src, padTop) {
+    const c = G.util.makeCanvas(src.width, src.height + (padTop || 0));
+    c.getContext('2d').drawImage(src, 0, padTop || 0);
+    return c;
+  }
+  function figure(d, W, H) {
+    let ty = -1, by = -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[((y * W + x) << 2) + 3] > 60) { if (ty < 0) ty = y; by = y; break; }
+    const fh = by - ty;
+    return { ty, by, y0: ty + Math.round(fh * 0.42), y1: ty + Math.round(fh * 0.74) };
+  }
+  const isSkin = (r, g, b) => r > 175 && g > 115 && b < 175 && r > g && g > b && b > r * 0.45;
+  function withData(src, pad, fn) {
+    const c = copyOf(src, pad), g = c.getContext('2d');
+    let im;
+    try { im = g.getImageData(0, 0, c.width, c.height); } catch (e) { return src; }
+    const r = fn(im.data, c.width, c.height, g);
+    if (r === false) return src;
+    g.putImageData(im, 0, 0);
+    if (typeof r === 'function') r(g); // після putImageData — малювання поверх
+    return c;
+  }
+  const set = (d, W, x, y, c) => { if (x < 0 || y < 0 || x >= W) return; const i = (y * W + x) << 2; if (i < 0 || i >= d.length) return; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255; };
+
+  // ═══════════ кофти ═══════════
+  const TOPS = {
+    top_puffer_navy: { pal: ['#1f2a40', '#2c3e5c', '#3f5678'], quilt: true, collar: true },
+    top_puffer_red: { pal: ['#5a1a1e', '#9a2a30', '#c8443a'], quilt: true, collar: true },
+    top_hoodie: { pal: ['#45454e', '#64646e', '#868690'], hideTie: true, pocket: true },
+    top_sport: { pal: ['#18181e', '#24242c', '#34343e'], hideTie: true, stripes: '#f2f2f2', zip: '#9a9aa6' },
+    top_deer: { pal: ['#7a1a20', '#a82c34', '#cc4448'], hideTie: true, knit: '#f4efe6' },
+    top_vyshyvanka: { pal: ['#d4d0c8', '#ebe7df', '#faf7f0'], hideTie: true, emb: ['#c8242b', '#1a1620'] },
+  };
+  function topOn(src, id, opts) {
+    const st = TOPS[id]; if (!st) return src;
+    const J = st.pal.map(hexA), back = opts.dir === 'up';
+    return withData(src, 0, (d, W, H) => {
+      const F = figure(d, W, H); if (F.ty < 0) return false;
+      let cx0 = W, cx1 = -1;
+      for (let x = 0; x < W; x++) if (d[((F.y0 * W + x) << 2) + 3] > 60) { if (x < cx0) cx0 = x; if (x > cx1) cx1 = x; }
+      const cmid = (cx0 + cx1) / 2;
+      for (let y = F.y0; y <= F.y1; y++) for (let x = 0; x < W; x++) {
+        const i = (y * W + x) << 2;
+        if (d[i + 3] < 60) continue;
+        const r = d[i], g = d[i + 1], b = d[i + 2], lum = r * 0.3 + g * 0.59 + b * 0.11;
+        if (lum < 45) continue;
+        if (isSkin(r, g, b)) continue;
+        const red = r > 140 && g < 95 && b < 95;
+        if (red && !st.hideTie) continue;
+        if (st.collar && !back && Math.abs(x - cmid) <= 1 && y <= F.y0 + 3) continue;
+        const t = lum > 170 ? 2 : lum > 110 ? 1 : red ? 1 : 0;
+        const quilt = st.quilt && (y - F.y0) % 3 === 2 && t > 0;
+        const c = J[quilt ? t - 1 : t];
+        d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2];
+        const ry = y - F.y0;
+        if (st.stripes && (x === cx0 + 1 || x === cx1 - 1)) { const s = hexA(st.stripes); d[i] = s[0]; d[i + 1] = s[1]; d[i + 2] = s[2]; }
+        if (st.zip && !back && Math.round(x - cmid) === 0) { const s = hexA(st.zip); d[i] = s[0]; d[i + 1] = s[1]; d[i + 2] = s[2]; }
+        if (st.knit && (ry === 2 || ry === 4) && (x + ry) % 2 === 0) { const s = hexA(st.knit); d[i] = s[0]; d[i + 1] = s[1]; d[i + 2] = s[2]; }
+        if (st.knit && ry === 3 && (x % 4 === 1)) { const s = hexA(st.knit); d[i] = s[0]; d[i + 1] = s[1]; d[i + 2] = s[2]; }
+        if (st.emb && !back) {
+          const e0 = hexA(st.emb[0]), e1 = hexA(st.emb[1]);
+          if (Math.round(x - cmid) === 0 && ry <= 4) { const c2 = ry % 2 ? e1 : e0; d[i] = c2[0]; d[i + 1] = c2[1]; d[i + 2] = c2[2]; }
+          if (ry === 1 && Math.abs(x - cmid) === 2) { d[i] = e0[0]; d[i + 1] = e0[1]; d[i + 2] = e0[2]; }
+        }
+        if (st.emb && (x === cx0 || x === cx1) && ry === F.y1 - F.y0) { const e0 = hexA(st.emb[0]); d[i] = e0[0]; d[i + 1] = e0[1]; d[i + 2] = e0[2]; }
+        if (st.pocket && !back && ry === F.y1 - F.y0 - 1 && Math.abs(x - cmid) <= 2) { d[i] = J[0][0]; d[i + 1] = J[0][1]; d[i + 2] = J[0][2]; }
+      }
+      // худі: каптур за шиєю
+      if (st.pocket) for (let x = Math.round(cmid) - 2; x <= Math.round(cmid) + 2; x++) { const i = ((F.y0 - 1) * W + x) << 2; if (i >= 0 && d[i + 3] > 60 && !isSkin(d[i], d[i + 1], d[i + 2])) { d[i] = J[1][0]; d[i + 1] = J[1][1]; d[i + 2] = J[1][2]; } }
+      return true;
+    });
+  }
+
+  // ═══════════ бороди ═══════════
+  const BEARD = hexA('#4a2c1e'), BEARD_H = hexA('#6a4030'), STUB = hexA('#7a6a62');
+  function beardOn(src, id, opts) {
+    if (id === 'beard_none' || opts.dir === 'up') return src;
+    return withData(src, 0, (d, W, H) => {
+      const F = figure(d, W, H); if (F.ty < 0) return false;
+      const rowSkin = (y) => { const xs = []; for (let x = 0; x < W; x++) { const i = (y * W + x) << 2; if (d[i + 3] > 60 && isSkin(d[i], d[i + 1], d[i + 2])) xs.push(x); } return xs; };
+      const mouthY = F.y0 - 2, s2 = rowSkin(mouthY), s1 = rowSkin(F.y0 - 1), s3 = rowSkin(F.y0 - 3);
+      const all = s2.length ? s2 : s1;
+      if (!all.length) return false;
+      const cx = Math.round(all.reduce((a, b) => a + b, 0) / all.length);
+      const side = opts.dir === 'left' ? -1 : opts.dir === 'right' ? 1 : 0;
+      const fx = cx + side; // на боці обличчя зсунуте вперед
+      const paint = (x, y, c) => set(d, W, x, y, c);
+      if (id === 'beard_stubble') {
+        for (const y of [F.y0 - 2, F.y0 - 1]) for (const x of rowSkin(y)) { const i = (y * W + x) << 2; d[i] += (STUB[0] - d[i]) * 0.5; d[i + 1] += (STUB[1] - d[i + 1]) * 0.5; d[i + 2] += (STUB[2] - d[i + 2]) * 0.5; }
+      } else if (id === 'beard_mustache' || id === 'beard_goatee' || id === 'beard_cossack') {
+        const w = side ? 2 : 3;
+        for (let x = fx - (side ? (side > 0 ? 0 : 1) : 1); x < fx - (side ? (side > 0 ? 0 : 1) : 1) + w; x++) if (s2.indexOf(x) >= 0 || s3.indexOf(x) >= 0) paint(x, mouthY, BEARD);
+        if (!side) { paint(fx - 2, mouthY, BEARD_H); paint(fx + 2, mouthY, BEARD_H); }
+        if (id === 'beard_goatee') { paint(fx, F.y0 - 1, BEARD); paint(fx, F.y0, BEARD); if (!side) paint(fx + 1, F.y0 - 1, BEARD_H); }
+        if (id === 'beard_cossack') {
+          const ends = side ? [fx + side] : [fx - 2, fx + 2];
+          for (const ex of ends) for (let k = 1; k <= 3; k++) paint(ex, mouthY + k, k === 3 ? BEARD_H : BEARD);
+        }
+      } else if (id === 'beard_full') {
+        for (const y of [F.y0 - 3, F.y0 - 2, F.y0 - 1]) for (const x of rowSkin(y)) if (y > F.y0 - 3 || Math.abs(x - fx) >= 2) paint(x, y, (x + y) % 3 === 0 ? BEARD_H : BEARD);
+        for (let x = fx - (side ? 1 : 2); x <= fx + (side ? 1 : 2); x++) paint(x, F.y0, (x + F.y0) % 2 ? BEARD : BEARD_H);
+        paint(fx, F.y0 + 1, BEARD);
+        paint(fx, mouthY, hexA('#8a3a32')); // рот у бороді
+      }
+      return true;
+    });
+  }
+
+  // ═══════════ шапки ═══════════
+  function headBox(d, W, ty) {
+    let x0 = W, x1 = -1;
+    for (let y = ty; y < ty + 2; y++) for (let x = 0; x < W; x++) if (d[((y * W + x) << 2) + 3] > 60) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+    if (x1 - x0 < 4) { const c = (x0 + x1) >> 1; x0 = c - 2; x1 = c + 3; }
+    return { x0, x1 };
+  }
+  function hatOn(src, id, opts) {
+    if (id === 'hat_none') return src;
+    const P = 6;
+    return withData(src, P, (d, W, H) => {
+      const F = figure(d, W, H); if (F.ty < 0) return false;
+      const ty = F.ty, { x0, x1 } = headBox(d, W, ty), cx = Math.round((x0 + x1) / 2), dir = opts.dir;
+      return (g) => {
+        const px = (x, y, c) => { if (x >= 0 && y >= 0 && x < W && y < H) { g.fillStyle = c; g.fillRect(x, y, 1, 1); } };
+        const row = (y, a, b, c) => { for (let x = a; x <= b; x++) px(x, y, typeof c === 'function' ? c(x) : c); };
+        if (id === 'hat_santa') {
+          for (let r = 0; r < 5; r++) { const l = x0 + Math.round(r * 0.9) + (r >= 3 ? 1 : 0), rr = x1 - Math.floor(r * 0.5) + (r >= 2 ? 1 : 0); if (rr < l) break; row(ty - r, l, rr, (x) => (x === l ? '#9e1a22' : r === 1 && x === rr - 1 ? '#ff6a5a' : '#d42a2a')); }
+          px(x1 + 2, ty - 4, '#f6f3ee'); px(x1 + 3, ty - 4, '#f6f3ee'); px(x1 + 2, ty - 3, '#d6d0c6'); px(x1 + 3, ty - 3, '#f6f3ee');
+          row(ty + 1, x0 - 1, x1 + 1, '#f6f3ee'); row(ty + 2, x0 - 1, x1 + 1, (x) => ((x + ty) % 3 === 0 ? '#d6d0c6' : '#f6f3ee'));
+        } else if (id === 'hat_beanie_red' || id === 'hat_beanie_blue') {
+          const M = id === 'hat_beanie_red' ? '#c82a2a' : '#2a6ab8', D = id === 'hat_beanie_red' ? '#8e1c22' : '#1c4a86', Fp = '#f4f2ee';
+          row(ty - 1, x0 + 1, x1 - 1, M); row(ty, x0, x1, (x) => (x === x0 ? D : M)); row(ty + 1, x0, x1, (x) => ((x + ty) % 2 ? M : D)); row(ty + 2, x0, x1, D);
+          px(cx - 1, ty - 3, Fp); px(cx, ty - 3, Fp); px(cx - 1, ty - 2, Fp); px(cx, ty - 2, Fp);
+        } else if (id === 'hat_cap') {
+          const M = '#2a4a8a', D = '#1c3260', L = '#4a6ab0';
+          row(ty - 1, x0 + 1, x1 - 1, M); row(ty, x0, x1, (x) => (x === x0 ? D : x === cx ? '#f4f2ee' : M)); row(ty + 1, x0, x1, D);
+          if (dir === 'left') row(ty + 1, x0 - 4, x0, L); else if (dir === 'right') row(ty + 1, x1, x1 + 4, L); else if (dir !== 'up') row(ty + 2, x0, x1, L);
+          px(cx, ty - 2, D);
+        } else if (id === 'hat_panama') {
+          const M = '#d8c8a0', D = '#b0a074', L = '#ece0c0';
+          row(ty - 1, x0 + 1, x1 - 1, M); row(ty, x0 + 1, x1 - 1, (x) => (x === x0 + 1 ? D : L)); row(ty + 1, x0, x1, '#8a7a50');
+          row(ty + 2, x0 - 2, x1 + 2, (x) => (x === x0 - 2 || x === x1 + 2 ? D : M));
+        } else if (id === 'hat_ushanka') {
+          const M = '#7a5434', D = '#5a3a22', L = '#b08a62';
+          row(ty - 2, x0 + 1, x1 - 1, M); row(ty - 1, x0, x1, (x) => (x === x0 ? D : M)); row(ty, x0 - 1, x1 + 1, M);
+          row(ty + 1, x0 - 1, x1 + 1, (x) => ((x + ty) % 2 ? L : '#c8a478'));
+          for (let k = 2; k <= 6; k++) { px(x0 - 1, ty + k, k % 2 ? M : D); px(x1 + 1, ty + k, k % 2 ? M : D); if (k <= 4) { px(x0 - 2, ty + k, D); px(x1 + 2, ty + k, D); } }
+        } else if (id === 'hat_crown') {
+          const M = '#f2c13a', D = '#c8901a', Lg = '#fff0a0';
+          row(ty, x0, x1, (x) => (x === x0 ? D : M)); row(ty + 1, x0, x1, D);
+          for (const sx of [x0, cx, x1]) { px(sx, ty - 1, M); px(sx, ty - 2, M); px(sx, ty - 3, Lg); }
+          px(cx - 2, ty - 1, M); px(cx + 2, ty - 1, M);
+          px(cx, ty, '#d42a2a'); px(x0 + 1, ty, '#2a8ad4'); px(x1 - 1, ty, '#2aa84a');
+        }
+      };
+    });
+  }
+
+  O.dress = function (img, o, opts) {
+    let out = img;
+    if (o.top && o.top !== 'top_shirt') out = topOn(out, o.top, opts);
+    if (o.beard && o.beard !== 'beard_none') out = beardOn(out, o.beard, opts);
+    if (o.hat && o.hat !== 'hat_none') out = hatOn(out, o.hat, opts);
+    return out;
+  };
+  O.current = function () {
+    const base = G.progress && G.progress.outfit ? G.progress.outfit() : { hat: G.cfg.WINTER ? 'hat_santa' : 'hat_none', beard: 'beard_none', top: G.cfg.WINTER ? 'top_puffer_navy' : 'top_shirt' };
+    return O.override ? Object.assign(base, O.override) : base;
+  };
+
+  const cache = new WeakMap();
+  const origGet = G.sprites.get.bind(G.sprites);
+  G.sprites.get = function (key, opts) {
+    const img = origGet(key, opts);
+    if (key !== 'player' || !img || (opts && opts.layer === 'glow')) return img;
+    const o = O.current(), k = o.hat + '|' + o.beard + '|' + o.top + '|' + ((opts && opts.dir) || 'down');
+    let m = cache.get(img);
+    if (!m) { m = {}; cache.set(img, m); }
+    if (m[k]) return m[k];
+    let out = img;
+    try { out = O.dress(img, o, opts || {}); } catch (e) { out = img; }
+    m[k] = out;
+    return out;
+  };
+  void hsh;
 })();
 
 
