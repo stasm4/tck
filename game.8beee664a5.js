@@ -1057,6 +1057,7 @@
     touches: {},                 // id → {kind:'stick'|'btn'|'pause'|'tap'|'skip'|'back', btn?, cx, cy}
     base: { x: STICK_IDLE.x, y: STICK_IDLE.y }, knob: { x: STICK_IDLE.x, y: STICK_IDLE.y },
     stickId: null,
+    vis: {},                     // Round 36: видимість контекстних кнопок (0..1, плавно)
     pressedAt: {},               // id кнопки → G.realTime натискання (для анімації спалаху)
     lastTouch: -10,
   };
@@ -1121,6 +1122,7 @@
   function hitButton(lx, ly) {
     let best = null, bd = 1e9;
     for (const b of BTNS) {
+      if ((T.vis[b.id] == null ? 1 : T.vis[b.id]) < 0.5) continue; // Round 36: схована контекстна кнопка
       const d = Math.hypot(lx - b.x, ly - b.y);
       if (d < b.r + 7 && d - b.r < bd) { bd = d - b.r; best = b; }
     }
@@ -1440,7 +1442,13 @@
     ctx.globalAlpha = 1;
     if (opt.cd > 0) U.rect(ctx, 'rgba(14,8,20,0.72)', x + 3, y + 3, S - 6, Math.round((S - 6) * Math.min(1, opt.cd)));
     if (opt.sec > 0) U.text(ctx, String(opt.sec), x + S / 2, y + 8, { size: 8, align: 'center', color: CREAM, shadow: true });
-    U.text(ctx, b.label, x + S / 2, y + S - 4 - LH + 1, { size: 7, align: 'center', color: dim ? '#8c8494' : CREAM, shadow: true });
+    const lab = opt.label || b.label, lw = U.measure ? U.measure(lab, 7) : lab.length * 5;
+    if (lw <= S + 2) U.text(ctx, lab, x + S / 2, y + S - 4 - LH + 1, { size: 7, align: 'center', color: dim ? '#8c8494' : CREAM, shadow: true });
+    else { // довгий напис — табличкою над кнопкою
+      const tw = lw + 8, tx = Math.round(Math.min(VW() - tw - 2, x + S / 2 - tw / 2)), ty = y - 12;
+      U.panel(ctx, tx, ty, tw, 11, { fill: 'rgba(26,14,32,0.92)', border: dim ? INK : b.col });
+      U.text(ctx, lab, tx + tw / 2, ty + 2, { size: 7, align: 'center', color: dim ? '#8c8494' : '#fde98f', shadow: true });
+    }
   }
   function panelBtn(ctx, r, label, held) {
     ctx.globalAlpha = held ? 0.85 : 0.55; ctx.fillStyle = '#1a0e20'; ctx.fillRect(r.x, r.y, r.w, r.h);
@@ -1488,11 +1496,28 @@
   }
   function heldKind(kind) { for (const k in T.touches) if (T.touches[k].kind === kind) return true; return false; }
 
+  // Round 36: що зараз зробить ДІЯ (або null — кнопку сховано)
+  function useLabel(p) {
+    if (!p) return null;
+    if (p.riding) return 'ВИЙТИ';
+    if (p.scoot) return 'ЗЛІЗТИ';
+    if (p.hidden) return 'ВИЙТИ';
+    const h = p.hint;
+    if (h) {
+      const t = String(h.text || '');
+      if (/метро/i.test(t)) return 'МЕТРО';
+      if (/засвіч/i.test(t)) return 'ЗАСВІЧЕНО';
+      if (t === 'E') return 'СХОВАТИСЬ';
+      return /велик|велос/i.test(t) ? 'ВЕЛИК' : 'САМОКАТ';
+    }
+    if (G.traffic && G.traffic.canBoard && G.traffic.canBoard()) return 'СІСТИ';
+    return null;
+  }
   function btnOpt(b) {
     const p = G.player || {}, opt = {};
-    if (b.id === 'throw') { const v = p.inventory; opt.item = v ? (typeof v === 'string' ? v : v.type || v.kind || v.variant || v.id || null) : null; opt.dim = !v; }
+    if (b.id === 'throw') { const v = p.inventory; opt.item = v ? (typeof v === 'string' ? v : v.type || v.kind || v.variant || v.id || null) : null; opt.dim = !v; opt.hidden = !v; }
     if (b.id === 'dash') { opt.dim = p.dashCd > 0; opt.cd = p.dashCd > 0 && p.dashCdMax ? p.dashCd / p.dashCdMax : 0; }
-    if (b.id === 'use') opt.hint = !!p.hint;
+    if (b.id === 'use') { const L = useLabel(p); opt.hidden = !L; opt.label = L; opt.hint = !!L && L !== 'ЗАСВІЧЕНО'; opt.dim = L === 'ЗАСВІЧЕНО'; }
     if (b.id === 'attack') opt.hint = !!(G.brawl && G.brawl.grab);
     if (b.id === 'ability') {
       const H = G.heroes, ab = H && H.ab;
@@ -1500,6 +1525,8 @@
       opt.cd = ab && ab.cd > 0 ? ab.cd / Math.max(0.1, ab.cdMax || 1) : 0;
       opt.sec = ab && ab.cd > 0 ? Math.ceil(ab.cd) : 0;
       opt.hint = !!(ab && ab.t > 0);
+      const hd = H && H.cur && H.get ? H.get(H.cur) : null;
+      if (hd && hd.active && hd.active.name) opt.label = String(hd.active.name).toUpperCase();
       if (H && H.cur && G.ui && G.ui.gfx && G.ui.gfx.person) try { opt.hero = G.ui.gfx.person('player', H.skinFor(H.cur), 'down', 0); } catch (e) { /* */ }
     }
     return opt;
@@ -1511,7 +1538,14 @@
     if (st === 'play') {
       layout();
       drawStick(ctx);
-      for (const b of BTNS) drawButton(ctx, b, heldBtn(b.id), btnOpt(b));
+      for (const b of BTNS) {
+        const o = btnOpt(b), want = o.hidden ? 0 : 1, v0 = T.vis[b.id] == null ? want : T.vis[b.id];
+        const v = T.vis[b.id] = v0 + (want - v0) * 0.3;
+        if (v < 0.12) continue;
+        ctx.save(); ctx.translate(0, Math.round((1 - v) * 10));
+        drawButton(ctx, b, heldBtn(b.id), o);
+        ctx.restore();
+      }
       drawPause(ctx, heldKind('pause'), false);
     } else if (st === 'paused') {
       drawPause(ctx, heldKind('pause'), true); // підказки малює меню паузи (70_ui)
@@ -15911,6 +15945,7 @@
     VT,
     riding: null,
     inMetro: false,
+    canBoard() { const p = G.player; return !!(p && playerFree(p) && nearMarsh(p)); }, // Round 36: для контекстної кнопки ДІЯ
     handlesMetro: false, // метро за замовчуванням обробляє 50_player (E біля входу); true — робить traffic
     stats: null,
     _kb: null, _hitCD: 0, _metro: null, _metroCD: 0, _spawnT: 0, _initial: true, _peds: [], _dbg: { conf: 0, exit: 0, right: 0 },
@@ -24960,9 +24995,9 @@
     ['стік ліворуч', 'рух; до краю — біг'],
     ['УДАР', 'удар / штовхнути'],
     ['РИВОК', 'ривок уперед (рятує від захвату)'],
-    ['ДІЯ', 'сховатися / метро / самокат'],
-    ['КИНУТИ', 'кинути предмет'],
-    ['ВМІННЯ', 'вміння героя'],
+    ['ДІЯ', 'зʼявляється сама: сховатись, метро, сісти'],
+    ['КИНУТИ', 'зʼявляється, коли щось у руках'],
+    ['кнопка з назвою вміння', 'вміння героя (Кава, Паркур…)'],
     ['біжи на лавку', 'перестрибнути — автоматично'],
     ['кнопка паузи', 'пауза (праворуч угорі)'],
     ['швидко тапай', 'вирватись, коли ТЦК схопив'],
