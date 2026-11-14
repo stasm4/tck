@@ -18827,6 +18827,19 @@
       this.target = proxy;
       try { camUpd.call(this, dt); } finally { this.target = tg; }
     } else camUpd.call(this, dt);
+    // Round 35: запобіжник — у грі герой завжди в центральній частині кадру (не під кнопками/панелями й не за краєм)
+    if (p && G.state === 'play' && !p.hidden && !p.riding && !(G.cutscene && G.cutscene.active)) {
+      const z = this.zoom || 1, touch = G.touch && G.touch.active;
+      const mx = (G.cfg.VIEW_W / 2) * (touch ? 0.42 : 0.55) / z, my = (G.cfg.VIEW_H / 2) * (touch ? 0.38 : 0.5) / z;
+      if (p.x - this.x > mx) this.x = p.x - mx; else if (this.x - p.x > mx) this.x = p.x + mx;
+      if (p.y - this.y > my) this.y = p.y - my; else if (this.y - p.y > my) this.y = p.y + my;
+      const b = this.bounds;
+      if (b) {
+        const hw = G.cfg.VIEW_W / 2 / z, hh = G.cfg.VIEW_H / 2 / z;
+        this.x = b.w > hw * 2 ? G.util.clamp(this.x, b.x + hw, b.x + b.w - hw) : b.x + b.w / 2;
+        this.y = b.h > hh * 2 ? G.util.clamp(this.y, b.y + hh, b.y + b.h - hh) : b.y + b.h / 2;
+      }
+    }
     // легкий відʼїзд у погоні (лише якщо CHASE_ZOOM ≠ 1)
     if (G.state === 'play' && CFG.CHASE_ZOOM !== 1 && pursuit()) { this.targetZoom = CFG.CHASE_ZOOM * (this.base || 1); zoomOwned = true; }
     else if (zoomOwned && G.state === 'play') { this.targetZoom = this.base || 1; zoomOwned = false; }
@@ -32950,26 +32963,32 @@
     S.cam = { t: 0, bus: bus || null, proxy: { x: cam.x, y: cam.y }, ox: 0, oy: 0, wait: 0 };
     cam.target = S.cam.proxy;
   }
+  // Round 35: межі зсуву в світових px з урахуванням наближення камери (телефон ×1.5) і сенсора (там удвічі менше)
+  function camLim() {
+    const z = (G.camera && G.camera.zoom) || 1, k = G.touch && G.touch.active ? 0.5 : 1;
+    return { x: CAM_MAX.x * k / z, y: CAM_MAX.y * k / z, hw: VW() / 2 / z, hh: VH() / 2 / z };
+  }
   function camGoal(p, c) {
     const N = G.traffic && G.traffic.nav, b = c.bus;
+    const CM = camLim();
     // бус уже поруч, але застряг (черга, гравець стоїть на дорозі) — камера дивиться в його бік, щоб двері були в кадрі
     if (b && b.alive && b.mode === 'drop' && (!b._dropped || b.dropQueue > 0) && b.modeT > 2.2 && b.speed < 5 && Math.hypot(b.x - p.x, b.y - p.y) < 420) {
-      return { x: U2.clamp((b.x - p.x) * 0.8, -CAM_MAX.x, CAM_MAX.x), y: U2.clamp((b.y - p.y) * 0.8, -CAM_MAX.y, CAM_MAX.y) };
+      return { x: U2.clamp((b.x - p.x) * 0.8, -CM.x, CM.x), y: U2.clamp((b.y - p.y) * 0.8, -CM.y, CM.y) };
     }
     // бус став у дворі, але його двері поза кадром — камера дивиться на нього (далеко — «проліт»)
     if (b && b.alive && b.mode === 'yard' && b.yard && b.yard.phase !== 'in' && b.yard.phase !== 'out' && (b.crew > 0 || b.dropQueue > 0) && (b.dropQueue > 0 || !b.doorVisible() || c.hold > 0)) {
       c.hold = b.dropQueue > 0 ? 0.6 : Math.max(0, (c.hold || 0) - G.cfg.DT);
       const ox = (b.x - p.x) * 0.85, oy = (b.y - p.y) * 0.85;
-      if (Math.abs(ox) <= CAM_MAX.x && Math.abs(oy) <= CAM_MAX.y) return { x: ox, y: oy };
-      return { x: U2.clamp(b.x - p.x, -CAM_MAX.x, CAM_MAX.x), y: U2.clamp(b.y - p.y, -CAM_MAX.y, CAM_MAX.y) };
+      if (Math.abs(ox) <= CM.x && Math.abs(oy) <= CM.y) return { x: ox, y: oy };
+      return { x: U2.clamp(b.x - p.x, -CM.x, CM.x), y: U2.clamp(b.y - p.y, -CM.y, CM.y) };
     }
     // бус заїжджає у двір — камера лишається на гравцеві
     if (b && (b.mode === 'yard' || (b.mode === 'drop' && b.yardPlan && !b.dropSpot))) return { x: 0, y: 0 };
     // місце висадки вже є: двері видно й без зсуву — без зсуву; ні — тримаємо їх у кадрі (без «гойдання» камери)
     if (b && b.mode === 'drop' && b.dropSpot) {
       const d = b.dropSpot.door || b.dropSpot;
-      if (Math.abs(d.x - p.x) < VW() / 2 - 30 && Math.abs(d.y - p.y) < VH() / 2 - 30) return { x: 0, y: 0 };
-      return { x: U2.clamp((d.x - p.x) * 0.7, -CAM_MAX.x, CAM_MAX.x), y: U2.clamp((d.y - p.y) * 0.7, -CAM_MAX.y, CAM_MAX.y) };
+      if (Math.abs(d.x - p.x) < CM.hw - 30 && Math.abs(d.y - p.y) < CM.hh - 30) return { x: 0, y: 0 };
+      return { x: U2.clamp((d.x - p.x) * 0.7, -CM.x, CM.x), y: U2.clamp((d.y - p.y) * 0.7, -CM.y, CM.y) };
     }
     // найближча точка смуги до гравця
     let best = null, bd = 1e18;
@@ -32979,14 +32998,14 @@
       if (d < bd) { bd = d; best = q; }
     }
     // дорога й так буде в кадрі з гравцем по центру — зсув не потрібен
-    if (!best || (Math.abs(best.x - p.x) < VW() / 2 - 50 && Math.abs(best.y - p.y) < VH() / 2 - 40)) return { x: 0, y: 0 };
+    if (!best || (Math.abs(best.x - p.x) < CM.hw - 50 && Math.abs(best.y - p.y) < CM.hh - 40)) return { x: 0, y: 0 };
     let tx = best.x, ty = best.y;
     // бус уже біля гравця, але місця нема — дивимось на бус
     if (b && b.alive && c.t > 3 && Math.hypot(b.x - p.x, b.y - p.y) < 700) { tx = b.x; ty = b.y; }
     const ox = (tx - p.x) * 0.85, oy = (ty - p.y) * 0.85;
     // уміщається з гравцем у кадрі — зсув; ні — після 3 с проліт до буса/дороги (гравець ненадовго поза кадром)
-    if (Math.abs(ox) <= CAM_MAX.x && Math.abs(oy) <= CAM_MAX.y) return { x: ox, y: oy };
-        return { x: U2.clamp(ox, -CAM_MAX.x, CAM_MAX.x), y: U2.clamp(oy, -CAM_MAX.y, CAM_MAX.y) };
+    if (Math.abs(ox) <= CM.x && Math.abs(oy) <= CM.y) return { x: ox, y: oy };
+        return { x: U2.clamp(ox, -CM.x, CM.x), y: U2.clamp(oy, -CM.y, CM.y) };
   }
   function updateCam(dt, p) {
     const c = S.cam; if (!c) return;
