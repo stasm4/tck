@@ -10008,7 +10008,7 @@
     '0,2': ['towers'], '1,2': ['square'], '2,2': ['park'], '4,2': ['church'], '5,2': ['towers', { zhk: true, name: 'ЖК «Дніпровський»' }],
     '0,3': ['np'], '1,3': ['mixed'], '2,3': ['private'], '3,3': ['construction'], '4,3': ['towers', { zhk: true, name: 'ЖК «Комфорт-таун»' }], '5,3': ['panel', { tall: true }],
     '0,4': ['towers'], '1,4': ['garages'], '2,4': ['panel'], '3,4': ['mixed'], '4,4': ['towers', { damaged: true }], '5,4': ['motherland'],
-    '0,5': ['panel'], '1,5': ['mixed'], '2,5': ['towers', { zhk: true, name: 'ЖК «Сонячний»' }], '3,5': ['garages'], '4,5': ['panel', { tall: true }], '5,5': ['office', { metro: { id: 'B', name: 'Ділова' } }],
+    '0,5': ['panel'], '1,5': ['mixed'], '2,5': ['towers', { zhk: true, name: 'ЖК «Сонячний»' }], '3,5': ['garages'], '4,5': ['panel', { tall: true }], '5,5': ['office', { metro: { id: 'B', name: 'Хрещатик' } }],
   };
 
   const blocks = [];
@@ -27999,7 +27999,7 @@
       R_(ctx, '#4a4452', 0, h * 0.7, w, h * 0.3); R_(ctx, '#f7c948', 0, h * 0.7, w, 2);
       ctx.fillStyle = CL.red; ctx.beginPath(); ctx.arc(w - 40, 22, 11, 0, Math.PI * 2); ctx.fill();
       txt(ctx, 'М', w - 40, 15, { size: 10, align: 'center', color: '#fbf8f0' });
-      R_(ctx, '#2a3a6a', w - 92, 36, 76, 12); txt(ctx, 'ДІЛОВА', w - 54, 37, { size: 8, align: 'center', color: '#fbf8f0' });
+      R_(ctx, '#2a3a6a', w - 92, 36, 76, 12); txt(ctx, 'ХРЕЩАТИК', w - 54, 37, { size: 8, align: 'center', color: '#fbf8f0' });
       R_(ctx, '#6a4028', 20, h * 0.7 - 6, 80, 5); R_(ctx, '#2a2530', 24, h * 0.7 - 1, 3, 8); R_(ctx, '#2a2530', 92, h * 0.7 - 1, 3, 8);
       ctx.save(); ctx.globalAlpha = 0.3; R_(ctx, '#0a0c24', 0, 0, w, h); ctx.restore();
     },
@@ -28179,7 +28179,7 @@
     finale: { n: 5, title: 'ФІНАЛ', sub: 'Гаряча лінія', col: '#f7c948', credits: true, pages: [[
       { r: L4[0], from: 'left', bg: 'metro', P: {},
         actors: [{ hero: true, x: 64, feet: 100, s: 3 }],
-        cap: 'Метро «Ділова». 23:58.',
+        cap: 'Метро «Хрещатик». 23:58.',
         say: [{ kind: 'think', t: 'Живий. Вільний. Без сил.', x: 100, y: 52, w: 110, tail: [74, 52] }] },
       { r: L4[1], from: 'right', bg: 'phone', P: { title: 'Пошта · Спам (1)', notif: true, pw: 120, msgs: [{ card: true, t: 'ТЦК та СП: Вам надано відстрочку. Підстава: працівник критично важливого підприємства «Гаряча лінія ТЦК».' }] },
         actors: [{ port: HERO, x: 134, y: 40, s: 2 }],
@@ -30071,7 +30071,7 @@
     office: { zone: 'office', label: 'Колл-центр' },
     bursa: { zone: 'bursa', label: 'Бурса' },
     metroA: { zone: 'metro', zid: 'A', label: 'Метро «Спальна»' },
-    metroB: { zone: 'metro', zid: 'B', label: 'Метро «Ділова»' },
+    metroB: { zone: 'metro', zid: 'B', label: 'Метро «Хрещатик»' },
     park: { zone: 'park', label: 'Парк' },
     t_sq2: { t: [22, 76.4], label: 'ЖК, підʼїзд 2' },
     t_s1: { t: [10, 140.4], label: '16-поверхівка' },
@@ -30328,7 +30328,7 @@
       steps: [
         { type: 'go', at: 'square', label: 'Дійди до скверу (там щось кричать)' },
         { type: 'boss', dur: 40, label: 'Майор! Нокаутуй його або протримайся', next: 'metroB' },
-        { type: 'go', at: 'metroB', label: 'Тікай у метро «Ділова»' }],
+        { type: 'go', at: 'metroB', label: 'Тікай у метро «Хрещатик»' }],
       events: [{ type: 'checkpoint', at: [40, 60], chance: 0.5 }],
       star3: 'major', place: 'metro',
       win: ['Майор досі кричить у мегафон.', 'Але вже на голубів.', 'А в телефоні — непрочитаний лист із березня.'],
@@ -30358,7 +30358,7 @@
     { at: 'atb', label: 'Дійди до АТБ', place: 'atb', t: 'За хлібом (знову)' },
     { at: 'np', label: 'Дійди до Нової пошти', place: 'nova_poshta', t: 'Ще одна посилка' },
     { at: 'tesha', label: 'Дійди до тещі', place: 'mother_in_law', t: 'Теща кличе' },
-    { at: 'metroB', label: 'Дійди до метро «Ділова»', place: 'metro', t: 'Втеча в метро' },
+    { at: 'metroB', label: 'Дійди до метро «Хрещатик»', place: 'metro', t: 'Втеча в метро' },
     { at: 'church_front', label: 'Дійди до церкви', place: 'church', t: 'Помолитись за бронь' },
   ];
   const EL_ADJ = ['Хаотичний', 'Дощовий', 'Нервовий', 'Звичайний', 'Безсонний', 'Ще один', 'Кавовий', 'Легендарний'];
@@ -30444,7 +30444,7 @@
   function dayPart(min) { const h = Math.floor(((min % 1440) + 1440) % 1440 / 60); return h >= 4 && h < 12 ? 'ранку' : h >= 12 && h < 17 ? 'дня' : h >= 17 && h < 23 ? 'вечора' : 'ночі'; }
   function introFor(d) { const st = startOf(d); return 'Київ. ' + clock(st) + ' ' + dayPart(st) + '. ' + d.weekday + '.'; }
   const PLACE_LABEL = { office: 'Колл-центр', home: 'Дім', atb: 'АТБ', nova_poshta: 'Нова пошта', mother_in_law: 'Хата тещі', market: 'Ринок',
-    square: 'Сквер «Я ❤ Київ»', church: 'Церква', motherland: 'Парк Слави', metro: 'Метро «Ділова»', embankment: 'Набережна', park: 'Парк',
+    square: 'Сквер «Я ❤ Київ»', church: 'Церква', motherland: 'Парк Слави', metro: 'Метро «Хрещатик»', embankment: 'Набережна', park: 'Парк',
     pharmacy: 'Аптека', notary: 'Нотаріус' };
   function clock(min) { min = Math.floor(min); const h = Math.floor(min / 60) % 24, m = min % 60; return h + ':' + (m < 10 ? '0' : '') + m; }
 
@@ -32790,7 +32790,7 @@
     }
     G.events.emit('mode:wave', { wave: n, goal: g ? { kind: g.kind, x: g.x, y: g.y, label: g.label } : null, mods: S.mods.slice(), dur: S.waveDur });
   }
-  // диктор: «ХВИЛЯ 3 · ДОЩ · ДІЙДИ ДО МЕТРО «ДІЛОВА»»
+  // диктор: «ХВИЛЯ 3 · ДОЩ · ДІЙДИ ДО МЕТРО «ХРЕЩАТИК»»
   function announce() {
     const g = S.goal;
     const head = (S.mode === 'daily' ? 'ТОЧКА ' + S.wave + '/' + DAILY_POINTS : 'ХВИЛЯ ' + S.wave) + (S.mods.length ? ' · ' + S.mods.map((id) => MODS[id].name).join(' · ') : '');
