@@ -19082,19 +19082,19 @@
       passive: '+12% швидкості, самокатом їде ще швидше. Але −10% енергії і слабший удар.',
       active: { id: 'delivery', name: 'Доставка', cd: 16, dur: 1.5, desc: '1.5 с суперспринт крізь натовп — захвати ТЦК не діють.' },
       stats: { speed: 5, stamina: 2, dash: 3, stealth: 2, power: 2 }, bonus: { speed: 1.12, energy: 0.9, punch: 0.85 }, flags: { scoot: 1.08 },
-      unlock: { kind: 'escapes', need: 3, label: 'Втечі', price: 150 } },
+      unlock: { kind: 'escapes', need: 3, label: 'Втечі', price: 400 } },
     { id: 'max', name: 'Макс', full: 'Айтішник Макс', skin: 'h_max', portrait: 'h_max',
       desc: 'Бронь? Він сам собі бронь. Має бота, що палить кожен бус у місті.',
       passive: 'Буси ТЦК завжди видно на міні-карті. Удар слабший.',
       active: { id: 'hack', name: 'Хакнути', cd: 20, dur: 6, desc: 'Двері найближчого буса заклинює на 6 с — ніхто не вийде.' },
       stats: { speed: 3, stamina: 3, dash: 3, stealth: 3, power: 2 }, bonus: { punch: 0.85 }, flags: { radar: true },
-      unlock: { kind: 'mission', need: 4, label: 'Пройди місію 4', price: 250 } },
+      unlock: { kind: 'mission', need: 4, label: 'Пройди місію 4', price: 650 } },
     { id: 'vitya', name: 'Вітя', full: 'Спортсмен Вітя', skin: 'h_vitya', portrait: 'h_vitya',
       desc: 'КМС з паркуру з Оболоні. Лавки для нього — сходинки.',
       passive: 'Перестрибує низьке з ходу на повній швидкості, ривок ×1.4. Але яскравий — помітніший.',
       active: { id: 'parkour', name: 'Паркур', cd: 16, dur: 4, desc: '4 с перелітає паркани, машини й подвійні перешкоди.' },
       stats: { speed: 4, stamina: 4, dash: 5, stealth: 1, power: 3 }, bonus: { dash: 1.4, energy: 1.1 }, flags: { autoVault: true, vis: 1.15 },
-      unlock: { kind: 'vaults', need: 40, label: 'Перескоки', price: 350 } },
+      unlock: { kind: 'vaults', need: 40, label: 'Перескоки', price: 900 } },
   ];
   const BY = {};
   for (const h of LIST) BY[h.id] = h;
@@ -28930,16 +28930,16 @@
   // ─────────────────────────── Постійні покращення (ПРОКАЧКА, за гривні) ───────────────────────────
   // eff: {бонус: за рівень}; mul → ×(1 + k·lvl), add → + k·lvl. Ціна рівня L (0-based): base × grow^L, округлено до 5.
   const UPG = [
-    { id: 'stamina', name: 'Витривалість', icon: 'bolt', max: 5, base: 50, grow: 1.6, eff: { energy: 0.08 }, desc: 'Більший запас енергії для бігу. Кардіо, бляха, кардіо.', fmt: (l) => '+' + (8 * l) + '% енергії' },
-    { id: 'legs', name: 'Швидкість бігу', icon: 'run', max: 5, base: 70, grow: 1.6, eff: { speed: 0.03 }, desc: 'Нові кросівки з секонду. Майже не стоптані.', fmt: (l) => '+' + (3 * l) + '% швидкості' },
-    { id: 'dash', name: 'Ривок', icon: 'dash', max: 4, base: 60, grow: 1.65, eff: { dash: 0.12, dashCd: -0.08 }, desc: 'Ривок (C / Ctrl) далі й частіше.', fmt: (l) => '+' + (12 * l) + '% дальність, -' + (8 * l) + '% перезарядка' },
-    { id: 'regen', name: 'Друге дихання', icon: 'lungs', max: 4, base: 55, grow: 1.6, eff: { regen: 0.12 }, desc: 'Енергія відновлюється швидше. Кинув курити (майже).', fmt: (l) => '+' + (12 * l) + '% відновлення' },
-    { id: 'hide', name: 'Сховки', icon: 'eye_off', max: 4, base: 65, grow: 1.6, eff: { hideHeal: 2, crowdHide: 0.05 }, desc: 'У сховку лікуєшся, у натовпі тебе гірше видно.', fmt: (l) => '+' + (2 * l) + ' HP/с у сховку, -' + (5 * l) + '% помітності в натовпі' },
-    { id: 'punch', name: 'Удар', icon: 'fist', max: 5, base: 55, grow: 1.55, eff: { punch: 0.1 }, desc: 'Тренування на офісному кулері.', fmt: (l) => '+' + (10 * l) + '% сили удару' },
-    { id: 'hp', name: 'Міцна шкіра', icon: 'heart', max: 3, base: 110, grow: 1.7, eff: { maxHp: 10 }, desc: 'Сало, часник і загартування в черзі на НП.', fmt: (l) => '+' + (10 * l) + ' HP' },
-    { id: 'gadgets', name: 'Гаджети', icon: 'phone', max: 4, base: 75, grow: 1.6, eff: { radarTime: 0.25, bananas: 1 }, desc: 'Довше працює чат «Де ТЦК», на старті поруч лежать банани.', fmt: (l) => '+' + (25 * l) + '% радар, ' + l + ' бан.' },
-    { id: 'friend', name: 'Знайомий у ТЦК', icon: 'bus', max: 3, base: 140, grow: 1.75, eff: { firstBusDelay: 7, recognizeDelay: 0.15 }, desc: 'Кум у ТЦК «забуває» про тебе: перший бус забігу приїжджає пізніше.', fmt: (l) => '+' + (7 * l) + ' с до 1-го бусу, +' + (0.15 * l).toFixed(2).replace(/0$/, '') + ' с впізнавання' },
-    { id: 'wallet', name: 'Гаманець', icon: 'coin', max: 3, base: 180, grow: 1.8, eff: { money: 0.1 }, desc: 'Більше гривень за кожен забіг (кампанія і ВТЕЧА).', fmt: (l) => '+' + (10 * l) + '% гривень' },
+    { id: 'stamina', name: 'Витривалість', icon: 'bolt', max: 5, base: 100, grow: 1.6, eff: { energy: 0.08 }, desc: 'Більший запас енергії для бігу. Кардіо, бляха, кардіо.', fmt: (l) => '+' + (8 * l) + '% енергії' },
+    { id: 'legs', name: 'Швидкість бігу', icon: 'run', max: 5, base: 140, grow: 1.6, eff: { speed: 0.03 }, desc: 'Нові кросівки з секонду. Майже не стоптані.', fmt: (l) => '+' + (3 * l) + '% швидкості' },
+    { id: 'dash', name: 'Ривок', icon: 'dash', max: 4, base: 120, grow: 1.65, eff: { dash: 0.12, dashCd: -0.08 }, desc: 'Ривок (C / Ctrl) далі й частіше.', fmt: (l) => '+' + (12 * l) + '% дальність, -' + (8 * l) + '% перезарядка' },
+    { id: 'regen', name: 'Друге дихання', icon: 'lungs', max: 4, base: 110, grow: 1.6, eff: { regen: 0.12 }, desc: 'Енергія відновлюється швидше. Кинув курити (майже).', fmt: (l) => '+' + (12 * l) + '% відновлення' },
+    { id: 'hide', name: 'Сховки', icon: 'eye_off', max: 4, base: 130, grow: 1.6, eff: { hideHeal: 2, crowdHide: 0.05 }, desc: 'У сховку лікуєшся, у натовпі тебе гірше видно.', fmt: (l) => '+' + (2 * l) + ' HP/с у сховку, -' + (5 * l) + '% помітності в натовпі' },
+    { id: 'punch', name: 'Удар', icon: 'fist', max: 5, base: 110, grow: 1.55, eff: { punch: 0.1 }, desc: 'Тренування на офісному кулері.', fmt: (l) => '+' + (10 * l) + '% сили удару' },
+    { id: 'hp', name: 'Міцна шкіра', icon: 'heart', max: 3, base: 220, grow: 1.7, eff: { maxHp: 10 }, desc: 'Сало, часник і загартування в черзі на НП.', fmt: (l) => '+' + (10 * l) + ' HP' },
+    { id: 'gadgets', name: 'Гаджети', icon: 'phone', max: 4, base: 150, grow: 1.6, eff: { radarTime: 0.25, bananas: 1 }, desc: 'Довше працює чат «Де ТЦК», на старті поруч лежать банани.', fmt: (l) => '+' + (25 * l) + '% радар, ' + l + ' бан.' },
+    { id: 'friend', name: 'Знайомий у ТЦК', icon: 'bus', max: 3, base: 280, grow: 1.75, eff: { firstBusDelay: 7, recognizeDelay: 0.15 }, desc: 'Кум у ТЦК «забуває» про тебе: перший бус забігу приїжджає пізніше.', fmt: (l) => '+' + (7 * l) + ' с до 1-го бусу, +' + (0.15 * l).toFixed(2).replace(/0$/, '') + ' с впізнавання' },
+    { id: 'wallet', name: 'Гаманець', icon: 'coin', max: 3, base: 360, grow: 1.8, eff: { money: 0.1 }, desc: 'Більше гривень за кожен забіг (кампанія і ВТЕЧА).', fmt: (l) => '+' + (10 * l) + '% гривень' },
   ];
   const UPG_BY_ID = {};
   for (const u of UPG) UPG_BY_ID[u.id] = u;
@@ -28989,37 +28989,37 @@
   const NEW_STAR_BONUS = 25;
   // Крамниця: на один забіг (рюкзак) і скіни за гроші (альтернатива втечам)
   const KIT = {
-    banana: { name: 'Банан у кишені', price: 15, hand: true, desc: 'Стартуєш з бананом у руці замість кави. Q — кинути під ноги ТЦК. Класика жанру.' },
-    bottle: { name: 'Пляшка кефіру', price: 20, hand: true, desc: 'Стартуєш з пляшкою кефіру в руці. Влучний кидок оглушує ТЦК надовго.' },
-    hood: { name: 'Капюшон', price: 35, desc: 'Перші 25 с забігу тебе важче впізнати (маскування).' },
-    radar: { name: 'Чат «Де ТЦК Київ»', price: 30, desc: 'Перші 30 с забігу всі буси видно на міні-карті.' },
-    energy: { name: 'Енергетик', price: 25, desc: 'Перші 10 с забігу — прискорення і біг майже без втоми.' },
+    banana: { name: 'Банан у кишені', price: 20, hand: true, desc: 'Стартуєш з бананом у руці замість кави. Q — кинути під ноги ТЦК. Класика жанру.' },
+    bottle: { name: 'Пляшка кефіру', price: 30, hand: true, desc: 'Стартуєш з пляшкою кефіру в руці. Влучний кидок оглушує ТЦК надовго.' },
+    hood: { name: 'Капюшон', price: 50, desc: 'Перші 25 с забігу тебе важче впізнати (маскування).' },
+    radar: { name: 'Чат «Де ТЦК Київ»', price: 45, desc: 'Перші 30 с забігу всі буси видно на міні-карті.' },
+    energy: { name: 'Енергетик', price: 40, desc: 'Перші 10 с забігу — прискорення і біг майже без втоми.' },
   };
-  const SKIN_PRICE = { sport: 60, courier: 120, it: 180, granny: 250, student: 320, ninja: 450, invisible: 700,
-    boxer: 400, marathon: 400, pacifist: 350, flash: 500, panas: 600, secret: 999 }; // Round 33: усі скіни можна купити
+  const SKIN_PRICE = { sport: 180, courier: 360, it: 540, granny: 750, student: 960, ninja: 1350, invisible: 2100,
+    boxer: 1200, marathon: 1200, pacifist: 1050, flash: 1500, panas: 1800, secret: 2999 }; // Round 33: усі скіни можна купити
   // Round 33: одяг героя — шапки, бороди, кофти (купуються за гривні в ГАРДЕРОБІ; ціна 0 — є з початку)
   const ACC = [
     { id: 'hat_none', slot: 'hat', name: 'Без шапки', price: 0, desc: 'Своя зачіска — теж стиль.' },
     { id: 'hat_santa', slot: 'hat', name: 'Новорічна шапка', price: 0, desc: 'Подарунок на зиму. ТЦК теж такі носять.' },
-    { id: 'hat_beanie_red', slot: 'hat', name: 'Червона вʼязанка', price: 40, desc: 'Бабуся вʼязала. Тепла.' },
-    { id: 'hat_beanie_blue', slot: 'hat', name: 'Синя вʼязанка', price: 40, desc: 'З помпоном. Класика двору.' },
-    { id: 'hat_cap', slot: 'hat', name: 'Кепка', price: 70, desc: 'Козирок униз — обличчя менше видно (так здається).' },
-    { id: 'hat_panama', slot: 'hat', name: 'Панамка', price: 90, desc: 'Як на рибалці на Дніпрі.' },
-    { id: 'hat_ushanka', slot: 'hat', name: 'Вушанка', price: 150, desc: 'Хутро, вуха, повна готовність до зими.' },
-    { id: 'hat_crown', slot: 'hat', name: 'Корона', price: 500, desc: 'Король району. Видно здалеку.' },
+    { id: 'hat_beanie_red', slot: 'hat', name: 'Червона вʼязанка', price: 120, desc: 'Бабуся вʼязала. Тепла.' },
+    { id: 'hat_beanie_blue', slot: 'hat', name: 'Синя вʼязанка', price: 120, desc: 'З помпоном. Класика двору.' },
+    { id: 'hat_cap', slot: 'hat', name: 'Кепка', price: 210, desc: 'Козирок униз — обличчя менше видно (так здається).' },
+    { id: 'hat_panama', slot: 'hat', name: 'Панамка', price: 270, desc: 'Як на рибалці на Дніпрі.' },
+    { id: 'hat_ushanka', slot: 'hat', name: 'Вушанка', price: 450, desc: 'Хутро, вуха, повна готовність до зими.' },
+    { id: 'hat_crown', slot: 'hat', name: 'Корона', price: 1500, desc: 'Король району. Видно здалеку.' },
     { id: 'beard_none', slot: 'beard', name: 'Без бороди', price: 0, desc: 'Поголений. Мама задоволена.' },
-    { id: 'beard_stubble', slot: 'beard', name: 'Щетина', price: 30, desc: 'Три дні не виходив з дому.' },
-    { id: 'beard_mustache', slot: 'beard', name: 'Вуса', price: 60, desc: 'Солідно. Як у дядька на ринку.' },
-    { id: 'beard_goatee', slot: 'beard', name: 'Еспаньйолка', price: 80, desc: 'Для тих, хто працює в ІТ.' },
-    { id: 'beard_cossack', slot: 'beard', name: 'Козацькі вуса', price: 220, desc: 'Довгі, донизу. Предки схвалюють.' },
-    { id: 'beard_full', slot: 'beard', name: 'Борода лісоруба', price: 150, desc: 'Рік не виходив з дому — і ось результат.' },
+    { id: 'beard_stubble', slot: 'beard', name: 'Щетина', price: 90, desc: 'Три дні не виходив з дому.' },
+    { id: 'beard_mustache', slot: 'beard', name: 'Вуса', price: 180, desc: 'Солідно. Як у дядька на ринку.' },
+    { id: 'beard_goatee', slot: 'beard', name: 'Еспаньйолка', price: 240, desc: 'Для тих, хто працює в ІТ.' },
+    { id: 'beard_cossack', slot: 'beard', name: 'Козацькі вуса', price: 660, desc: 'Довгі, донизу. Предки схвалюють.' },
+    { id: 'beard_full', slot: 'beard', name: 'Борода лісоруба', price: 450, desc: 'Рік не виходив з дому — і ось результат.' },
     { id: 'top_shirt', slot: 'top', name: 'Сорочка з краваткою', price: 0, desc: 'Офісна класика.' },
     { id: 'top_puffer_navy', slot: 'top', name: 'Синій пуховик', price: 0, desc: 'Зимовий подарунок. Тепло і непомітно.' },
-    { id: 'top_puffer_red', slot: 'top', name: 'Червоний пуховик', price: 80, desc: 'Тепло, але видно за кілометр.' },
-    { id: 'top_hoodie', slot: 'top', name: 'Сіре худі', price: 70, desc: 'Як у всіх. Розчиняєшся в натовпі.' },
-    { id: 'top_sport', slot: 'top', name: 'Олімпійка', price: 120, desc: 'Чорна з білими смугами. Пацани з бурси оцінять.' },
-    { id: 'top_deer', slot: 'top', name: 'Светр з оленями', price: 160, desc: 'Новорічний. Мама подарувала.' },
-    { id: 'top_vyshyvanka', slot: 'top', name: 'Вишиванка', price: 250, desc: 'Біла з червоним орнаментом.' },
+    { id: 'top_puffer_red', slot: 'top', name: 'Червоний пуховик', price: 240, desc: 'Тепло, але видно за кілометр.' },
+    { id: 'top_hoodie', slot: 'top', name: 'Сіре худі', price: 210, desc: 'Як у всіх. Розчиняєшся в натовпі.' },
+    { id: 'top_sport', slot: 'top', name: 'Олімпійка', price: 360, desc: 'Чорна з білими смугами. Пацани з бурси оцінять.' },
+    { id: 'top_deer', slot: 'top', name: 'Светр з оленями', price: 480, desc: 'Новорічний. Мама подарувала.' },
+    { id: 'top_vyshyvanka', slot: 'top', name: 'Вишиванка', price: 750, desc: 'Біла з червоним орнаментом.' },
   ];
   const ACC_BY_ID = {};
   for (const a of ACC) ACC_BY_ID[a.id] = a;
