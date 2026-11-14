@@ -15621,10 +15621,10 @@
       if (p) { p.x = m.to.exit.x; p.y = m.to.exit.y; G.camera.follow(p, true); }
     }
     if (m.t >= METRO_DUR) {
-      if (p) { p.hidden = false; p.body = m.prevBody || 'slide'; p.inMetro = false; }
+      if (p) { p.hidden = false; p.body = m.prevBody || 'slide'; p.inMetro = false; p.dir = 'down'; p._lastX = p.x; p._lastY = p.y; p.invuln = Math.max(p.invuln || 0, 0.8); }
       traffic.inMetro = false; traffic._metro = null;
       traffic._metroCD = 1.5;
-      ui('toast', 'Метро «' + m.to.name + '»', 1500);
+      ui('toast', 'Метро «' + m.to.name + '»' + (p && p._metroMin ? ' (+' + p._metroMin + ' хв)' : ''), 1500);
       G.events.emit('metro:exit', { station: m.to, x: m.to.exit.x, y: m.to.exit.y });
     }
   }
@@ -16964,6 +16964,7 @@
     // ───────── рух ─────────
     update(dt) {
       const I = G.input;
+      if (this.inMetro) { this.vx = this.vy = this.kvx = this.kvy = 0; this.moving = this.running = false; this.invuln = Math.max(this.invuln, 0.6); return; } // Round 34: їде в метро (анімація — 40_traffic)
       // таймери
       this.punchCd = Math.max(0, this.punchCd - dt);
       this.throwCd = Math.max(0, this.throwCd - dt);
@@ -17576,6 +17577,15 @@
     _enterMetro(m) {
       const o = G.world.metroOther(m.id);
       if (!o || !o.exit) return;
+      // Round 34: анімована поїздка (станція → потяг → тунель → станція) — 40_traffic.enterMetro
+      if (G.traffic && G.traffic.enterMetro && !G.traffic.inMetro) {
+        this.vx = this.vy = this.kvx = this.kvy = 0;
+        if (G.traffic.enterMetro(m)) {
+          this.stats.metroRides++;
+          this._metroMin = CFG.METRO_MIN; // ігровий час іде під час анімації (~4 хв)
+          return;
+        }
+      }
       G.events.emit('metro:enter', { from: m.id, to: o.id, x: this.x, y: this.y });
       this.x = o.exit.x; this.y = o.exit.y; this._lastX = this.x; this._lastY = this.y;
       this.vx = this.vy = this.kvx = this.kvy = 0;
