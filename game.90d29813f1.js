@@ -23414,6 +23414,36 @@
     const t = z.target || { x: z.rect.x + z.rect.w / 2, y: z.rect.y + z.rect.h / 2 };
     return { x: t.x, y: t.y, label: z.label || (m && m.targetLabel) || '' };
   }
+  // Round 37: велика стрілка-провідник навколо героя (куди йти + відстань); не налазить на таблички внизу
+  function guideArrow(ctx, p, g, col, small, prefix, mPerTile) {
+    const cam = G.camera; if (!cam || !g) return;
+    const q = cam.toScreen(p.x, p.y - 9), tq = cam.toScreen(g.x, g.y);
+    const onScr = tq.x > 20 && tq.y > 20 && tq.x < VW() - 20 && tq.y < VH() - 20;
+    const dW = Math.hypot(g.x - p.x, g.y - p.y);
+    if (onScr && dW < 90) return; // ціль поруч і видно — досить кільця на місці
+    const a = Math.atan2(tq.y - q.y, tq.x - q.x), t = G.realTime;
+    const R = (small ? 34 : 30) + Math.sin(t * 6) * 2.5, sz = small ? 0.7 : 1;
+    const ax = q.x + Math.cos(a) * R, ay = q.y + Math.sin(a) * R;
+    ctx.save(); ctx.translate(Math.round(ax), Math.round(ay)); ctx.rotate(a); ctx.scale(sz, sz);
+    const tri = (s, c) => { ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(10 * s, 0); ctx.lineTo(-6 * s, -9 * s); ctx.lineTo(-2 * s, 0); ctx.lineTo(-6 * s, 9 * s); ctx.closePath(); ctx.fill(); };
+    tri(1.7, '#1a0e20'); tri(1.35, col); ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.fillRect(-4, -5, 8, 2);
+    ctx.restore();
+    const m = Math.round(dW / G.cfg.TILE * (mPerTile || 1)), txt = (prefix || '') + (m >= 1000 ? (m / 1000).toFixed(1) + ' км' : m + ' м');
+    const lx = q.x + Math.cos(a) * (R + 22), ly = q.y + Math.sin(a) * (R + 16) - 4;
+    U.text(ctx, txt, Math.round(lx), Math.round(ly), { size: 8, align: 'center', color: '#fbf6ea', outline: '#1a0e20', shadow: true });
+  }
+  function drawGuide(ctx, p) {
+    if (!p || p.hidden && !p.riding) return;
+    const M = G.modes;
+    if (M && M.active && M.state) {
+      const S = M.state;
+      if (S.goalAlt && !S.cleared) guideArrow(ctx, p, S.goalAlt, '#f7c948', true, '×2 ', 2);
+      if (S.goal && !S.cleared) guideArrow(ctx, p, S.goal, S.late ? '#ff6050' : '#93c25b', false, '', 2);
+      return;
+    }
+    const tg = target();
+    if (tg) guideArrow(ctx, p, tg, '#93c25b', false);
+  }
   function invType(inv) {
     if (!inv) return null;
     if (typeof inv === 'string') return inv;
@@ -24061,6 +24091,7 @@
           drawStats(ctx, p);
           drawClock(ctx);
           drawNav(ctx, p);
+          drawGuide(ctx, p);
           drawMinimap(ctx, p);
           drawItemSlot(ctx, p);
           drawAbility(ctx, p);
@@ -33579,6 +33610,7 @@
       u.text(ctx, lab, Math.round(q.x), by - 2, { size: 8, align: 'center', color: '#fbf6ea' });
       return;
     }
+    return; // Round 37: поза кадром — велика стрілка біля героя (70_ui.drawGuide), стрілки на краю прибрано
     // стрілка на краю екрана (поза HUD-панеллю праворуч)
     const cx = VW() / 2, cy = VH() / 2, dx = q.x - cx, dy = q.y - cy;
     const mx = VW() / 2 - 22, my = VH() / 2 - 22;
