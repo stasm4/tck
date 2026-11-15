@@ -35175,6 +35175,7 @@
         const sx = thrower + (leftThrows ? 6 : -6), ex = target + (leftThrows ? -4 : 4);
         const bxp = sx + (ex - sx) * flightU, byp = y - 12 - Math.sin(flightU * Math.PI) * 12;
         ctx.fillStyle = 'rgba(70,86,120,0.25)'; ctx.fillRect(Math.round(bxp), y, 2, 1);
+        ctx.fillStyle = '#5a6a8a'; ctx.fillRect(Math.round(bxp) - 1, Math.round(byp), 4, 2); ctx.fillRect(Math.round(bxp), Math.round(byp) - 1, 2, 4); // контур — видно на снігу
         ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(bxp), Math.round(byp), 2, 2); ctx.fillStyle = '#c3cfe0'; ctx.fillRect(Math.round(bxp) + 1, Math.round(byp) + 1, 1, 1);
       } else if (hit) {
         const pu = (u - 0.55) / 0.25, hx = target + (leftThrows ? -3 : 3), hy = y - 12;
@@ -35282,10 +35283,16 @@
       const k = q.t / q.life, rr = q.r0 + (q.r1 - q.r0) * k, a = q.a * Math.pow(1 - k, 1.4) * (nt > 0.4 ? 0.8 : 1);
       if (a < 0.02) continue;
       const x = Math.round(q.x), y = Math.round(q.y), R = Math.max(1, Math.round(rr));
-      ctx.fillStyle = 'rgba(' + q.col + ',' + a.toFixed(3) + ')';
+      // Round 38: удень біла пара губиться на снігу — сіро-блакитний тон, щільніше, ледь темніший обідок
+      const day = nt < 0.4, col = day ? '192,205,226' : q.col, af = day ? Math.min(0.95, a * 1.3) : a;
+      if (day && R > 1) {
+        ctx.fillStyle = 'rgba(96,112,146,' + (af * 0.35).toFixed(3) + ')';
+        ctx.fillRect(x - R, y - R + 1, R * 2, R * 2 - 2); ctx.fillRect(x - R + 1, y - R, R * 2 - 2, R * 2);
+      }
+      ctx.fillStyle = 'rgba(' + col + ',' + af.toFixed(3) + ')';
       if (R <= 1) { ctx.fillRect(x, y, 2, 1); continue; }
       ctx.fillRect(x - R + 1, y - R + 1, R * 2 - 2, R * 2 - 2);
-      ctx.fillStyle = 'rgba(' + q.col + ',' + (a * 0.5).toFixed(3) + ')';
+      ctx.fillStyle = 'rgba(' + col + ',' + (af * 0.5).toFixed(3) + ')';
       ctx.fillRect(x - R, y - R + 2, 1, Math.max(1, R * 2 - 4)); ctx.fillRect(x + R - 1, y - R + 2, 1, Math.max(1, R * 2 - 4));
       ctx.fillRect(x - R + 2, y - R, Math.max(1, R * 2 - 4), 1); ctx.fillRect(x - R + 2, y + R - 1, Math.max(1, R * 2 - 4), 1);
     }
@@ -35466,9 +35473,11 @@
       row(ty - 1, x0 + 1, x1 - 1, M); row(ty, x0 + 1, x1 - 1, (x) => (x === x0 + 1 ? D : L)); row(ty + 1, x0, x1, '#8a7a50');
       row(ty + 2, x0 - 2, x1 + 2, (x) => (x === x0 - 2 || x === x1 + 2 ? D : M));
     } else if (id === 'hat_ushanka') {
-      const M = '#7a5434', D = '#5a3a22', L = '#b08a62';
-      row(ty - 2, x0 + 1, x1 - 1, M); row(ty - 1, x0, x1, (x) => (x === x0 ? D : M)); row(ty, x0 - 1, x1 + 1, M);
-      row(ty + 1, x0 - 1, x1 + 1, (x) => ((x + ty) % 2 ? L : '#c8a478'));
+      // Round 38: сіре хутро + темна шкіряна маківка (не зливається з каштановим волоссям)
+      const M = '#8e8a86', D = '#5e5a58', L = '#c4c0ba', C = '#3a3236';
+      row(ty - 2, x0 + 1, x1 - 1, C); row(ty - 1, x0, x1, (x) => (x === x0 ? '#1e1a1e' : x === x1 ? '#2a2428' : C)); row(ty, x0 - 1, x1 + 1, (x) => ((x + ty) % 2 ? M : L));
+      row(ty + 1, x0 - 1, x1 + 1, (x) => ((x + ty) % 2 ? L : '#dcd8d2'));
+      px(Math.round((x0 + x1) / 2), ty - 1, '#c8a040');
       for (let k = 2; k <= 6; k++) { px(x0 - 1, ty + k, k % 2 ? M : D); px(x1 + 1, ty + k, k % 2 ? M : D); if (k <= 4) { px(x0 - 2, ty + k, D); px(x1 + 2, ty + k, D); } }
     } else if (id === 'hat_crown') {
       const M = '#f2c13a', D = '#c8901a', Lg = '#fff0a0';
