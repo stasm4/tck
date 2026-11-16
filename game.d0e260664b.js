@@ -35970,7 +35970,7 @@
   }
 
   // ═══════════════ Сесія ═══════════════
-  let sig = null, pr = null, other = null, lastRx = 0, relayT = 0, p2pT = 0;
+  let sig = null, pr = null, other = null, lastRx = 0, relayT = 0, p2pT = 0, pingT = 0;
   const N = { buddyInfo: null, snap: null, snapAt: 0, hostState: 'play', perk: false };
   function send(o, fast) {
     C.dbg.tx++; C.dbg.p2p = !!(pr && pr.open);
@@ -35988,7 +35988,10 @@
   }
   C.leave = leave;
   C.create = () => create(); C.join = (c) => join(String(c)); C.begin = () => lbAct('go');
-  Object.defineProperty(C, 'buddy', { get: () => buddy }); Object.defineProperty(C, 'hostAv', { get: () => hostAv });
+  Object.defineProperty(C, 'buddy', { get: () => buddy });
+  Object.defineProperty(C, 'goal', { get: () => { const m = N.snap && N.snap.m; return m && m.g && !m.cl ? { x: m.g[0], y: m.g[1] } : null; } });
+  Object.defineProperty(C, 'picking', { get: () => !!pick });
+  Object.defineProperty(C, 'guestState', { get: () => ({ caught: guestCaught, out: guestOut, host: N.hostState, mirrors: mirrors.size, buses: busM.size }) }); Object.defineProperty(C, 'hostAv', { get: () => hostAv });
   function onSig(m) {
     lastRx = performance.now();
     if (m.t === 'hello' && C.role === 'host') {
@@ -36047,14 +36050,14 @@
     if (!C.role) return;
     const now = performance.now();
     if (other && pr && !pr.open && now - p2pT > 9000) C.relay = true;
-    if (other && !C.inGame && Math.floor(now / 1000) !== Math.floor((now - 100) / 1000)) send({ t: 'ping' }, true);
-    if (other && now - lastRx > 9000) onGone();
+    if (other && !C.inGame && now - pingT > 700) { pingT = now; send({ t: 'ping' }); }
+    if (other && now - lastRx > 15000) onGone();
     if (!C.inGame) return;
     if (C.role === 'host') send(hostSnap(), true);
     else send(guestSnap(), true);
   }, 100);
 
-  C.dbg = { rx: 0, tx: 0, last: '', p2p: false };
+  C.dbg = { rx: 0, tx: 0, last: '', p2p: false, hits: 0, caught: 0, revive: 0, out: 0, goal: 0, hurt: 0 };
   function onData(d) {
     lastRx = performance.now(); C.dbg.rx++; C.dbg.last = d && d.t;
     if (!d || !d.t) return;
@@ -36069,7 +36072,7 @@
       super(x, y, 10, 6, isBuddy ? 'buddy' : 'mate');
       this.body = 'manual'; this.info = info || {}; this.tx = x; this.ty = y; this.frame = 0;
       this.hp = 3; this.maxHp = 3; this.caught = false; this.out = false; this.hidden = false; this.hideSpot = null; this.riding = null;
-      this.visibility = 1; this.running = false; this.invuln = 0; this.punch = false; this.caughtT = 0; this.revT = 0; this.seen = 0;
+      this.visibility = 1; this.running = false; this.invuln = 0; this.hideT = 0; this.hideMax = 6; this.punch = false; this.caughtT = 0; this.revT = 0; this.seen = 0;
     }
     get shadow() { return !this.hidden && !this.out; }
     apply(a) { // [x, y, dir, frame, flags, hp, maxHp, vis]
@@ -36090,10 +36093,11 @@
       if (this.caught) this.caughtT += dt;
     }
     // протокол «гравця» для ШІ ТЦК (лише аватар друга на хості)
-    hurt(dmg, o) { if (this.caught || this.out || this.hidden || this.invuln > 0) return false; send({ t: 'hurt', dmg, x: o && o.x, y: o && o.y, k: o && o.knock }); this.invuln = 0.6; return true; }
+    hurt(dmg, o) { if (this.caught || this.out || this.hidden || this.invuln > 0) return false; C.dbg.hurt++; send({ t: 'hurt', dmg, x: o && o.x, y: o && o.y, k: o && o.knock }); this.invuln = 0.6; return true; }
     catch() { if (this.caught || this.out) return; this.caught = true; this.caughtT = 0; send({ t: 'catch' }); }
     unhide() { if (this.hidden) send({ t: 'unhide' }); }
     forceUnhide() { this.unhide(); }
+    exposed() { if (!this.hidden) return false; this.unhide(); return true; }
     draw(ctx) {
       if (this.hidden || this.out) return;
       if (this.invuln > 0 && !this.caught && Math.floor(G.realTime * 16) % 2 === 0) return;
@@ -36162,13 +36166,15 @@
       if (buddy && d.of) buddy.info = Object.assign({}, buddy.info, { outfit: d.of });
       if (buddy) { const wasCaught = buddy.caught; buddy.apply(d.a); if (wasCaught && !buddy.caught) buddy.caught = true; if (buddy._revived > 0) buddy.caught = false; }
     } else if (d.t === 'hit' && G.tck) {
+      C.dbg.hits++;
       const t = G.tck.list.find((x) => x.id === d.id && x.alive);
       if (!t) return;
       const info = Object.assign({}, d.i || {}, { x: buddy ? buddy.x : t.x, y: buddy ? buddy.y : t.y, coop: true });
       if (d.k === 'slip' && t.slip) t.slip(info); else if (d.k === 'hurt' && t.hurt) t.hurt(info.damage || 1, info.x, info.y, { stun: info.stun }); else if (t.takeHit) t.takeHit(info);
-    } else if (d.t === 'caught') { if (buddy && !buddy.caught) { buddy.caught = true; buddy.caughtT = 0; toast('ДРУГА СКРУТИЛИ! Біжи до нього — відбий!', 2600); sfx('whistle_fab'); } }
+    } else if (d.t === 'caught') { C.dbg.caught++; if (buddy && !buddy.caught) { buddy.caught = true; buddy.caughtT = 0; toast('ДРУГА СКРУТИЛИ! Біжи до нього — відбий!', 2600); sfx('whistle_fab'); } }
     else if (d.t === 'alert' && G.tck && G.tck.alert) G.tck.alert(d.x, d.y);
-    else if (d.t === 'goal' && G.modes && G.modes.goal && G.modes.reachGoal) { G.modes.reachGoal(); toast((C.buddyName || 'Друг') + ' дійшов до евакуації!', 2000); }
+    else if (d.t === 'goal' && G.modes && G.modes.goal && G.modes.reachGoal) {
+      C.dbg.goal++; G.modes.reachGoal(); toast((C.buddyName || 'Друг') + ' дійшов до евакуації!', 2000); }
   }
   // ТЦК обирають ціль: гравець або друг (ближчий, з «липкістю»)
   if (G.Tck && G.Tck.prototype.update) {
@@ -36183,17 +36189,47 @@
       if (this._tgt === 'b') { if (dp + 50 < db) this._tgt = 'p'; } else if (db + 50 < dp) this._tgt = 'b';
       if (this._tgt !== 'b') return orig.call(this, dt);
       const real = G.player, M = G.tck, Br = G.brawl;
-      const sv = { holdT: M.holdT, holdCd: M.holdCd, standT: M.standT };
+      const sv = { holdT: M.holdT, holdCd: M.holdCd, standT: M.standT, intel: M.intel };
       const tg = Br && Br.tryGrab;
-      G.player = b; M.standT = b.standT || 0;
+      G.player = b; M.standT = b.standT || 0; M.intel = b.intel || null; // де бачили саме друга — шукають там
+      if (this.sees || (this.state === 'chase' && Math.hypot(this.x - b.x, this.y - b.y) < 200)) b.intel = { x: b.x, y: b.y, vx: b.vx || 0, vy: b.vy || 0, t: G.realTime };
       if (Br) Br.tryGrab = () => false; // захват-боротьба — лише для свого гравця; друг отримує звичайний удар
       try { return orig.call(this, dt); } finally {
         G.player = real; if (Br) Br.tryGrab = tg;
         if (M.holdT > sv.holdT + 0.01) send({ t: 'hold', d: M.holdT });
-        M.holdT = sv.holdT; M.holdCd = sv.holdCd; M.standT = sv.standT;
+        if (M.intel !== sv.intel && M.intel) b.intel = M.intel;
+        M.holdT = sv.holdT; M.holdCd = sv.holdCd; M.standT = sv.standT; M.intel = sv.intel;
       }
     };
   }
+
+  // ── хост: буси теж полюють на обох (ціль — ближчий гравець), висадки — то біля хоста, то біля друга ──
+  const buddyOk = () => C.role === 'host' && C.inGame && buddy && buddy.alive && !buddy.caught && !buddy.out && G.player;
+  function asBuddy(fn, self, args) { const real = G.player; G.player = buddy; try { return fn.apply(self, args); } finally { G.player = real; } }
+  setTimeout(() => {
+    if (G.Bus && G.Bus.prototype.update) {
+      const bu = G.Bus.prototype.update;
+      G.Bus.prototype.update = function (dt) {
+        if (this._mirror || !buddyOk()) { this._tgt = null; return bu.call(this, dt); }
+        const p = G.player, b = buddy;
+        const dp = Math.hypot(this.x - p.x, this.y - p.y) + (p.hidden ? 300 : 0) + (p.caught ? 9999 : 0);
+        const db = Math.hypot(this.x - b.x, this.y - b.y) + (b.hidden ? 300 : 0) + (b.riding ? 9999 : 0);
+        if (!this._tgt) this._tgt = db < dp ? 'b' : 'p';
+        else if (this._tgt === 'b') { if (dp + 120 < db) this._tgt = 'p'; } else if (db + 120 < dp) this._tgt = 'b';
+        return this._tgt === 'b' ? asBuddy(bu, this, arguments) : bu.call(this, dt);
+      };
+    }
+    if (G.bus) for (const n of ['spawnDrop', 'spawnNear', 'spawnAtEdge', 'spawnYard']) {
+      const f = G.bus[n]; if (typeof f !== 'function') continue;
+      G.bus[n] = function () {
+        if (!buddyOk()) return f.apply(this, arguments);
+        // по черзі: кожна друга висадка — біля друга
+        hostTurn = !hostTurn;
+        return hostTurn ? f.apply(this, arguments) : asBuddy(f, this, arguments);
+      };
+    }
+  }, 0);
+  let hostTurn = false;
   function hostTick(dt) {
     const b = buddy, p = G.player;
     if (!b || !b.alive) return;
@@ -36205,12 +36241,12 @@
         b.revT += dt;
         if (b.revT >= REV_T) {
           b.caught = false; b.revT = 0; b._revived = 1; b.invuln = 2.5;
-          send({ t: 'revive' }); sfx('pickup');
+          send({ t: 'revive' }); sfx('pickup'); C.dbg.revive++;
           toast('ВІДБИВ ' + (C.buddyName || 'ДРУГА').toUpperCase() + '!', 2000);
           if (G.modes && G.modes.addScore) try { G.modes.addScore('combo', 250, b, 'ВІДБИВ! +250', '#93c25b'); } catch (e) {}
         }
       } else b.revT = Math.max(0, b.revT - dt * 2);
-      if (b.caughtT > REV_MAX) { b.out = true; send({ t: 'out' }); toast((C.buddyName || 'Друга') + ' забрали в бус…', 2600); }
+      if (b.caughtT > REV_MAX) { b.out = true; send({ t: 'out' }); C.dbg.out++; toast((C.buddyName || 'Друга') + ' забрали в бус…', 2600); }
     }
   }
 
