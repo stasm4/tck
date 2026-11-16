@@ -24177,16 +24177,16 @@
   // Round 11: ГРАТИ (кампанія, ◀ ▶ — місія, E / ☰ — екран місій) · ВТЕЧА · ЩОДЕННА · ПРОКАЧКА · ГАРДЕРОБ · КРАМНИЦЯ · КЕРУВАННЯ
   const MENU_X = 14, MENU_W = 190;
   // Round 21: велика картка ГРАТИ + сітка 2×3 з іконками + рядок КЕРУВАННЯ
-  const MENU_ICON = { heroes: 'person', escape: 'run', daily: 'cal', upgrades: 'fist', wardrobe: 'shirt', shop: 'coin', controls: 'gear' };
-  const MENU_COL = { heroes: '#e5483c', escape: '#f7c948', daily: '#93c25b', upgrades: '#ef8a3b', wardrobe: '#8fc7e4', shop: '#f7c948', controls: '#b4abb2' };
+  const MENU_ICON = { heroes: 'person', escape: 'run', daily: 'cal', upgrades: 'fist', wardrobe: 'shirt', shop: 'coin', controls: 'gear', leaders: 'star' };
+  const MENU_COL = { heroes: '#e5483c', escape: '#f7c948', daily: '#93c25b', upgrades: '#ef8a3b', wardrobe: '#8fc7e4', shop: '#f7c948', controls: '#b4abb2', leaders: '#f7c948' };
   function menuItems() {
     const it = [{ id: 'start', label: 'ГРАТИ' }, { id: 'heroes', label: 'ГЕРОЇ' }, { id: 'escape', label: 'ВТЕЧА' }, { id: 'daily', label: 'ЩОДЕННА' }, { id: 'upgrades', label: 'ПРОКАЧКА' },
-      { id: 'wardrobe', label: 'ГАРДЕРОБ' }, { id: 'shop', label: 'КРАМНИЦЯ' }, { id: 'controls', label: 'КЕРУВАННЯ' }];
+      { id: 'wardrobe', label: 'ГАРДЕРОБ' }, { id: 'shop', label: 'КРАМНИЦЯ' }, { id: 'controls', label: 'КЕРУВАННЯ' }, { id: 'leaders', label: 'ЛІДЕРИ' }];
     const cw = Math.floor((MENU_W - 4) / 2);
     it.forEach((o, i) => {
       if (i === 0) o.r = { x: MENU_X, y: 44, w: MENU_W - 26, h: 36 };
       else if (i < 7) { const k = i - 1; o.r = { x: MENU_X + (k % 2) * (cw + 4), y: 86 + Math.floor(k / 2) * 28, w: cw, h: 24 }; o.col = k % 2; }
-      else o.r = { x: MENU_X, y: 170, w: MENU_W, h: 17 };
+      else { const k = i - 7; o.r = { x: MENU_X + k * (cw + 4), y: 170, w: cw, h: 17 }; o.col = k; }
     });
     return it;
   }
@@ -24207,6 +24207,7 @@
     else if (id === 'upgrades' && G.scenes.upgrades) { click(); G.setState('upgrades'); }
     else if (id === 'wardrobe') { click(); G.setState('wardrobe'); }
     else if (id === 'controls') { click(); G.setState('controls'); }
+    else if (id === 'leaders' && G.scenes.leaders) { click(); G.setState('leaders'); }
     else if (id === 'missions' && G.scenes.missions) { click(); G.setState('missions'); }
     else if (id === 'shop' && G.scenes.shop) { click(); G.setState('shop'); }
   }
@@ -24368,7 +24369,7 @@
       U.rect(ctx, 'rgba(255,255,255,' + (f ? 0.18 : 0.08) + ')', r.x, r.y, r.w, 1);
       U.rect(ctx, col, r.x, r.y, 2, r.h); // кольорова смужка
       const ic = MENU_ICON[it.id], isz = U.iconSize(ic);
-      if (it.id === 'controls') {
+      if (it.id === 'controls' || it.id === 'leaders') {
         if (ic) U.icon(ctx, ic, r.x + 8, r.y + Math.round((r.h - isz.h) / 2));
         U.text(ctx, it.label, r.x + r.w / 2, r.y + 4, { size: 8, align: 'center', color: f ? '#fde98f' : '#d8cfd8' });
       } else {
@@ -35609,6 +35610,259 @@
     return out;
   };
   void hsh;
+})();
+
+
+/* ===== 87_online.js ===== */
+// ═══════════════════════════ 87_online — онлайн-таблиця лідерів (ВТЕЧА) ═══════════════════════════
+// G.online.enabled            → чи задані ключі сервера (Supabase)
+// G.online.name / setName(n)  → нікнейм гравця (localStorage 'tck_online')
+// G.online.submit(score, waves, sec) → відправити рекорд (сервер зберігає тільки найкращий з пристрою)
+// G.online.refresh()          → завантажити топ-50 і своє місце
+// Сцена 'leaders': топ-50, своє місце, зміна ніку. На екрані результату ВТЕЧІ — «Місце у світі: #N».
+// Сервер: таблиця esc_scores + функції submit_score / my_rank (див. tck-game/online/supabase.sql).
+// Ключ — лише публічний «anon public». Писати в таблицю напряму не можна (RLS), тільки через submit_score.
+(function () {
+  'use strict';
+  // ── налаштування сервера (порожньо → онлайн вимкнений, кнопка показує «Скоро») ──
+  const SUPA_URL = '';
+  const SUPA_KEY = '';
+
+  const LS = 'tck_online';
+  const enabled = !!(SUPA_URL && SUPA_KEY);
+  let st = { id: '', name: '', best: 0, sent: 0 };
+  try { const raw = localStorage.getItem(LS); if (raw) st = Object.assign(st, JSON.parse(raw)); } catch (e) {}
+  if (!st.id) st.id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+  const persist = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {} };
+  persist();
+
+  const BAD = /(хуй|хуе|хує|пизд|єба|еба|ебл|йоб|бля|сук[аи]|підор|пидор|залуп|fuck|shit|cunt|nigg|bitch|dick)/i;
+  function cleanName(n) {
+    n = String(n || '').replace(/[^A-Za-zА-Яа-яІіЇїЄєҐґ'0-9 _\-.]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
+    if (n.length < 2) return null;
+    if (BAD.test(n.replace(/[ _\-.0-9]/g, ''))) return null;
+    return n;
+  }
+
+  const L = { top: [], me: null, status: 'idle', at: 0, err: '' };
+  function api(path, body, extra) {
+    const h = { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json' };
+    Object.assign(h, extra || {});
+    return fetch(SUPA_URL.replace(/\/$/, '') + path, { method: body ? 'POST' : 'GET', headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.status === 204 ? null : r.json(); });
+  }
+  function refresh() {
+    if (!enabled) return Promise.resolve();
+    L.status = 'load';
+    const pTop = api('/rest/v1/esc_scores?select=name,score,waves,device&order=score.desc,updated_at.asc&limit=50');
+    const pMe = api('/rest/v1/rpc/my_rank', { p_device: st.id });
+    return Promise.all([pTop, pMe]).then(([top, me]) => {
+      L.top = (top || []).map((r) => ({ name: r.name, score: r.score, waves: r.waves, me: r.device === st.id }));
+      const m = Array.isArray(me) ? me[0] : me;
+      L.me = m && m.rank ? { rank: m.rank, score: m.score, total: m.total } : null;
+      L.status = 'ok'; L.at = Date.now();
+    }).catch((e) => { L.status = 'err'; L.err = String(e && e.message || e); });
+  }
+  let pending = null;
+  function submit(score, waves, sec) {
+    score = Math.floor(score || 0);
+    if (!enabled || !st.name || score <= 0) return Promise.resolve(null);
+    if (score <= st.sent) return refresh();
+    pending = { score, waves: Math.max(1, waves | 0), sec: Math.max(0, sec | 0) };
+    return api('/rest/v1/rpc/submit_score', { p_device: st.id, p_name: st.name, p_score: score, p_waves: pending.waves, p_sec: pending.sec })
+      .then(() => { st.sent = Math.max(st.sent, score); persist(); pending = null; return refresh(); })
+      .catch((e) => { L.status = 'err'; L.err = String(e && e.message || e); });
+  }
+  function setName(n) {
+    const c = cleanName(n);
+    if (!c) return false;
+    st.name = c; st.sent = 0; persist();
+    // одразу відправити наявний рекорд під новим ніком
+    const r = G.progress && G.progress.escRecord;
+    if (enabled && r && r.best) submit(r.best, r.bestWave || 1, r.bestSec || 0); else refresh();
+    return true;
+  }
+
+  // ── поле введення ніку (HTML поверх гри: на телефоні відкривається клавіатура) ──
+  let box = null;
+  function askName(done) {
+    if (box) return;
+    box = document.createElement('div');
+    box.style.cssText = 'position:fixed;inset:0;z-index:99;display:flex;align-items:center;justify-content:center;background:rgba(12,6,18,.78);font-family:monospace';
+    box.innerHTML = '<div style="background:#24142a;border:3px solid #fde98f;box-shadow:0 0 0 3px #120a18;padding:18px 18px 14px;width:min(320px,86vw);color:#fbf6ea;text-align:center">' +
+      '<div style="color:#fde98f;font-size:18px;font-weight:bold;margin-bottom:6px">ТВІЙ НІК</div>' +
+      '<div style="font-size:12px;color:#b4abb2;margin-bottom:10px">Його побачать усі в таблиці лідерів (2–16 символів)</div>' +
+      '<input maxlength="16" style="width:100%;box-sizing:border-box;font:16px monospace;padding:8px;background:#120a18;color:#fbf6ea;border:2px solid #8fc7e4;outline:none" />' +
+      '<div class="e" style="color:#ff6050;font-size:12px;min-height:16px;margin-top:6px"></div>' +
+      '<div style="display:flex;gap:8px;margin-top:6px"><button class="c" style="flex:1;font:bold 14px monospace;padding:9px;background:#3a2a46;color:#e8dcc8;border:2px solid #120a18">Скасувати</button>' +
+      '<button class="o" style="flex:1;font:bold 14px monospace;padding:9px;background:#93c25b;color:#1a0e20;border:2px solid #120a18">ГОТОВО</button></div></div>';
+    document.body.appendChild(box);
+    const inp = box.querySelector('input'), err = box.querySelector('.e');
+    inp.value = st.name || '';
+    const close = () => { if (box) { box.remove(); box = null; } };
+    const ok = () => {
+      if (setName(inp.value)) { close(); if (done) done(true); }
+      else err.textContent = 'Тільки букви й цифри, 2–16 символів, без матів';
+    };
+    box.querySelector('.o').onclick = ok;
+    box.querySelector('.c').onclick = () => { close(); if (done) done(false); };
+    inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') ok(); if (e.key === 'Escape') { close(); if (done) done(false); } });
+    ['keyup', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click'].forEach((t) => box.addEventListener(t, (e) => e.stopPropagation()));
+    setTimeout(() => inp.focus(), 50);
+  }
+
+  G.online = {
+    get enabled() { return enabled; }, get name() { return st.name; }, get device() { return st.id; },
+    get data() { return L; }, setName, submit, refresh, askName, cleanName,
+  };
+
+  // ── після забігу ВТЕЧІ: відправити рекорд ──
+  G.events.on('state:change', (d) => {
+    if (!d) return;
+    L.onResult = false;
+    if (d.to !== 'result') return;
+    const s = d.data || {};
+    if (s.mode !== 'escape' || s.practice) return;
+    L.onResult = true;
+    const r = G.progress && G.progress.escRecord;
+    const best = (r && r.best) || 0;
+    if (!enabled || !st.name || !best) return;
+    submit(best, (r && r.bestWave) || s.waves || 1, (r && r.bestSec) || s.sec || 0);
+  });
+
+  // ═══════════════════════════ Сцена ЛІДЕРИ ═══════════════════════════
+  if (G.STATES.indexOf('leaders') < 0) G.STATES.push('leaders');
+  const VW = () => G.cfg.VIEW_W, VH = () => G.cfg.VIEW_H;
+  const LD = { t: 0, scroll: 0, focus: 0, drag: null };
+  const btns = () => [
+    { id: 'name', label: st.name ? 'Змінити нік' : 'Обрати нік', r: { x: 14, y: VH() - 26, w: 110, h: 20 } },
+    { id: 'reload', label: 'Оновити', r: { x: 130, y: VH() - 26, w: 80, h: 20 } },
+    { id: 'back', label: 'Назад', r: { x: VW() - 94, y: VH() - 26, w: 80, h: 20 } },
+  ];
+  const listR = () => ({ x: 14, y: 42, w: VW() - 28, h: VH() - 42 - 32 });
+  const ROW = 13;
+  function act(id) {
+    G.audio && G.audio.sfx && G.audio.sfx('click');
+    if (id === 'back') G.setState('menu');
+    else if (id === 'name') askName(() => {});
+    else if (id === 'reload') refresh();
+  }
+  G.scenes.leaders = {
+    enter() {
+      LD.t = 0; LD.scroll = 0; LD.focus = 0;
+      if (G.ui) G.ui.reset();
+      if (!enabled) return;
+      if (!st.name) askName(() => {});
+      if (Date.now() - L.at > 15000 || L.status !== 'ok') {
+        const r = G.progress && G.progress.escRecord;
+        if (st.name && r && r.best > st.sent) submit(r.best, r.bestWave || 1, r.bestSec || 0); else refresh();
+      }
+    },
+    exit() {},
+    update(dt, realDt) {
+      LD.t += realDt || dt;
+      if (box) return;
+      const I = G.input, m = I.mouse, bs = btns();
+      if (I.pressed('pause')) { I.consume('pause'); act('back'); return; }
+      const maxS = Math.max(0, L.top.length * ROW - (listR().h - 22));
+      if (I.pressed('down')) LD.scroll = Math.min(maxS, LD.scroll + ROW * 3);
+      if (I.pressed('up')) LD.scroll = Math.max(0, LD.scroll - ROW * 3);
+      if (I.pressed('left')) LD.focus = (LD.focus + bs.length - 1) % bs.length;
+      if (I.pressed('right')) LD.focus = (LD.focus + 1) % bs.length;
+      // перетягування списку пальцем / мишею
+      const lr = listR(), inL = m.x >= lr.x && m.x < lr.x + lr.w && m.y >= lr.y && m.y < lr.y + lr.h;
+      if (m.down && (LD.drag || inL)) {
+        if (!LD.drag) LD.drag = { y: m.y, s: LD.scroll };
+        LD.scroll = Math.max(0, Math.min(maxS, LD.drag.s - (m.y - LD.drag.y)));
+      } else LD.drag = null;
+      if (m.wheel) LD.scroll = Math.max(0, Math.min(maxS, LD.scroll + (m.wheel > 0 ? ROW * 3 : -ROW * 3)));
+      for (let i = 0; i < bs.length; i++) {
+        const r = bs[i].r;
+        if (m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h) { LD.focus = i; if (m.clicked) { act(bs[i].id); return; } }
+      }
+      if (I.pressed('confirm') || I.pressed('attack')) act(bs[LD.focus].id);
+    },
+    draw(ctx) {
+      const U = G.ui.gfx, W = VW(), H = VH();
+      U.rect(ctx, '#1c1830', 0, 0, W, H);
+      for (let y = 0; y < H; y += 8) U.rect(ctx, 'rgba(250,220,120,0.03)', 0, y, W, 4);
+      U.icon(ctx, 'star', 14, 10, 2);
+      U.text(ctx, 'ЛІДЕРИ ВТЕЧІ', 32, 8, { size: 18, color: '#fde98f', shadow: true });
+      U.text(ctx, 'Найкращі втікачі країни · рекорд режиму ВТЕЧА', 34, 29, { size: 7, color: '#8fc7e4' });
+      if (st.name) U.text(ctx, 'Ти: ' + st.name, W - 14, 12, { size: 8, align: 'right', color: '#93c25b', shadow: true });
+      const lr = listR();
+      U.panel(ctx, lr.x, lr.y, lr.w, lr.h, { fill: 'rgba(30,26,52,0.94)' });
+      const cx = lr.x + lr.w / 2;
+      const msg = (t, c) => U.text(ctx, t, cx, lr.y + lr.h / 2 - 6, { size: 10, align: 'center', color: c || '#b4abb2' });
+      if (!enabled) {
+        msg('СКОРО', '#fde98f');
+        U.text(ctx, 'Онлайн-таблиця запрацює з наступним оновленням', cx, lr.y + lr.h / 2 + 10, { size: 8, align: 'center', color: '#b4abb2' });
+      } else if (!L.top.length && L.status === 'load') msg('Завантаження…');
+      else if (!L.top.length && L.status === 'err') msg('Немає зв\'язку. Спробуй «Оновити»', '#ff9a7a');
+      else if (!L.top.length) msg('Поки порожньо — стань першим!', '#fde98f');
+      else {
+        // шапка колонок
+        const cPlace = lr.x + 10, cName = lr.x + 40, cWave = lr.x + lr.w - 90, cScore = lr.x + lr.w - 10;
+        U.text(ctx, '#', cPlace, lr.y + 5, { size: 7, color: '#7a7280' });
+        U.text(ctx, 'НІК', cName, lr.y + 5, { size: 7, color: '#7a7280' });
+        U.text(ctx, 'ХВИЛЯ', cWave, lr.y + 5, { size: 7, align: 'right', color: '#7a7280' });
+        U.text(ctx, 'ОЧКИ', cScore, lr.y + 5, { size: 7, align: 'right', color: '#7a7280' });
+        const top = lr.y + 16, bottom = lr.y + lr.h - (L.me && L.me.rank > 50 ? 18 : 4);
+        ctx.save(); ctx.beginPath(); ctx.rect(lr.x, top, lr.w, bottom - top); ctx.clip();
+        const fn = (G.modes && G.modes.fmtNum) || String;
+        for (let i = 0; i < L.top.length; i++) {
+          const y = top + i * ROW - LD.scroll;
+          if (y < top - ROW || y > bottom) continue;
+          const r = L.top[i], pl = i + 1;
+          if (r.me) U.rect(ctx, 'rgba(147,194,91,0.22)', lr.x + 3, y - 2, lr.w - 6, ROW);
+          else if (i % 2) U.rect(ctx, 'rgba(255,255,255,0.03)', lr.x + 3, y - 2, lr.w - 6, ROW);
+          const medal = pl === 1 ? '#f7c948' : pl === 2 ? '#d8d8e4' : pl === 3 ? '#d08a4a' : null;
+          if (medal) { U.rect(ctx, '#120a18', cPlace - 2, y - 1, 15, 11); U.rect(ctx, medal, cPlace - 1, y, 13, 9); }
+          U.text(ctx, String(pl), cPlace + (medal ? 5 : 0), y, { size: 8, align: medal ? 'center' : 'left', color: medal ? '#1a0e20' : '#b4abb2' });
+          let nm = r.name || '—';
+          while (nm.length > 3 && U.measure(nm, 8) > cWave - cName - 40) nm = nm.slice(0, -2) + '…';
+          U.text(ctx, nm, cName, y, { size: 8, color: r.me ? '#93c25b' : '#fbf6ea', shadow: true });
+          U.text(ctx, String(r.waves || 1), cWave, y, { size: 8, align: 'right', color: '#8fc7e4' });
+          U.text(ctx, fn(r.score || 0), cScore, y, { size: 8, align: 'right', color: '#fde98f' });
+        }
+        ctx.restore();
+        if (L.me && L.me.rank > 50) {
+          const y = lr.y + lr.h - 15;
+          U.rect(ctx, 'rgba(147,194,91,0.22)', lr.x + 3, y - 2, lr.w - 6, ROW);
+          U.text(ctx, '#' + L.me.rank, cPlace, y, { size: 8, color: '#93c25b' });
+          U.text(ctx, st.name + ' (ти)', cName, y, { size: 8, color: '#93c25b', shadow: true });
+          U.text(ctx, fn(L.me.score || 0), cScore, y, { size: 8, align: 'right', color: '#fde98f' });
+        }
+      }
+      if (enabled && !st.name) U.text(ctx, 'Обери нік, щоб потрапити в таблицю', W - 14, 22, { size: 7, align: 'right', color: '#ff9a7a' });
+      else if (enabled && L.me && L.me.total) U.text(ctx, 'Твоє місце: #' + L.me.rank + ' з ' + L.me.total, W - 14, 22, { size: 7, align: 'right', color: '#b4abb2' });
+      const bs = btns();
+      for (let i = 0; i < bs.length; i++) U.button(ctx, bs[i].r, bs[i].label, LD.focus === i, { size: 8, disabled: !enabled && bs[i].id !== 'back' });
+      G.ui.drawOverlay && G.ui.drawOverlay(ctx);
+    },
+  };
+
+  // ── на екрані результату ВТЕЧІ: «Місце у світі: #N» ──
+  const R = G.scenes.result, baseDraw = R && R.draw;
+  if (R && baseDraw) {
+    R.draw = function (ctx) {
+      baseDraw.apply(this, arguments);
+      if (!enabled || G.state !== 'result' || !L.onResult) return;
+      const U = G.ui.gfx;
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+      let t = null, c = '#8fc7e4';
+      if (!st.name) { t = 'Обери нік у ЛІДЕРАХ — і будеш у таблиці'; c = '#b4abb2'; }
+      else if (L.me && L.me.rank) { t = 'Місце у світі: #' + L.me.rank; c = L.me.rank <= 10 ? '#f7c948' : '#93c25b'; }
+      else if (L.status === 'load') t = 'Відправляємо рекорд…';
+      if (t) {
+        const w = U.measure(t, 8) + 10;
+        U.rect(ctx, '#120a18', W() - w - 9, 7, w + 2, 14); U.rect(ctx, 'rgba(36,20,42,0.95)', W() - w - 8, 8, w, 12);
+        U.text(ctx, t, W() - 13, 10, { size: 8, align: 'right', color: c });
+      }
+      ctx.restore();
+    };
+  }
+  function W() { return G.cfg.VIEW_W; }
 })();
 
 
