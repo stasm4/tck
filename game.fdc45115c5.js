@@ -35941,7 +35941,10 @@
 
   // ═══════════════ P2P (WebRTC DataChannel) ═══════════════
   function peer(sig, to, isHost, onData, onOpen) {
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] });
+    const pc = new RTCPeerConnection({ iceServers: [
+      { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
+      { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+    ] });
     let fast = null, rel = null, remoteSet = false; const pend = [];
     pc.onconnectionstatechange = () => { C.dbg.ice = pc.connectionState; };
     pc.onicecandidate = (e) => { if (e.candidate) sig.send({ t: 'ice', to, c: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }); };
@@ -35973,7 +35976,7 @@
     C.dbg.tx++; C.dbg.p2p = !!(pr && pr.open);
     if (pr && pr.open) { pr.send(o, fast); return; }
     if (!sig || !other) return;
-    if (fast) { const now = performance.now(); if (now - relayT < 140) return; relayT = now; }
+    if (fast) { const now = performance.now(); if (now - relayT < 100) return; relayT = now; }
     sig.send({ t: 'd', to: other, d: o });
   }
   function leave(silent) {
@@ -36078,6 +36081,7 @@
       if (a[5] != null) { this.hp = a[5]; this.maxHp = a[6]; }
       this.visibility = a[7] != null ? a[7] / 100 : 1;
       this.hideSpot = this.hidden ? { x: this.tx, y: this.ty } : null;
+      if (a[8]) this.info = Object.assign({}, this.info, { skin: a[8] });
     }
     update(dt) {
       const dx = this.tx - this.x, dy = this.ty - this.y;
@@ -36119,26 +36123,32 @@
     }
   }
   const REV_T = 1.5, REV_MAX = 15;
+  const EV_SYNC = { air_raid: 1, blackout: 1, rain: 1 };
+  let snapSeq = 0, lastSeq = 0;
 
   // ═══════════════ ХОСТ ═══════════════
   function hostSnap() {
     const p = G.player, S = G.modes && G.modes.state;
-    const out = { t: 's', st: G.state, tm: Math.round(G.time * 100) / 100 };
+    const out = { t: 's', q: ++snapSeq, st: G.state, tm: Math.round(G.time * 100) / 100 };
+    if (snapSeq % 10 === 1 && p) { out.sk = p.skin; out.of = myOutfit(); }
     if (p) out.p = [r1(p.x), r1(p.y), dirI(p.dir), p.frame | 0, (p.punchT > 0 ? 1 : 0) | (p.hidden ? 2 : 0) | (p.running ? 4 : 0) | (p.riding ? 8 : 0) | (p.invuln > 0 ? 16 : 0) | (p.caught ? 32 : 0)];
     const k = [];
     if (G.tck) for (const t of G.tck.list) {
       if (!t.alive) continue;
       if (p && Math.abs(t.x - p.x) > 900 && buddy && Math.abs(t.x - buddy.x) > 900) continue;
-      k.push([t.id, t.type, r1(t.x), r1(t.y), dirI(t.dir), t.frame | 0, t.state, t.stun > 0 ? 1 : 0, t.ko ? 1 : 0, t.koSide || 1, t.hp, t.maxHp, Math.round((t.alpha == null ? 1 : t.alpha) * 100), Math.round((t.notice || 0) * 10), t.grabAnim > 0 ? 1 : 0, t.pant > 0 ? 1 : 0]);
+      k.push([t.id, t.type, r1(t.x), r1(t.y), dirI(t.dir), t.frame | 0, t.state, t.stun > 0 ? 1 : 0, t.ko ? 1 : 0, t.koSide || 1, t.hp, t.maxHp, Math.round((t.alpha == null ? 1 : t.alpha) * 100), Math.round((t.notice || 0) * 10), t.grabAnim > 0 ? 1 : 0, t.pant > 0 ? 1 : 0, Math.round(t.vx || 0), Math.round(t.vy || 0)]);
     }
     out.k = k;
     const b = [];
-    if (G.bus) for (const v of G.bus.list) if (v.alive) b.push([v.id, r1(v.x), r1(v.y), Math.round(v.angle * 1000) / 1000, (v.doorOpen ? 1 : 0) | (v.braking ? 2 : 0) | (v.siren ? 4 : 0)]);
+    if (G.bus) for (const v of G.bus.list) if (v.alive) b.push([v.id, r1(v.x), r1(v.y), Math.round(v.angle * 1000) / 1000, (v.doorOpen ? 1 : 0) | (v.braking ? 2 : 0) | (v.siren ? 4 : 0), Math.round((v.speed || 0) * (v.hx || 0)), Math.round((v.speed || 0) * (v.hy || 0))]);
     out.b = b;
     if (S) {
       const g = G.modes.goal;
       out.m = { w: S.wave, t: r1(S.waveT), d: S.waveDur, sc: Math.floor(S.score || 0), late: !!S.late, cl: !!S.cleared, g: g ? [Math.round(g.x), Math.round(g.y), g.label || '', g.kind || ''] : null };
     }
+    const MS = G.missions && G.missions.state;
+    if (MS && MS.ev) out.ev = Object.keys(MS.ev).filter((k) => EV_SYNC[k]).map((k) => [k, Math.max(1, Math.round((MS.ev[k].dur || 30) - (MS.ev[k].t || 0)))]);
+    if (G.state === 'perk' && S && G.modes.offers) { const of = G.modes.offers(); if (of) out.pk = of.map((x) => x.id); }
     out.ch = G.tck && G.tck.chaseActive ? 1 : 0;
     out.pu = G.tck && G.tck.pursuit ? 1 : 0;
     if (buddy) out.bc = [buddy.caught ? 1 : 0, r1(buddy.caughtT), r1(buddy.revT)];
@@ -36149,6 +36159,7 @@
       if (!buddy && C.inGame && G.run && !G.run.ended && N.buddyInfo) {
         buddy = G.addEntity(new Avatar(d.a[0], d.a[1], N.buddyInfo, true));
       }
+      if (buddy && d.of) buddy.info = Object.assign({}, buddy.info, { outfit: d.of });
       if (buddy) { const wasCaught = buddy.caught; buddy.apply(d.a); if (wasCaught && !buddy.caught) buddy.caught = true; if (buddy._revived > 0) buddy.caught = false; }
     } else if (d.t === 'hit' && G.tck) {
       const t = G.tck.list.find((x) => x.id === d.id && x.alive);
@@ -36171,8 +36182,16 @@
       const db = Math.hypot(this.x - b.x, this.y - b.y) + (b.hidden ? 400 : 0) + (b.riding ? 9999 : 0);
       if (this._tgt === 'b') { if (dp + 50 < db) this._tgt = 'p'; } else if (db + 50 < dp) this._tgt = 'b';
       if (this._tgt !== 'b') return orig.call(this, dt);
-      const real = G.player; G.player = b;
-      try { return orig.call(this, dt); } finally { G.player = real; }
+      const real = G.player, M = G.tck, Br = G.brawl;
+      const sv = { holdT: M.holdT, holdCd: M.holdCd, standT: M.standT };
+      const tg = Br && Br.tryGrab;
+      G.player = b; M.standT = b.standT || 0;
+      if (Br) Br.tryGrab = () => false; // захват-боротьба — лише для свого гравця; друг отримує звичайний удар
+      try { return orig.call(this, dt); } finally {
+        G.player = real; if (Br) Br.tryGrab = tg;
+        if (M.holdT > sv.holdT + 0.01) send({ t: 'hold', d: M.holdT });
+        M.holdT = sv.holdT; M.holdCd = sv.holdCd; M.standT = sv.standT;
+      }
     };
   }
   function hostTick(dt) {
@@ -36197,17 +36216,19 @@
 
   // ═══════════════ ГІСТЬ ═══════════════
   const mirrors = new Map(), busM = new Map();
-  let guestOut = false, guestCaught = false, goalSent = -1;
+  let guestOut = false, guestCaught = false, goalSent = -1, gSeq = 0;
   function guestSnap() {
     const p = G.player;
     if (!p || !G.run) return { t: 'ping' };
-    return { t: 'p', a: [r1(p.x), r1(p.y), dirI(p.dir), p.frame | 0, (p.punchT > 0 ? 1 : 0) | (p.hidden || p.inMetro ? 2 : 0) | (p.running ? 4 : 0) | (p.riding || p.inMetro ? 8 : 0) | (p.invuln > 0 ? 16 : 0) | (guestCaught ? 32 : 0) | (guestOut ? 64 : 0), p.hp, p.maxHp, Math.round((p.visibility == null ? 1 : p.visibility) * 100)] };
+    return { t: 'p', a: [r1(p.x), r1(p.y), dirI(p.dir), p.frame | 0, (p.punchT > 0 ? 1 : 0) | (p.hidden || p.inMetro ? 2 : 0) | (p.running ? 4 : 0) | (p.riding || p.inMetro ? 8 : 0) | (p.invuln > 0 ? 16 : 0) | (guestCaught ? 32 : 0) | (guestOut ? 64 : 0), p.hp, p.maxHp, Math.round((p.visibility == null ? 1 : p.visibility) * 100), p.skin || null], of: (++gSeq % 10 === 1) ? myOutfit() : undefined };
   }
   function mirrorTck(dt) {
+    this._tx += (this._vx || 0) * dt; this._ty += (this._vy || 0) * dt; // рух між знімками — за швидкістю
     const dx = this._tx - this.x, dy = this._ty - this.y;
-    if (dx * dx + dy * dy > 100 * 100) { this.x = this._tx; this.y = this._ty; } else { const k = Math.min(1, dt * 14); this.x += dx * k; this.y += dy * k; }
+    if (dx * dx + dy * dy > 100 * 100) { this.x = this._tx; this.y = this._ty; } else { const k = Math.min(1, dt * 10); this.x += dx * k; this.y += dy * k; }
   }
   function mirrorBus(dt) {
+    this._tx += (this._vx || 0) * dt; this._ty += (this._vy || 0) * dt;
     const dx = this._tx - this.x, dy = this._ty - this.y, k = Math.min(1, dt * 12);
     if (dx * dx + dy * dy > 160 * 160) { this.x = this._tx; this.y = this._ty; this.angle = this._ta; }
     else { this.x += dx * k; this.y += dy * k; let da = this._ta - this.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; this.angle += da * k; }
@@ -36215,7 +36236,9 @@
     if (this.dust) this.dust.length = 0;
   }
   function guestApply(s) {
+    if (s.q) { if (s.q <= lastSeq && lastSeq - s.q < 1000) return; lastSeq = s.q; }
     N.snap = s; N.snapAt = performance.now(); N.hostState = s.st;
+    if (s.sk || s.of) { N.buddyInfo = Object.assign({}, N.buddyInfo, s.sk ? { skin: s.sk } : null, s.of ? { outfit: s.of } : null); if (hostAv) hostAv.info = Object.assign({}, hostAv.info, N.buddyInfo); }
     if (!C.inGame || !G.run || G.run.ended) return;
     if (s.tm != null) G.time = s.tm;
     if (s.p) {
@@ -36239,7 +36262,7 @@
         mirrors.set(id, t); G.addEntity(t); G.tck.list.push(t);
       }
       t._tx = a[2]; t._ty = a[3]; t.type = a[1]; t.dir = DIRS[a[4]] || 'down'; t.frame = a[5]; t.state = a[6];
-      t.stun = a[7] ? 1 : 0; t.ko = !!a[8]; t.koSide = a[9]; t.hp = a[10]; t.maxHp = a[11]; t.alpha = a[12] / 100; t.notice = a[13] / 10; t.grabAnim = a[14] ? 0.2 : 0; t.pant = a[15] ? 1 : 0;
+      t.stun = a[7] ? 1 : 0; t.ko = !!a[8]; t.koSide = a[9]; t.hp = a[10]; t.maxHp = a[11]; t.alpha = a[12] / 100; t.notice = a[13] / 10; t.grabAnim = a[14] ? 0.2 : 0; t.pant = a[15] ? 1 : 0; t._vx = a[16] || 0; t._vy = a[17] || 0;
     }
     for (const [id, t] of mirrors) if (!seen.has(id)) { t.alive = false; mirrors.delete(id); }
     G.tck.list = G.tck.list.filter((t) => t.alive);
@@ -36253,10 +36276,12 @@
         v.update = mirrorBus; v.id = id; v.slamT = 0; v.C = null; v._mirror = true;
         busM.set(id, v); G.addEntity(v); G.bus.list.push(v);
       }
-      v._tx = a[1]; v._ty = a[2]; v._ta = a[3]; v.doorOpen = !!(a[4] & 1); v.braking = !!(a[4] & 2); v.siren = !!(a[4] & 4);
+      v._tx = a[1]; v._ty = a[2]; v._ta = a[3]; v.doorOpen = !!(a[4] & 1); v.braking = !!(a[4] & 2); v.siren = !!(a[4] & 4); v._vx = a[5] || 0; v._vy = a[6] || 0; v.speed = Math.hypot(v._vx, v._vy);
     }
     for (const [id, v] of busM) if (!seenB.has(id)) { v.alive = false; busM.delete(id); }
     G.bus.list = G.bus.list.filter((v) => v.alive);
+    syncEvents(s.ev || []);
+    if (s.pk && N.hostState === 'perk' && !gPicked[m0(s)]) openPick(s);
     if (G.tck) { G.tck.busList = G.bus.list; G.tck.chaseActive = !!s.ch; G.tck.pursuit = !!s.pu; }
     // евакуація: друг теж може дійти
     const m = s.m, p = G.player;
@@ -36270,6 +36295,7 @@
     else if (d.t === 'hurt' && p && C.inGame && !guestCaught) { if (p.hurt) p.hurt(d.dmg || 1, { x: d.x, y: d.y, source: 'tck', knock: d.k || 100 }); }
     else if (d.t === 'catch' && p && C.inGame && !guestCaught && p.catch) p.catch('tck');
     else if (d.t === 'unhide' && p && p.hidden && p.unhide) p.unhide('pulled');
+    else if (d.t === 'hold' && p) { N.holdT = Math.max(N.holdT || 0, d.d || 0.4); }
     else if (d.t === 'revive' && p) {
       guestCaught = false; p.caught = false; p.hp = Math.max(1, Math.ceil((p.maxHp || 3) / 2)); p.invuln = 2.5;
       sfx('pickup'); toast('ТЕБЕ ВІДБИЛИ! Тікай!', 2000);
@@ -36305,7 +36331,8 @@
 
   function guestStart() {
     if (C.role !== 'guest' || C.inGame) return;
-    mirrors.clear(); busM.clear(); hostAv = null; guestOut = false; guestCaught = false; goalSent = -1; N.placed = false; N.allowEnd = false;
+    mirrors.clear(); busM.clear(); hostAv = null; pick = null; lastSeq = 0; N.holdT = 0;
+    for (const k in gPerks) delete gPerks[k]; for (const k in gPicked) delete gPicked[k]; guestOut = false; guestCaught = false; goalSent = -1; N.placed = false; N.allowEnd = false;
     C.inGame = true;
     G.modes.start('escape');
     if (G.modes.reset) G.modes.reset(); // гість не веде хвиль — їх веде хост
@@ -36344,11 +36371,16 @@
     const up = G.updatePlay;
     const wrapped = function (dt) {
       if (C.role === 'guest' && C.inGame) {
+        if (pick) { pickUpdate(dt); G.camera && G.camera.update(dt); return; }
         if (N.hostState === 'perk' || N.hostState === 'paused' || N.hostState === 'cutscene') { G.camera && G.camera.update(dt); return; }
         if (hostAv && hostAv.alive) hostAv.update(dt);
       }
       up(dt);
       if (C.role === 'host' && C.inGame) hostTick(dt);
+      if (C.role === 'guest' && C.inGame && N.holdT > 0 && G.player) { // тримають за рукав (як у хоста)
+        N.holdT -= dt; const p = G.player, v = Math.hypot(p.vx, p.vy), cap = (p.running ? 115 : 70) * 0.6;
+        if (v > cap) { p.vx *= cap / v; p.vy *= cap / v; }
+      }
     };
     for (const k in up) wrapped[k] = up[k];
     G.updatePlay = wrapped;
@@ -36362,13 +36394,104 @@
   }, 0);
   G.events.on('run:start', () => { if (C.role === 'host' && C.inGame) buddy = null; });
 
+
+  // ── гість: події місії як у хоста ──
+  function syncEvents(list) {
+    const MS = G.missions && G.missions.state;
+    if (!MS || !MS.ev || !G.missions.forceEvent) return;
+    const want = {};
+    for (const e of list) want[e[0]] = e[1];
+    for (const k in want) if (!MS.ev[k]) { try { G.missions.forceEvent(k, want[k]); } catch (er) {} }
+    for (const k of Object.keys(MS.ev)) if (EV_SYNC[k] && !want[k]) { const e = MS.ev[k]; e.t = Math.max(e.t || 0, e.dur || 0); }
+  }
+  // ── гість: власні перки (ті самі 3 картки, вибір свій) ──
+  const gPerks = {}, gPicked = {};
+  let pick = null;
+  const m0 = (s) => (s && s.m ? s.m.w : 0);
+  function openPick(s) {
+    if (pick || guestOut) return;
+    pick = { wave: m0(s), ids: s.pk.slice(), sel: 0, t: 0 };
+  }
+  function perkDef(id) { return (G.modes.PERKS || []).find((x) => x.id === id); }
+  function choose(i) {
+    if (!pick) return;
+    const pk = perkDef(pick.ids[i]);
+    gPicked[pick.wave] = true; pick = null;
+    if (!pk) return;
+    gPerks[pk.id] = (gPerks[pk.id] || 0) + 1;
+    sfx('pickup'); toast('Перк: ' + pk.name, 1800);
+    const p = G.player, CFG = (G.Player && G.Player.CFG) || { HP: 100, ENERGY: 100 };
+    if (!p) return;
+    try {
+      if (pk.eff && pk.eff.energy) { const k = p.energy / (p.maxEnergy || 1); p.maxEnergy = Math.round(CFG.ENERGY * G.progress.bonus('energy')); p.energy = Math.min(p.maxEnergy, p.maxEnergy * k + 10); }
+      if (pk.id === 'salo') { p.maxHp = CFG.HP + G.progress.bonus('maxHp'); p.hp = p.maxHp; }
+      if (pk.id === 'radar' && p.addBuff) p.addBuff('radar', 25);
+      if (pk.id === 'hood' && p.addBuff) p.addBuff('disguise', 15);
+      if (pk.id === 'prayer') gPerks._revive = (gPerks._revive || 0) + 1;
+    } catch (e) {}
+  }
+  setTimeout(() => {
+    const M = G.modes; if (!M || !M.perkBonus) return;
+    const pb = M.perkBonus;
+    M.perkBonus = function (name) {
+      const base = pb.apply(this, arguments);
+      if (C.role !== 'guest' || !C.inGame) return base;
+      const mul = base === 1;
+      let v = base;
+      for (const id in gPerks) {
+        const pk = perkDef(id), k = pk && pk.eff && pk.eff[name];
+        if (!k) continue;
+        if (mul) v *= Math.pow(1 + k, gPerks[id]); else v += k * gPerks[id];
+      }
+      return v;
+    };
+  }, 0);
+  function pickRects() {
+    const W = G.cfg.VIEW_W, n = pick ? pick.ids.length : 3, cw = Math.min(130, Math.floor((W - 40) / n) - 8), tot = n * cw + (n - 1) * 8, x0 = Math.round(W / 2 - tot / 2);
+    const out = []; for (let i = 0; i < n; i++) out.push({ x: x0 + i * (cw + 8), y: 62, w: cw, h: 140 }); return out;
+  }
+  function pickUpdate(dt) {
+    if (!pick) return false;
+    pick.t += dt;
+    const I = G.input, m = I.mouse, rs = pickRects();
+    if (pick.t > 0.4) {
+      if (I.pressed('left')) pick.sel = (pick.sel + rs.length - 1) % rs.length;
+      if (I.pressed('right')) pick.sel = (pick.sel + 1) % rs.length;
+      for (let i = 0; i < rs.length; i++) { const r = rs[i]; if (m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h) { pick.sel = i; if (m.clicked) { choose(i); return true; } } }
+      if (I.pressed('confirm') || I.pressed('attack')) { choose(pick.sel); return true; }
+    }
+    if (pick.t > 15) choose(0); // не чекати вічно
+    return true;
+  }
+  function pickDraw(ctx) {
+    if (!pick) return;
+    const U = G.ui.gfx, W = G.cfg.VIEW_W, H = G.cfg.VIEW_H;
+    ctx.fillStyle = 'rgba(12,6,18,0.74)'; ctx.fillRect(0, 0, W, H);
+    U.text(ctx, 'ОБЕРИ СВІЙ ПЕРК', W / 2, 14, { size: 18, align: 'center', color: '#93c25b', outline: '#120a18', shadow: true });
+    U.text(ctx, N.hostState === 'perk' ? (C.buddyName || 'Друг') + ' теж обирає' : (C.buddyName || 'Друг') + ' уже біжить — швидше!', W / 2, 40, { size: 8, align: 'center', color: N.hostState === 'perk' ? '#e8dcc8' : '#ff9a7a' });
+    const rs = pickRects(), RC = { common: '#b4abb2', rare: '#8fc7e4', epic: '#c08af0', legend: '#f7c948' };
+    for (let i = 0; i < rs.length; i++) {
+      const r = rs[i], pk = perkDef(pick.ids[i]); if (!pk) continue;
+      const f = i === pick.sel;
+      U.rect(ctx, f ? '#fde98f' : '#120a18', r.x - 2, r.y - 2, r.w + 4, r.h + 4);
+      U.rect(ctx, f ? '#3a2a4c' : '#2a1e36', r.x, r.y, r.w, r.h);
+      U.rect(ctx, RC[pk.rar] || '#b4abb2', r.x, r.y, r.w, 3);
+      if (pk.icon) try { const is = U.iconSize(pk.icon); U.icon(ctx, pk.icon, r.x + r.w / 2 - is.w * 1.5, r.y + 12, 3); } catch (e) {}
+      let y = r.y + 46;
+      for (const l of U.wrap(pk.name, r.w - 10, 10).slice(0, 2)) { U.text(ctx, l, r.x + r.w / 2, y, { size: 10, align: 'center', color: '#fde98f', shadow: true }); y += 13; }
+      y += 4;
+      for (const l of U.wrap(pk.desc, r.w - 12, 8).slice(0, 5)) { U.text(ctx, l, r.x + r.w / 2, y, { size: 8, align: 'center', color: '#e8dcc8' }); y += 11; }
+    }
+    U.text(ctx, G.input && G.coop ? 'Торкнись картки' : '', W / 2, H - 16, { size: 8, align: 'center', color: 'rgba(255,255,255,0.5)' });
+  }
+
   // ═══════════════ HUD: спільний стан хвилі в гостя, стрілка до друга ═══════════════
   if (G.ui && G.ui.drawHUD) {
     const dh = G.ui.drawHUD.bind(G.ui);
     G.ui.drawHUD = function (ctx) {
       dh(ctx);
       if (!C.inGame || !G.player) return;
-      try { coopHUD(ctx); } catch (e) { console.error('coop hud', e); }
+      try { coopHUD(ctx); pickDraw(ctx); } catch (e) { console.error('coop hud', e); }
     };
   }
   function edgeArrow(ctx, tx, ty, col, label) {
@@ -36392,6 +36515,9 @@
     if (C.role === 'host' && buddy && buddy.caught && !buddy.out && buddy.revT > 0) {
       U.text(ctx, 'ВІДБИВАЄШ… ' + Math.round(buddy.revT / REV_T * 100) + '%', W / 2, H - 70, { size: 10, align: 'center', color: '#93c25b', outline: '#120a18' });
     }
+    // якість зв'язку
+    const direct = !!(pr && pr.open);
+    U.text(ctx, direct ? 'зв\'язок: прямий' : 'зв\'язок: через сервер', W - 6 - ((G.safe && G.safe.s) || 0), H - 10 - ((G.safe && G.safe.b) || 0), { size: 7, align: 'right', color: direct ? 'rgba(147,194,91,0.8)' : 'rgba(239,138,59,0.9)' });
     if (C.role !== 'guest') return;
     const s = N.snap, m = s && s.m;
     if (m) {
@@ -36408,7 +36534,7 @@
     else if (guestCaught) {
       const bc = s && s.bc;
       msg = 'СКРУТИЛИ! Чекай — ' + (C.buddyName || 'друг') + ' може відбити' + (bc ? ' (' + Math.max(0, Math.ceil(REV_MAX - bc[1])) + 'с)' : '');
-    } else if (N.hostState === 'perk') msg = (C.buddyName || 'Друг') + ' обирає перк…';
+    } else if (N.hostState === 'perk' && !pick) msg = (C.buddyName || 'Друг') + ' обирає перк…';
     else if (N.hostState === 'paused') msg = (C.buddyName || 'Друг') + ' на паузі';
     if (msg) {
       const w = U.measure(msg, 8) + 14, x = Math.round(W / 2 - w / 2), y = Math.round(H / 2 - 30);
@@ -36442,7 +36568,7 @@
       if (!G.online || !G.online.name) G.online && G.online.askName((ok) => { if (ok) go(); }); else go();
     } else if (id === 'cancel') leave();
     else if (id === 'go' && C.role === 'host' && C.linked) {
-      C.inGame = true; buddy = null;
+      C.inGame = true; buddy = null; snapSeq = 0;
       send({ t: 'start' });
       G.modes.start('escape');
       if (G.ui && G.ui.banner) G.ui.banner('ВТЕЧА УДВОХ · з ' + (C.buddyName || 'другом'), 2400);
