@@ -35628,8 +35628,8 @@
 (function () {
   'use strict';
   // ── налаштування сервера (порожньо → онлайн вимкнений, кнопка показує «Скоро») ──
-  const SUPA_URL = '';
-  const SUPA_KEY = '';
+  const SUPA_URL = 'https://wxuyddeugnxacjvgirnv.supabase.co';
+  const SUPA_KEY = 'sb_publishable_kIaW_XU1aX1MhX81pfiq8A_Y1QmFIye';
 
   const LS = 'tck_online';
   const enabled = !!(SUPA_URL && SUPA_KEY);
