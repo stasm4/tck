@@ -28479,6 +28479,13 @@
       13: ['major', 'Ніч, світла нема. А я тебе все одно бачу. У мене павербанк.'],
       14: ['tolik', 'Вася на звʼязку. Майор зʼїв три пиріжки і злий. Обережно.'],
       15: ['major', 'Сквер. Я тут. Мегафон заряджений. Приходь, Андрію.'],
+      16: ['major', 'Андрію, твоя бронь — у статусі «анульовано». Я ж казав: Київ маленький.'],
+      17: ['tolik', 'Вася на звʼязку. Окуляри — це сильно. Майор пройшов повз і сказав: «Добрий день, бухгалтере».'],
+      18: ['major', 'Бурса? Зварювальник? Гарна професія. У війську теж треба.'],
+      19: ['tolik', 'Андрюхо, по району знову відключення. Діду світить тільки твій генератор.'],
+      20: ['major', 'Андрію, обручки — то святе. Але бус за тобою їде за планом. Нічого особистого.'],
+      21: ['tolik', 'Мальчишник офіційно почався! Майор свій проводить у бусі. На чергуванні.'],
+      22: ['major', 'Дружбо, хлопці приготували мені подарунок. Здогадайся, який. Біжи.'],
     },
     chase: [
       ['major', 'Андрію, я знаю, що ти купив батон. Нарізний.'],
@@ -28522,7 +28529,7 @@
     const m = runMission();
     if (!m || m.mode || m.endless) return false;
     const n = missionN(m);
-    return n >= 5 && n <= 15;
+    return n >= 5 && n <= ((G.missions && G.missions.CAMPAIGN) || 15);
   }
   function toastBusy() { return G.realTime < RS.toastUntil; }
   // власний ГПВЧ — щоб рація не зсувала світовий генератор (детермінованість світу/ботів у тестах)
@@ -28571,7 +28578,7 @@
       const id = 'comic_ch' + ch.n;
       return this.seen(id) && !G.cfg.storyAlways ? null : id;
     },
-    wantsFinale(m) { return storyOn() && !!m && !m.mode && !m.endless && missionN(m) === ((G.missions && G.missions.CAMPAIGN) || 15); },
+    wantsFinale(m) { return storyOn() && !!m && !m.mode && !m.endless && missionN(m) === 15; }, // фінал історії з Майором — після місії 15 (глави 5–6 — епілог)
     radio(who, text) { showRadio(who, text); },
     trigger,
     reset() { RS.msg = null; RS.lastAt = -1e9; RS.runT = 0; RS.startDone = false; RS.pending = null; RS.log = []; },
@@ -29358,6 +29365,14 @@
     return k;
   }
   function refreshMax() { D.maxDay = Math.min(LIM.DAY, Math.max(D.maxDay, derivedMax())); }
+  // кампанію розширено з 15 до 22 місій: старий нескінченний прогрес (дні 16+) не відкриває нові місії без проходження
+  function clampCampaign() {
+    const C = CAMP();
+    if (C <= 15 || D.maxDay > C + 1 && D.endlessBest > C) return;
+    const lim = Math.max(derivedMax(), Math.min(D.maxDay, 16));
+    if (D.maxDay > lim) D.maxDay = lim;
+    if (D.day > D.maxDay) D.day = D.maxDay;
+  }
   function giveAch(id) {
     if (D.ach.indexOf(id) >= 0) return null;
     const a = ACH.find((x) => x.id === id);
@@ -29644,6 +29659,7 @@
     boot() {
       const r = loadData();
       D = r.data;
+      clampCampaign();
       refreshMax();
       if (r.migrated) persist();
       checkCounters();
@@ -30064,7 +30080,7 @@
     // для тестів
     _data() { return D; },
     _run() { return R; },
-    _reload() { const r = loadData(); D = r.data; refreshMax(); if (r.migrated) persist(); checkCounters(); return r; },
+    _reload() { const r = loadData(); D = r.data; clampCampaign(); refreshMax(); if (r.migrated) persist(); checkCounters(); return r; },
   };
 
   function isToilet(d) {
@@ -30092,7 +30108,7 @@
 // відключення світла, злива); побічні квести від NPC з "!" над головою; екрани "Місії" і "Крамниця".
 //
 // ═══════════════════════════ API (G.missions) ═══════════════════════════
-// G.missions.CAMPAIGN                 → 15 (кількість місій кампанії; 16+ — нескінченний режим)
+// G.missions.CAMPAIGN                 → 22 (кількість місій кампанії; 23+ — нескінченний режим)
 // G.missions.def(n)                   → опис місії n (кроки, події, побічні, star3, тексти); для n ≥ 16 — процедурний
 // G.missions.build(n)                 → обʼєкт для G.progress.mission(): усі старі поля tck-ai + id, chapter, brief, steps, place…
 // G.missions.chapters                 → [{n, title, from, to, gate}] (gate — скільки ★ треба, щоб відкрити главу)
@@ -30272,6 +30288,8 @@
     { n: 2, title: 'Місто-герой', from: 5, to: 8, gate: 6 },
     { n: 3, title: 'Сезон облав', from: 9, to: 12, gate: 15 },
     { n: 4, title: 'Майор', from: 13, to: 15, gate: 24 },
+    { n: 5, title: 'Бронь злетіла', from: 16, to: 19, gate: 28 },
+    { n: 6, title: 'Весілля Майора', from: 20, to: 22, gate: 36 },
   ];
   const CAMPAIGN = [null,
     { tier: 1, title: 'Доберіться до роботи', short: 'На роботу', weekday: 'Вівторок', start: 7 * 60 + 40, fixedDeadline: 9 * 60,
@@ -30416,6 +30434,78 @@
       star3: 'major', place: 'metro',
       win: ['Майор досі кричить у мегафон.', 'Але вже на голубів.', 'А в телефоні — непрочитаний лист із березня.'],
       late: ['Метро зачинили на технічну перерву.', 'Ти сидиш на лавці. Вільний. Втомлений.'] },
+    // ── Глава 5: після фіналу колл-центр втратив статус критичного — бронь Андрія анулювали ──
+    { tier: 6, title: 'Бронь злетіла', short: 'Бронь злетіла', weekday: 'Понеділок', start: 8 * 60 + 20, slack: 18,
+      brief: 'Колл-центр втратив статус критичного — бронь анулювали. Резерв+ лежить. Довідка з роботи, ксерокопії — і рекомендованим листом у ТЦК.',
+      steps: [
+        { type: 'hold', at: 'office', label: 'Візьми довідку з роботи', hold: 1.6, doing: 'Начальник шукає печатку… в шухляді з печивом' },
+        { type: 'hold', at: 'press_prosp', label: 'Зроби ксерокопії в «Пресі»', hold: 1.2, doing: 'Ксерокс жує другий аркуш…' },
+        { type: 'hold', at: 'np', label: 'Відправ документи рекомендованим', hold: 2.2, doing: 'Опис вкладення. З підписом. Ще раз.' }],
+      events: [{ type: 'rain', at: [10, 16], chance: 1, dur: 70 }],
+      star3: 'noPunch', place: 'nova_poshta',
+      win: ['Лист пішов.', 'Трекінг: «Прибуде за 1–2 дні».', 'Майор: «А ми за 1–2 хвилини».'],
+      late: ['Пошта зачинилась.', 'Документи ночують у тебе під подушкою.'] },
+    { tier: 6, title: 'Маскування', short: 'Маскування', weekday: 'Вівторок', start: 11 * 60 + 40, slack: 18,
+      brief: 'Твою сорочку знає кожен бус. Нова зачіска, окуляри, куртка з секонду — і перевір маскування на Каті. Повз блокпост — непомітно.',
+      steps: [
+        { type: 'hold', at: 'barber', label: 'Підстрижись у барбершопі', hold: 1.6, doing: 'Барбер: «Як у Майора, коротко?» — НІ.' },
+        { type: 'hold', at: 'optics', label: 'Купи окуляри без діоптрій', hold: 1.0, doing: 'Оправа «бухгалтер, 1998»' },
+        { type: 'hold', at: 'second', label: 'Знайди куртку в секонді', hold: 1.2, doing: 'Куртка пахне чужим дідусем…' },
+        { type: 'stealth', at: 'coffee_prosp', label: 'Пройди повз блокпост до Каті' }],
+      events: [{ type: 'checkpoint', at: [1, 3], chance: 1 }],
+      star3: 'stealth', place: 'square',
+      win: ['Катя: «Андрію, ти чого в окулярах?»', 'Маскування впізнали за 0.4 секунди.', 'Добре, що Катя — не ТЦК.'],
+      late: ['Кіоск закритий.', 'Ти в окулярах, куртці і з новою зачіскою.', 'Тебе не впізнала навіть мама.'] },
+    { tier: 6, title: 'Вступ у бурсу', short: 'Бурса', weekday: 'Середа', start: 9 * 60 + 10, slack: 16,
+      brief: 'Студентам — відстрочка. Бурса бере на зварювальника, документи — до обіду. Біля входу вже чергує бус. Потім — у метро.',
+      steps: [
+        { type: 'hold', at: 'bursa', label: 'Подай документи в бурсу', hold: 2.2, doing: 'Вахтерка: «Ти не старий для бурси?»' },
+        { type: 'survive', dur: 30, label: 'Біля бурси облава! Протримайся', next: 'metroA' },
+        { type: 'go', at: 'metroA', label: 'Сховайся в метро «Спальна»' }],
+      events: [{ type: 'raid', at: [30, 50], chance: 0.6 }],
+      star3: 'noHide', place: 'metro',
+      win: ['Тебе зарахували.', 'Група ЗВ-11: тобі 25, решті — по 15.', 'Староста — ти. Без голосування.'],
+      late: ['Прийом документів закрито.', 'Вахтерка: «Приходь у серпні, синку».'] },
+    { tier: 7, title: 'Генератор для діда', short: 'Генератор', weekday: 'Четвер', start: 19 * 60 + 50, slack: 18, sides: 1,
+      brief: 'Дід пам\'ятає: ти обіцяв полагодити генератор. Свічка запалювання з ринку, олива з АТБ — і в 16-поверхівку, поки знову не вимкнули світло.',
+      steps: [
+        { type: 'hold', at: 'market', label: 'Купи свічку запалювання на ринку', hold: 1.0, doing: 'Продавець: «Оригінал. Майже.»' },
+        { type: 'hold', at: 'atb', label: 'Купи оливу в АТБ', hold: 1.0, doing: 'Олива для двигуна поруч з олією. Не переплутай.' },
+        { type: 'hold', at: 't_m1', label: 'Полагодь генератор дідові', hold: 3.2, doing: 'Смикаєш стартер… вдесяте…' }],
+      events: [{ type: 'blackout', at: [20, 30], chance: 1, dur: 70 }],
+      star3: 'fast', place: 'home',
+      win: ['Генератор затарахкотів.', 'Дід: «Онучок! Тепер і чайник, і телевізор!»', 'Весь підʼїзд прийшов заряджати телефони.'],
+      late: ['Світло дали раніше, ніж ти дійшов.', 'Дід: «Ну, приходь на чай. Генератор потім».'] },
+    // ── Глава 6: Майор і Галина Степанівна женяться, Андрій — дружба ──
+    { tier: 7, title: 'Обручки', short: 'Обручки', weekday: 'Пʼятниця', start: 16 * 60 + 30, slack: 15,
+      brief: 'Майор і Галина Степанівна женяться, а ти — дружба. Обручки з гравіюванням — у ключника. Майор по рації: «План по бусах ніхто не скасовував».',
+      steps: [
+        { type: 'hold', at: 'keys', label: 'Забери обручки з гравіюванням', hold: 1.4, doing: 'Майстер вигравіював «Валерик + Галя = ТЦК»' },
+        { type: 'deliver', at: 'tesha', label: 'Обручки → нареченій', tip: 40, factor: 1.2 }],
+      events: [{ type: 'checkpoint', at: [6, 12], chance: 1 }],
+      star3: 'tips', place: 'mother_in_law',
+      win: ['Галина Степанівна: «Гравіювання переробити».', '«Але ти молодець, зятю».', 'Вперше — без іронії.'],
+      late: ['Наречена вже нервує.', 'Обручки довелось купити в переході.', 'Блищать, як справжні.'] },
+    { tier: 7, title: 'Мальчишник', short: 'Мальчишник', weekday: 'Субота', start: 18 * 60 + 40, slack: 18,
+      brief: 'Костюм дружби — тільки з секонду. Потім Вася: він обіцяв мальчишник «як у кіно» — морозиво в парку. Майор у свій мальчишник працює.',
+      steps: [
+        { type: 'hold', at: 'second', label: 'Купи костюм у секонді', hold: 1.4, doing: 'Костюм 1987 року. З плічками. Ідеально.' },
+        { type: 'meet', at: 'metroB', label: 'Зустрінь Васю біля «Хрещатика»' },
+        { type: 'escort', at: 'icecream', label: 'Доведи Васю до морозива в парку' }],
+      events: [{ type: 'raid', at: [25, 40], chance: 1 }],
+      star3: 'noHit', place: 'park',
+      win: ['Вася: «Найкращий мальчишник у моєму житті».', '«Це мій перший мальчишник».', 'Пломбір на двох. Без бусів.'],
+      late: ['Морозиво закінчилось.', 'Вася: «Нічого. Я приніс сухарики».'] },
+    { tier: 8, title: 'Весілля', short: 'Весілля', weekday: 'Неділя', start: 12 * 60 + 20, slack: 18,
+      brief: 'Вінчання о другій. Підлеглі Майора хочуть зробити йому «подарунок» — тебе. Обручки в кишені. Без бійки на весіллі!',
+      steps: [
+        { type: 'hold', at: 'flowers_kiosk', label: 'Забери бутоньєрку дружби', hold: 0.8, doing: 'Флорист чіпляє троянду на лацкан. Криво.' },
+        { type: 'survive', dur: 40, label: 'Підлеглі Майора! Протримайся до вінчання', next: 'church_front' },
+        { type: 'hold', at: 'church_front', label: 'Подай обручки', hold: 2.2, doing: 'Батюшка: «Хто дає обручки?» — Я. Вільний я.' }],
+      events: [{ type: 'checkpoint', at: [8, 14], chance: 0.7 }],
+      star3: 'noPunch', place: 'church',
+      win: ['«Гірко!»', 'Майор: «Андрію… дякую. І тікай. У хлопців план».', 'Галина Степанівна кинула букет. Впіймав Вася.'],
+      late: ['Обручки подав Вася.', 'Майор: «А дружба де?» — «Тікає, як завжди».', 'Весілля вдалось. Без тебе.'] },
   ];
   const N_CAMP = CAMPAIGN.length - 1;
 
@@ -30491,9 +30581,9 @@
       const d = CAMPAIGN[n];
       return Object.assign({ n, chapter: chapterOf(n), endless: false, events: [], sides: 0, slack: 15 }, d);
     }
-    return Object.assign({ n, chapter: 5 }, endlessDef(n));
+    return Object.assign({ n, chapter: CHAPTERS.length + 1 }, endlessDef(n));
   }
-  function chapterOf(n) { for (const c of CHAPTERS) if (n >= c.from && n <= c.to) return c.n; return 5; }
+  function chapterOf(n) { for (const c of CHAPTERS) if (n >= c.from && n <= c.to) return c.n; return CHAPTERS.length + 1; }
 
   // оцінка тривалості місії (хв гри): маршрут через усі кроки + час на дії
   function estimate(d) {
@@ -32064,14 +32154,15 @@
   const okKey = () => pressed('confirm') || pressed('attack');
   const click = (n) => sfx(n || 'click');
   const MSel = { sel: 1, t: 0, mx: -1, my: -1 };
-  const CARD = { x0: 86, y0: 30, w: 92, h: 34, gx: 4, gy: 5 };
+  const CARD = { x0: 86, y0: 28, w: 92, h: 23, gx: 4, gy: 3 }; // 6 глав — 6 рядів
   function cards() {
     const out = [];
     for (const ch of CHAPTERS) for (let n = ch.from; n <= ch.to; n++) {
       const col = n - ch.from, row = ch.n - 1;
       out.push({ n, r: { x: CARD.x0 + col * (CARD.w + CARD.gx), y: CARD.y0 + row * (CARD.h + CARD.gy), w: CARD.w, h: CARD.h } });
     }
-    out.push({ n: N_CAMP + 1, endless: true, r: { x: CARD.x0 + 3 * (CARD.w + CARD.gx), y: CARD.y0 + 3 * (CARD.h + CARD.gy), w: CARD.w, h: CARD.h } });
+    const lastCh = CHAPTERS[CHAPTERS.length - 1], ec = Math.min(3, lastCh.to - lastCh.from + 1);
+    out.push({ n: N_CAMP + 1, endless: true, r: { x: CARD.x0 + ec * (CARD.w + CARD.gx), y: CARD.y0 + (lastCh.n - 1) * (CARD.h + CARD.gy), w: CARD.w, h: CARD.h } });
     return out;
   }
   function mouseMoved() { const m = G.input.mouse, mv = m.x !== MSel.mx || m.y !== MSel.my; MSel.mx = m.x; MSel.my = m.y; return mv; }
@@ -32130,10 +32221,9 @@
     for (const ch of CHAPTERS) {
       const y = CARD.y0 + (ch.n - 1) * (CARD.h + CARD.gy);
       const open = !P || P.totalStars >= ch.gate;
-      u.text(ctx, 'ГЛАВА ' + ch.n, 8, y + 3, { size: 8, color: open ? '#fde98f' : '#7a7280' });
-      const tl = u.wrap(ch.title, 74, 8);
-      for (let k = 0; k < tl.length && k < 2; k++) u.text(ctx, tl[k], 8, y + 13 + k * 9, { size: 8, color: open ? '#e8dcc8' : '#5c5766' });
-      if (ch.gate && !open) { drawStarIcon(ctx, 8, y + 25, 1, false); u.text(ctx, ch.gate + ' потрібно', 18, y + 25, { size: 8, color: '#ef8a3b' }); }
+      u.text(ctx, 'ГЛАВА ' + ch.n, 8, y, { size: 8, color: open ? '#fde98f' : '#7a7280' });
+      if (ch.gate && !open) { drawStarIcon(ctx, 8, y + 11, 1, false); u.text(ctx, ch.gate + ' потрібно', 18, y + 11, { size: 8, color: '#ef8a3b' }); }
+      else { let tt = ch.title; while (tt.length > 3 && u.measure(tt, 8) > 76) tt = tt.slice(0, -2) + '…'; u.text(ctx, tt, 8, y + 11, { size: 8, color: open ? '#e8dcc8' : '#5c5766' }); }
     }
     const cs = cards();
     for (const c of cs) {
@@ -32142,19 +32232,19 @@
       const stars = P ? P.starsOf(c.n) : 0;
       u.panel(ctx, r.x, r.y, r.w, r.h, { fill: !open ? 'rgba(30,24,36,0.95)' : sel ? 'rgba(94,152,70,0.9)' : stars ? 'rgba(69,41,63,0.95)' : 'rgba(58,46,68,0.95)', border: sel ? '#fde98f' : '#1a0e20' });
       if (c.endless) {
-        u.text(ctx, 'НЕСКІНЧЕННИЙ', r.x + r.w / 2, r.y + 4, { size: 8, align: 'center', color: open ? '#fde98f' : '#7a7280' });
-        u.text(ctx, open ? 'день ' + (P.endlessDay || N_CAMP + 1) : 'після місії ' + N_CAMP, r.x + r.w / 2, r.y + 16, { size: 8, align: 'center', color: open ? '#e8dcc8' : '#5c5766' });
-        if (!open) u.icon(ctx, 'unlock', r.x + r.w - 10, r.y + 22);
+        u.text(ctx, 'НЕСКІНЧЕННИЙ', r.x + r.w / 2, r.y + 2, { size: 8, align: 'center', color: open ? '#fde98f' : '#7a7280' });
+        u.text(ctx, open ? 'день ' + (P.endlessDay || N_CAMP + 1) : 'після місії ' + N_CAMP, r.x + r.w / 2, r.y + 12, { size: 8, align: 'center', color: open ? '#e8dcc8' : '#5c5766' });
+        if (!open) u.icon(ctx, 'unlock', r.x + r.w - 10, r.y + 13);
         continue;
       }
       const d = def(c.n);
-      u.text(ctx, String(c.n), r.x + 5, r.y + 3, { size: 10, color: open ? '#fde98f' : '#5c5766', shadow: true });
+      u.text(ctx, String(c.n), r.x + 5, r.y + 1, { size: 10, color: open ? '#fde98f' : '#5c5766', shadow: true });
       const tx = r.x + 5 + u.measure(String(c.n), 10) + 5;
       let t = d.short || d.title;
       while (t.length > 3 && u.measure(t, 8) > r.x + r.w - 4 - tx) t = t.slice(0, -2) + '…';
-      u.text(ctx, t, tx, r.y + 5, { size: 8, color: open ? '#fbf6ea' : '#5c5766' });
-      if (open) for (let k = 0; k < 3; k++) drawStarIcon(ctx, r.x + 26 + k * 14, r.y + 19, 1, k < stars);
-      else u.icon(ctx, 'unlock', r.x + r.w / 2 - 3, r.y + 18);
+      u.text(ctx, t, tx, r.y + 3, { size: 8, color: open ? '#fbf6ea' : '#5c5766' });
+      if (open) for (let k = 0; k < 3; k++) drawStarIcon(ctx, r.x + 26 + k * 14, r.y + 14, 1, k < stars);
+      else u.icon(ctx, 'unlock', r.x + r.w / 2 - 3, r.y + 13);
     }
     // деталі
     const n = MSel.sel, py = 188;
