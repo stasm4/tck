@@ -30276,6 +30276,7 @@
     fast: 'Фініш щонайменше за 10 хв до дедлайну',
     noHide: 'Жодного разу не ховатися',
     major: 'Нокаутувати Майора',
+    fragile: 'Донести цілим',
   };
 
   // ═══════════════════════════ Кампанія ═══════════════════════════
@@ -30435,64 +30436,68 @@
       win: ['Майор досі кричить у мегафон.', 'Але вже на голубів.', 'А в телефоні — непрочитаний лист із березня.'],
       late: ['Метро зачинили на технічну перерву.', 'Ти сидиш на лавці. Вільний. Втомлений.'] },
     // ── Глава 5: після фіналу колл-центр втратив статус критичного — бронь Андрія анулювали ──
+    // кожна місія глав 5–6 має свою механіку: обшук (mini), маскування (менше помічають), ВЛК (mini), крихкий вантаж (carry),
+    // злодій (catch), квест із записками (collect), облава + вінчання (survive)
     { tier: 6, title: 'Бронь злетіла', short: 'Бронь злетіла', weekday: 'Понеділок', start: 8 * 60 + 20, slack: 18,
-      brief: 'Колл-центр втратив статус критичного — бронь анулювали. Резерв+ лежить. Довідка з роботи, ксерокопії — і рекомендованим листом у ТЦК.',
+      brief: 'Колл-центр втратив статус критичного — бронь анулювали. Резерв+ лежить, а в двері вже стукають. Сховайся, візьми довідку — і рекомендованим у ТЦК.',
       steps: [
+        { type: 'mini', game: 'search', at: 'home', label: 'У двері стукають! Сховайся в квартирі' },
         { type: 'hold', at: 'office', label: 'Візьми довідку з роботи', hold: 1.6, doing: 'Начальник шукає печатку… в шухляді з печивом' },
-        { type: 'hold', at: 'press_prosp', label: 'Зроби ксерокопії в «Пресі»', hold: 1.2, doing: 'Ксерокс жує другий аркуш…' },
         { type: 'hold', at: 'np', label: 'Відправ документи рекомендованим', hold: 2.2, doing: 'Опис вкладення. З підписом. Ще раз.' }],
       events: [{ type: 'rain', at: [10, 16], chance: 1, dur: 70 }],
       star3: 'noPunch', place: 'nova_poshta',
       win: ['Лист пішов.', 'Трекінг: «Прибуде за 1–2 дні».', 'Майор: «А ми за 1–2 хвилини».'],
       late: ['Пошта зачинилась.', 'Документи ночують у тебе під подушкою.'] },
     { tier: 6, title: 'Маскування', short: 'Маскування', weekday: 'Вівторок', start: 11 * 60 + 40, slack: 18,
-      brief: 'Твою сорочку знає кожен бус. Нова зачіска, окуляри, куртка з секонду — і перевір маскування на Каті. Повз блокпост — непомітно.',
+      brief: 'Твою сорочку знає кожен бус. Зачіска, окуляри, куртка з секонду — і тебе помічатимуть набагато гірше. Перевір маскування: пройди блокпост до Каті.',
       steps: [
         { type: 'hold', at: 'barber', label: 'Підстрижись у барбершопі', hold: 1.6, doing: 'Барбер: «Як у Майора, коротко?» — НІ.' },
         { type: 'hold', at: 'optics', label: 'Купи окуляри без діоптрій', hold: 1.0, doing: 'Оправа «бухгалтер, 1998»' },
-        { type: 'hold', at: 'second', label: 'Знайди куртку в секонді', hold: 1.2, doing: 'Куртка пахне чужим дідусем…' },
+        { type: 'hold', at: 'second', label: 'Знайди куртку в секонді', hold: 1.2, doing: 'Куртка пахне чужим дідусем…', disguise: true },
         { type: 'stealth', at: 'coffee_prosp', label: 'Пройди повз блокпост до Каті' }],
       events: [{ type: 'checkpoint', at: [1, 3], chance: 1 }],
       star3: 'stealth', place: 'square',
       win: ['Катя: «Андрію, ти чого в окулярах?»', 'Маскування впізнали за 0.4 секунди.', 'Добре, що Катя — не ТЦК.'],
       late: ['Кіоск закритий.', 'Ти в окулярах, куртці і з новою зачіскою.', 'Тебе не впізнала навіть мама.'] },
     { tier: 6, title: 'Вступ у бурсу', short: 'Бурса', weekday: 'Середа', start: 9 * 60 + 10, slack: 16,
-      brief: 'Студентам — відстрочка. Бурса бере на зварювальника, документи — до обіду. Біля входу вже чергує бус. Потім — у метро.',
+      brief: 'Студентам — відстрочка. Бурса бере на зварювальника. Подай документи і пройди медогляд… якщо це справді медогляд.',
       steps: [
-        { type: 'hold', at: 'bursa', label: 'Подай документи в бурсу', hold: 2.2, doing: 'Вахтерка: «Ти не старий для бурси?»' },
-        { type: 'survive', dur: 30, label: 'Біля бурси облава! Протримайся', next: 'metroA' },
-        { type: 'go', at: 'metroA', label: 'Сховайся в метро «Спальна»' }],
-      events: [{ type: 'raid', at: [30, 50], chance: 0.6 }],
+        { type: 'hold', at: 'bursa', label: 'Подай документи в бурсу', hold: 2.0, doing: 'Вахтерка: «Ти не старий для бурси?»' },
+        { type: 'mini', game: 'vlk', at: 'bursa', label: 'Медогляд… це ж виїзна ВЛК! Прослизни' },
+        { type: 'go', at: 'metroA', label: 'Тікай у метро «Спальна»' }],
+      events: [{ type: 'raid', at: [25, 40], chance: 0.7 }],
       star3: 'noHide', place: 'metro',
       win: ['Тебе зарахували.', 'Група ЗВ-11: тобі 25, решті — по 15.', 'Староста — ти. Без голосування.'],
       late: ['Прийом документів закрито.', 'Вахтерка: «Приходь у серпні, синку».'] },
-    { tier: 7, title: 'Генератор для діда', short: 'Генератор', weekday: 'Четвер', start: 19 * 60 + 50, slack: 18, sides: 1,
-      brief: 'Дід пам\'ятає: ти обіцяв полагодити генератор. Свічка запалювання з ринку, олива з АТБ — і в 16-поверхівку, поки знову не вимкнули світло.',
+    { tier: 7, title: 'Генератор для діда', short: 'Генератор', weekday: 'Четвер', start: 19 * 60 + 50, slack: 20,
+      brief: 'Ти обіцяв дідові полагодити генератор. Вживаний акумулятор — на ринку. Він важкий і з кислотою: не бігай, не бийся, не падай.',
       steps: [
-        { type: 'hold', at: 'market', label: 'Купи свічку запалювання на ринку', hold: 1.0, doing: 'Продавець: «Оригінал. Майже.»' },
-        { type: 'hold', at: 'atb', label: 'Купи оливу в АТБ', hold: 1.0, doing: 'Олива для двигуна поруч з олією. Не переплутай.' },
-        { type: 'hold', at: 't_m1', label: 'Полагодь генератор дідові', hold: 3.2, doing: 'Смикаєш стартер… вдесяте…' }],
+        { type: 'hold', at: 'market', label: 'Купи вживаний акумулятор', hold: 1.0, doing: 'Продавець: «Живий. Майже.»' },
+        { type: 'carry', at: 't_m1', item: 'Акумулятор', label: 'Донеси акумулятор дідові — обережно!' },
+        { type: 'hold', at: 't_m1', label: 'Полагодь генератор', hold: 3.2, doing: 'Смикаєш стартер… вдесяте…' }],
       events: [{ type: 'blackout', at: [20, 30], chance: 1, dur: 70 }],
-      star3: 'fast', place: 'home',
+      star3: 'fragile', place: 'home',
       win: ['Генератор затарахкотів.', 'Дід: «Онучок! Тепер і чайник, і телевізор!»', 'Весь підʼїзд прийшов заряджати телефони.'],
       late: ['Світло дали раніше, ніж ти дійшов.', 'Дід: «Ну, приходь на чай. Генератор потім».'] },
     // ── Глава 6: Майор і Галина Степанівна женяться, Андрій — дружба ──
-    { tier: 7, title: 'Обручки', short: 'Обручки', weekday: 'Пʼятниця', start: 16 * 60 + 30, slack: 15,
-      brief: 'Майор і Галина Степанівна женяться, а ти — дружба. Обручки з гравіюванням — у ключника. Майор по рації: «План по бусах ніхто не скасовував».',
+    { tier: 7, title: 'Обручки', short: 'Обручки', weekday: 'Пʼятниця', start: 16 * 60 + 30, slack: 18,
+      brief: 'Майор і Галина Степанівна женяться, а ти — дружба. Обручки з гравіюванням — у ключника. Тримай коробочку міцно: на проспекті кишенькові злодії.',
       steps: [
         { type: 'hold', at: 'keys', label: 'Забери обручки з гравіюванням', hold: 1.4, doing: 'Майстер вигравіював «Валерик + Галя = ТЦК»' },
-        { type: 'deliver', at: 'tesha', label: 'Обручки → нареченій', tip: 40, factor: 1.2 }],
-      events: [{ type: 'checkpoint', at: [6, 12], chance: 1 }],
+        { type: 'catch', label: 'Злодій вихопив обручки! Наздожени', taunt: ['Дякую за обручки!', 'Це мені? Дякую!', 'Гарні! Беру!'], back: 'Обручки знову твої!' },
+        { type: 'deliver', at: 'tesha', label: 'Обручки → нареченій', tip: 40, factor: 1.3 }],
+      events: [{ type: 'checkpoint', at: [20, 30], chance: 0.8 }],
       star3: 'tips', place: 'mother_in_law',
       win: ['Галина Степанівна: «Гравіювання переробити».', '«Але ти молодець, зятю».', 'Вперше — без іронії.'],
       late: ['Наречена вже нервує.', 'Обручки довелось купити в переході.', 'Блищать, як справжні.'] },
     { tier: 7, title: 'Мальчишник', short: 'Мальчишник', weekday: 'Субота', start: 18 * 60 + 40, slack: 18,
-      brief: 'Костюм дружби — тільки з секонду. Потім Вася: він обіцяв мальчишник «як у кіно» — морозиво в парку. Майор у свій мальчишник працює.',
+      brief: 'Костюм дружби — з секонду. А Вася влаштував мальчишник-квест: записки сховані по парку, остання веде до нього. Буси теж гуляють.',
       steps: [
         { type: 'hold', at: 'second', label: 'Купи костюм у секонді', hold: 1.4, doing: 'Костюм 1987 року. З плічками. Ідеально.' },
-        { type: 'meet', at: 'metroB', label: 'Зустрінь Васю біля «Хрещатика»' },
-        { type: 'escort', at: 'icecream', label: 'Доведи Васю до морозива в парку' }],
-      events: [{ type: 'raid', at: [25, 40], chance: 1 }],
+        { type: 'collect', center: 'park', n: 4, radius: 260, label: 'Знайди Васині записки в парку', item: 'page',
+          names: ['«Тепло!»', '«Ще тепліше!»', '«Майже!»', '«Морозиво. Я тут.»'] },
+        { type: 'go', at: 'icecream', label: 'Знайди Васю біля морозива' }],
+      events: [{ type: 'rain', at: [8, 14], chance: 0.6 }, { type: 'raid', at: [30, 45], chance: 0.6 }],
       star3: 'noHit', place: 'park',
       win: ['Вася: «Найкращий мальчишник у моєму житті».', '«Це мій перший мальчишник».', 'Пломбір на двох. Без бусів.'],
       late: ['Морозиво закінчилось.', 'Вася: «Нічого. Я приніс сухарики».'] },
@@ -30525,6 +30530,17 @@
     { type: 'deliver', at: 'house1', label: 'Доставка → приватний сектор', tip: 25 },
     { type: 'hold', at: 'second', label: 'Купи светр у секонді', hold: 1.0 },
     { type: 'hold', at: 'icecream', label: 'Купи морозиво', hold: 0.8 },
+    { type: 'hold', at: 'flowers_kiosk', label: 'Купи квіти Каті', hold: 0.8 },
+    { type: 'hold', at: 'keys', label: 'Зроби дублікат ключів', hold: 1.0 },
+    { type: 'hold', at: 'press_prosp', label: 'Купи газету для діда', hold: 0.6 },
+    { type: 'hold', at: 'bursa', label: 'Занеси довідку в бурсу', hold: 1.2 },
+    { type: 'carry', at: 't_m2', item: 'Торт', label: 'Донеси торт у ЖК «Сонячний» цілим' },
+    { type: 'carry', at: 'house1', item: 'Розсада', label: 'Донеси бабусі розсаду в приватний сектор' },
+    { type: 'carry', at: 't_s1', item: 'Акваріум', label: 'Донеси акваріум у 16-поверхівку' },
+    { type: 'catch', label: 'Злодій вихопив телефон! Наздожени', taunt: ['Гарний телефон!', 'Дякую за айфон!', 'Він же старий!'], back: 'Телефон знову твій!' },
+    { type: 'catch', label: 'Пацан вихопив пакет з АТБ! Наздожени', taunt: ['Дякую за батон!', 'Ковбаска моя!'], back: 'Батон врятовано!' },
+    { type: 'collect', center: 'square', n: 3, radius: 220, label: 'Збери розлетілі документи', item: 'page' },
+    { type: 'mini', game: 'search', at: 'home', label: 'Обшук удома! Сховайся' },
   ];
   const EL_END = [
     { at: 'office', label: 'Дійди до колл-центру', place: 'office', t: 'Знову на роботу' },
@@ -30534,22 +30550,41 @@
     { at: 'metroB', label: 'Дійди до метро «Хрещатик»', place: 'metro', t: 'Втеча в метро' },
     { at: 'church_front', label: 'Дійди до церкви', place: 'church', t: 'Помолитись за бронь' },
   ];
-  const EL_ADJ = ['Хаотичний', 'Дощовий', 'Нервовий', 'Звичайний', 'Безсонний', 'Ще один', 'Кавовий', 'Легендарний'];
+  const EL_ADJ = [['Хаотичний', 'Хаотична'], ['Дощовий', 'Дощова'], ['Нервовий', 'Нервова'], ['Звичайний', 'Звичайна'], ['Безсонний', 'Безсонна'], ['Ще один', 'Ще одна'], ['Кавовий', 'Кавова'], ['Легендарний', 'Легендарна']];
+  const FEM_DAY = { 'Середа': 1, "Пʼятниця": 1, 'Субота': 1, 'Неділя': 1 };
   // нескінченний режим: будь-яка пора доби
   const ENDLESS_STARTS = [6 * 60 + 30, 8 * 60 + 10, 11 * 60 + 20, 13 * 60 + 40, 16 * 60 + 50, 18 * 60 + 30, 20 * 60 + 10, 22 * 60 + 20, 23 * 60 + 30];
   function seeded(n) { let s = (n * 2654435761) >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  // ключі кроків/фіналу дня n (для «без повторів»: сусідні дні не повторюють ні доручень, ні фіналу)
+  const endlessMemo = {};
+  const stepKey = (st) => st.type + ':' + (st.at || st.label);
+  function endlessKeys(n) {
+    if (n <= N_CAMP) return {};
+    if (!endlessMemo[n]) endlessDef(n);
+    return endlessMemo[n];
+  }
   function endlessDef(n) {
     const r = seeded(n), pick = (a) => a[Math.floor(r() * a.length)];
+    const recent = Object.assign({}, endlessKeys(n - 1), endlessKeys(n - 2));
     const extra = n - N_CAMP;            // 1, 2, …
     const k = 1 + Math.min(3, Math.floor(r() * (2 + extra / 3)));
     const steps = [], used = {};
+    const kinds = {};
     for (let i = 0; i < k; i++) {
+      // без повтору місця, без двох однакових «особливих» кроків за день і без кроків двох попередніх днів
+      const ok = (q) => !(q.at && used[q.at]) && !recent[stepKey(q)] && !((q.type === 'carry' || q.type === 'catch' || q.type === 'mini' || q.type === 'collect') && kinds[q.type]);
       let s = pick(EL_POOL), g = 0;
-      while (used[s.at] && g++ < 10) s = pick(EL_POOL);
-      used[s.at] = 1;
+      while (!ok(s) && g++ < 30) s = pick(EL_POOL);
+      if (s.at) used[s.at] = 1;
+      kinds[s.type] = 1;
       steps.push(Object.assign({}, s));
     }
-    const end = pick(EL_END.filter((e) => !used[e.at]));
+    let ends = EL_END.filter((e) => !used[e.at] && !recent['end:' + e.at]);
+    if (!ends.length) ends = EL_END.filter((e) => !used[e.at]);
+    const end = pick(ends);
+    const keys = { ['end:' + end.at]: 1 };
+    for (const st of steps) keys[stepKey(st)] = 1;
+    endlessMemo[n] = keys;
     steps.push({ type: 'go', at: end.at, label: end.label });
     const evTypes = ['air_raid', 'checkpoint', 'raid', 'blackout', 'rain'];
     const events = [];
@@ -30567,7 +30602,7 @@
     const start = pick(ENDLESS_STARTS);
     return {
       endless: true, tierObj: tier, start, slack: Math.max(10, 18 - Math.floor(extra / 2)),
-      title: 'День ' + n + ': ' + pick(EL_ADJ).toLowerCase().replace(/^./, (c) => c.toUpperCase()) + ' ' + weekday.toLowerCase() + '. ' + end.t,
+      title: 'День ' + n + ': ' + pick(EL_ADJ)[FEM_DAY[weekday] ? 1 : 0] + ' ' + weekday.toLowerCase() + '. ' + end.t,
       short: 'День ' + n, weekday, brief: 'Нескінченний режим. Кожен день — нові доручення, події і більше бусів.',
       steps, events, sides: r() < 0.6 ? 1 : 0, star3: pick(['noPunch', 'noHit', 'fast', 'noHide']), place: end.place,
       win: ['День ' + n + ' пережито.', pick(['Бус тебе боїться.', 'ТЦК вже знають тебе на імʼя.', 'Сусіди ставлять на тебе гроші.', 'Ти — міська легенда.'])],
@@ -30597,6 +30632,8 @@
         continue;
       }
       if (s.type === 'survive' || s.type === 'boss') { sec += (s.dur || 30) * 0.5; continue; }
+      if (s.type === 'catch') { sec += 18; continue; }
+      if (s.type === 'carry') { const q = poi(s.at); if (q) { sec += routeSec(at, q) * 1.15; at = q; } continue; }
       const q = poi(s.at);
       if (!q) continue;
       sec += routeSec(at, q) * (s.type === 'escort' ? 1.25 : 1) + (s.hold || 0);
@@ -30875,6 +30912,41 @@
       if (this.name && this.follow) G.text(ctx, this.name, Math.round(this.x), Math.round(top - 9), { size: 8, align: 'center', color: '#fde98f', shadow: true });
     }
   }
+  // злодій (крок 'catch'): тікає від гравця дворами, з часом видихається; наздогнав — крок зараховано
+  class Thief extends QuestNpc {
+    constructor(x, y) { super(x, y, 'man', { skin: 4 }); this.body = 'slide'; this.thief = true; this.t = 0; this.wp = null; this.repath = 0; }
+    update(dt) {
+      const p = G.player;
+      this.t += dt;
+      if (!p || this.caughtBy) { this.vx = this.vy = 0; this.frame = 0; return; }
+      const d = Math.hypot(p.x - this.x, p.y - this.y);
+      // швидкість: спершу майже як біг гравця (115), за ~14 с видихається до кроку
+      const sp = d > 260 ? 52 : Math.max(66, 108 - Math.max(0, this.t - 3) * 3.2);
+      this.repath -= dt;
+      if (!this.wp || this.repath <= 0 || this.pi >= (this.path ? this.path.length : 0)) {
+        let best = null, bd = -1;
+        for (let i = 0; i < 6; i++) {
+          const q = randomWalkable(this.x, this.y, 90, 170);
+          const score = Math.hypot(q.x - p.x, q.y - p.y) - Math.hypot(q.x - this.x, q.y - this.y) * 0.3;
+          if (score > bd) { bd = score; best = q; }
+        }
+        this.wp = best; this.path = best ? pathPoints({ x: this.x, y: this.y }, best) : null; this.pi = 0; this.repath = 1.6;
+      }
+      while (this.path && this.pi < this.path.length && Math.hypot(this.path[this.pi].x - this.x, this.path[this.pi].y - this.y) < 5) this.pi++;
+      const w = this.path && this.path[this.pi] ? this.path[this.pi] : this.wp;
+      if (!w) { this.vx = this.vy = 0; return; }
+      const dx = w.x - this.x, dy = w.y - this.y, dd = Math.hypot(dx, dy) || 1;
+      this.vx = dx / dd * sp; this.vy = dy / dd * sp;
+      this.dir = G.util.dirOf(this.vx, this.vy, this.dir);
+      this.anim += dt * (4 + sp / 18);
+      this.frame = [1, 2, 3, 2][Math.floor(this.anim) % 4];
+    }
+    draw(ctx) {
+      super.draw(ctx);
+      const bob = Math.round(Math.sin(G.realTime * 6) * 1.5);
+      G.text(ctx, 'ЗЛОДІЙ', Math.round(this.x), Math.round(this.y - 34 + bob), { size: 8, align: 'center', color: '#ff6050', shadow: true });
+    }
+  }
   function drawCat(ctx, x, y) {
     x = Math.round(x); y = Math.round(y);
     const blink = Math.floor(G.realTime * 2) % 5 === 0;
@@ -31110,6 +31182,14 @@
     if (s.type === 'survive') startSurvive(s);
     if (s.type === 'boss') startBoss(s);
     if (s.type === 'stealth') { s.spottedHere = false; toast('Чат «Де ТЦК Київ»: бус ТЦК чатує біля дороги! Не попадись водію на очі.', 3200); }
+    if (s.type === 'carry') { s.hp = 100; s.lastHits = S.hits; s.lastPunch = S.punches; toast((s.item || 'Вантаж') + ' крихкий: біг, удари і падіння його псують.', 3000); }
+    if (s.type === 'catch' && p) {
+      const q = npcSpot(p.x, p.y, 34, 60);
+      const th = new Thief(q.x, q.y);
+      s.thief = th; S.ents.push(th); G.addEntity(th);
+      say(th, G.rng.pick(s.taunt || ['Дякую!', 'Це тепер моє!', 'Наздожени, якщо зможеш!']), 1800, 'shout');
+      sfx('shout', { x: q.x, y: q.y });
+    }
   }
   function completeStep() {
     const s = cur();
@@ -31138,6 +31218,9 @@
     G.events.emit('mission:step', { index: S.idx, step: s.label, done: true });
     if (s.type === 'survive' || s.type === 'boss') endPressure(s);
     if (s.type === 'stealth') endPosts((cp) => cp.stealth); // прослизнув — блокпост згортається
+    if (s.disguise) { S.disguised = true; toast('Маскування готове: ТЦК помічають тебе значно гірше.', 3000); }
+    if (s.type === 'catch' && s.thief) { const th = s.thief; th.caughtBy = true; say(th, G.rng.pick(['Та на, на! Жартую я!', 'Все, все, віддаю!', 'Я просто подивитись!']), 2200, 'shout'); setTimeout(() => { th.alive = false; }, 2500); toast(s.back || 'Повернув своє!', 2000); }
+    if (s.type === 'carry') { S.carried = true; if (!S.broken) toast((s.item || 'Вантаж') + ' донесено цілим!', 2200); }
     if (S.idx + 1 < S.steps.length) {
       if (G.ui && G.ui.bigText && s.type !== 'deliver') G.ui.bigText('✓', 600, { size: 24, color: '#93c25b' });
       activate(S.idx + 1);
@@ -31401,6 +31484,7 @@
       let mp = 1, mc = 1;
       if (S.ev.blackout) { const dk = Math.min(1, ((G.lighting && G.lighting.night) || 0) * 1.3 + 0.35); mp *= 1 - 0.45 * dk; mc *= 1 - 0.25 * dk; }
       if (S.ev.rain) { mp *= 0.82; mc *= 0.9; }
+      if (S.disguised) { mp *= 0.6; mc *= 0.85; } // маскування (місія «Маскування»)
       G.tck.C.SIGHT_PATROL = BASE_SIGHT.p * mp;
       G.tck.C.SIGHT_CHASE = BASE_SIGHT.c * mc;
     }
@@ -31436,7 +31520,7 @@
     switch (s.type) {
       case 'mini': {
         const q = poi(s.at);
-        if (reached(q) && !p.hidden && !p.riding && !s.started) {
+        if (reached(q) && !p.hidden && !p.riding && !s.started && S.t > 1.5) {
           s.started = true;
           if (G.minigames) G.minigames.start(s.game, (r) => { if (r.clean) toast('Чисто! Ні одного штампа.', 2000); completeStep(); }); else completeStep();
         }
@@ -31444,6 +31528,31 @@
       }
       case 'go': case 'stealth': {
         if (reached(poi(s.at))) completeStep();
+        break;
+      }
+      case 'carry': {
+        // цілість вантажу: біг −9/с, ривок −30, удар по тобі −35, твій удар −12
+        if (!S.broken) {
+          let dmg = 0;
+          if (p.dashT > 0 && !s.dashing) { s.dashing = true; dmg += 30; } else if (!(p.dashT > 0)) s.dashing = false;
+          if (p.running && p.moving) dmg += 9 * dt;
+          if (S.hits > s.lastHits) { dmg += 35 * (S.hits - s.lastHits); s.lastHits = S.hits; }
+          if (S.punches > s.lastPunch) { dmg += 12 * (S.punches - s.lastPunch); s.lastPunch = S.punches; }
+          if (dmg > 0) {
+            const before = s.hp; s.hp = Math.max(0, s.hp - dmg);
+            if (before >= 50 && s.hp < 50) toast('Обережно! ' + (s.item || 'Вантаж') + ' ледве тримається.', 1800);
+            if (s.hp <= 0) { S.broken = true; sfx('door_slam'); toast((s.item || 'Вантаж') + ' пошкоджено… Неси вже як є.', 2600); }
+          }
+        }
+        if (reached(poi(s.at))) completeStep();
+        break;
+      }
+      case 'catch': {
+        const th = s.thief;
+        if (!th) { completeStep(); break; }
+        const d = Math.hypot(p.x - th.x, p.y - th.y);
+        if (d < 18 && !p.hidden) completeStep();
+        else if (d > 520) { const q = npcSpot(p.x, p.y, 150, 220); th.x = q.x; th.y = q.y; th.path = null; th.wp = null; toast('Злодій промайнув між дворами!', 1600); }
         break;
       }
       case 'deliver': {
@@ -31589,6 +31698,7 @@
       if (best) return { x: best.x, y: best.y, label: best.name || s.label };
     }
     if ((s.type === 'meet' || (s.type === 'escort' && s.lag)) && S.friend) return { x: S.friend.x, y: S.friend.y, label: 'Вася' };
+    if (s.type === 'catch') return s.thief ? { x: s.thief.x, y: s.thief.y, label: 'Злодій' } : null;
     if (s.type === 'survive' || s.type === 'boss') {
       const q = poi(s.next);
       return q ? { x: q.x, y: q.y, label: q.label } : null;
@@ -32001,7 +32111,7 @@
   }
   function subH(s) {
     if (!s) return 0;
-    if (s.type === 'hold' || s.type === 'photo' || s.type === 'deliver' || s.type === 'collect' || s.type === 'survive' || s.type === 'boss' || (s.type === 'escort' && S.friend) || s.type === 'stealth') return 10;
+    if (s.type === 'hold' || s.type === 'photo' || s.type === 'deliver' || s.type === 'collect' || s.type === 'survive' || s.type === 'boss' || (s.type === 'escort' && S.friend) || s.type === 'stealth' || s.type === 'carry' || s.type === 'catch') return 10;
     return 0;
   }
   function drawSub(ctx, u, s, x, y, w) {
@@ -32038,6 +32148,16 @@
     if (s.type === 'escort' && S.friend) {
       const lag = s.lag;
       u.text(ctx, lag ? 'Вася відстав!' : 'Вася поруч', x, y, { size: 8, color: lag ? '#ff6050' : '#93c25b' });
+      return y + 10;
+    }
+    if (s.type === 'carry') {
+      const k = Math.max(0, (s.hp == null ? 100 : s.hp) / 100);
+      u.bar(ctx, x, y + 2, w - 4, 4, k, k > 0.5 ? '#93c25b' : k > 0.2 ? '#f7c948' : '#ff6050', '#2a2030');
+      return y + 8;
+    }
+    if (s.type === 'catch' && s.thief && p) {
+      const d = Math.round(Math.hypot(p.x - s.thief.x, p.y - s.thief.y) / 16);
+      u.text(ctx, 'Злодій за ' + d + ' м · біжи!', x, y, { size: 8, color: '#ff6050' });
       return y + 10;
     }
     if (s.type === 'stealth') {
@@ -32079,6 +32199,7 @@
     else if (c === 'fast') ok = G.run && G.run.mission && G.time <= G.run.mission.deadline - 10;
     else if (c === 'noHide') ok = S.hides === 0;
     else if (c === 'major') ok = S.majorKo;
+    else if (c === 'fragile') ok = !!S.carried && !S.broken;
     return {
       n: S.n, star3: c, star3Text: STAR3[c] || '', challenge: !!(ok && finished),
       tips: S.money.tips, tipsAll: S.tipsAll, deliveries: S.deliveries, sideMoney: S.money.sides,
