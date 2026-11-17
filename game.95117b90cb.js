@@ -30484,10 +30484,10 @@
     // ── Глава 5: після фіналу колл-центр втратив статус критичного — бронь Андрія анулювали ──
     // кожна місія глав 5–6 має свою механіку: обшук (mini), маскування (менше помічають), ВЛК (mini), крихкий вантаж (carry),
     // злодій (catch), квест із записками (collect), облава + вінчання (survive)
-    { tier: 6, title: 'Бронь злетіла', short: 'Бронь злетіла', weekday: 'Понеділок', start: 8 * 60 + 20, slack: 18,
-      brief: 'Колл-центр втратив статус критичного — бронь анулювали. Резерв+ лежить, а в двері вже стукають. Сховайся, візьми довідку — і рекомендованим у ТЦК.',
+    { tier: 6, title: 'Бронь злетіла', short: 'Бронь злетіла', weekday: 'Понеділок', start: 8 * 60 + 20, slack: 32,
+      brief: 'Колл-центр втратив статус критичного — бронь анулювали. Резерв+ лежить, а біля підʼїзду вже чекає бус. Відірвись, візьми довідку — і рекомендованим у ТЦК.',
       steps: [
-        { type: 'mini', game: 'search', at: 'home', label: 'У двері стукають! Сховайся в квартирі' },
+        { type: 'escape', label: 'ТЦК біля підʼїзду! Тікай і відірвися' },
         { type: 'hold', at: 'office', label: 'Візьми довідку з роботи', hold: 1.6, doing: 'Начальник шукає печатку… в шухляді з печивом' },
         { type: 'hold', at: 'np', label: 'Відправ документи рекомендованим', hold: 2.2, doing: 'Опис вкладення. З підписом. Ще раз.' }],
       events: [{ type: 'rain', at: [10, 16], chance: 1, dur: 70 }],
@@ -30666,7 +30666,6 @@
     { type: 'catch', label: 'Злодій вихопив телефон! Наздожени', taunt: ['Гарний телефон!', 'Дякую за айфон!', 'Він же старий!'], back: 'Телефон знову твій!' },
     { type: 'catch', label: 'Пацан вихопив пакет з АТБ! Наздожени', taunt: ['Дякую за батон!', 'Ковбаска моя!'], back: 'Батон врятовано!' },
     { type: 'collect', center: 'square', n: 3, radius: 220, label: 'Збери розлетілі документи', item: 'page' },
-    { type: 'mini', game: 'search', at: 'home', label: 'Обшук удома! Сховайся' },
   ];
   const EL_END = [
     { at: 'office', label: 'Дійди до колл-центру', place: 'office', t: 'Знову на роботу' },
@@ -35058,7 +35057,8 @@
       if (psy) game = 'vlk';
       Object.assign(MG, { game, cb, t: 0, hits: 0, round: 0, phase: 'play', phT: 0, sel: -1, stamp: 0, x: 0, msg: '', checked: [], psy, opts: null });
       if (game === 'date') dateRound();
-      if (game === 'search') searchRound();
+      if (game === 'vlk') { MG.phase = 'rules'; MG.phT = 0; }
+      if (game === 'search') { searchRound(); MG.phase = 'rules'; MG.phT = 0; }
       G.setState('mini');
     },
   };
@@ -35081,6 +35081,7 @@
     if (MG.stamp > 0) MG.stamp -= real;
     const T = tap(), I = G.input;
     if (MG.game === 'vlk') {
+      if (MG.phase === 'rules') { if (MG.phT > 0.6 && (T.any || MG.phT > 6)) { MG.phase = 'play'; MG.phT = 0; } return; }
       if (MG.phase === 'play') {
         const v = 1 + MG.round * 0.35;
         MG.x = 0.5 + 0.5 * Math.sin(MG.phT * 3.4 * v);
@@ -35114,13 +35115,14 @@
       } else if (MG.phase === 'end' && MG.phT > 2.4) finish();
       if (MG.heart > 0) MG.heart = Math.max(0, MG.heart - real);
     } else if (MG.game === 'search') {
+      if (MG.phase === 'rules') { if (MG.phT > 0.6 && (T.any || MG.phT > 6)) { MG.phase = 'choose'; MG.phT = 0; } return; }
       if (MG.phase === 'choose') {
         if (I.pressed('left')) MG.sel = Math.max(0, (MG.sel < 0 ? 1 : MG.sel) - 1);
         if (I.pressed('right')) MG.sel = Math.min(3, MG.sel + 1);
         const ox = OX();
         if (T.m.clicked) for (let i = 0; i < 4; i++) if (T.m.x >= ox + SPOTS[i].x - 34 && T.m.x <= ox + SPOTS[i].x + 34 && T.m.y > 44 && T.m.y < 204) MG.sel = i, MG.go = true;
         if (MG.sel >= 0 && (MG.go || I.pressed('confirm') || I.pressed('attack'))) { MG.go = false; startCheck(); }
-        else if (MG.phT > 3.5) { MG.sel = MG.sel < 0 ? 0 : MG.sel; startCheck(); }
+        else if (MG.phT > 5) { MG.sel = MG.sel < 0 ? (MG.heard + 2) % 4 : MG.sel; startCheck(); }
       } else if (MG.phase === 'check') {
         if (MG.phT > 0.9) {
           MG.phT = 0;
@@ -35222,6 +35224,14 @@
     if (I.phase === 'play') { RC(ctx, '#1a0e20', bx + bw * I.x - 3, by - 6, 6, 24); RC(ctx, '#fff', bx + bw * I.x - 2, by - 5, 4, 22); }
     u.text(ctx, I.msg || (away ? 'ЗАРАЗ! Дивиться в папірці!' : 'Тапни, поки лікар дивиться в папірці'), W / 2, 240, { size: 8, align: 'center', color: away && !I.msg ? '#1f5a2a' : '#1a0e20' });
     stampDraw(ctx, u);
+    if (I.phase === 'rules') {
+      RC(ctx, 'rgba(10,8,24,0.82)', 0, 0, W, VH());
+      u.panel(ctx, W / 2 - 170, 52, 340, 150, { fill: '#2a2030', border: '#fde98f' });
+      u.text(ctx, I.psy ? 'ТЕБЕ СПАКУВАЛИ! ВЛК' : 'ВЛК: МЕДКОМІСІЯ', W / 2, 64, { size: 12, align: 'center', color: '#ff6050', shadow: true });
+      const L = ['Три кабінети: ЛОР, окуліст, ' + (I.psy ? 'психіатр.' : 'хірург.'), 'Кожен хоче поставити штамп «ПРИДАТНИЙ».', '', 'Повзунок бігає по шкалі.', 'Тапни, коли він у ЗЕЛЕНІЙ зоні —', 'лікар дивиться в папірці, і ти прослизнеш.', '', 'Жодного штампа — +60 грн.'];
+      L.forEach((l, i) => u.text(ctx, l, W / 2, 86 + i * 12, { size: 8, align: 'center', color: i === 4 ? '#fde98f' : '#e8dcc8' }));
+      if (Math.floor(G.realTime * 2) % 2) u.text(ctx, (G.touch && G.touch.active) ? 'тапни, щоб почати' : 'Enter — почати', W / 2, 186, { size: 8, align: 'center', color: '#93c25b' });
+    }
   }
   function drawSearch(ctx, u) {
     const W = VW(), H = VH(), ox = OX(), I = MG, R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h), t = G.realTime;
@@ -35270,13 +35280,22 @@
       // ліхтарик
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,240,190,0.28)'; ctx.beginPath(); ctx.moveTo(tx + 6, 158); ctx.lineTo(ox + to - 36, 70); ctx.lineTo(ox + to + 36, 70); ctx.closePath(); ctx.fill(); ctx.restore();
       if (!bigSprite(ctx, 'tck', { type: 'rude', dir: 'right', frame: k < 1 ? Math.floor(t * 8) % 4 : 0 }, tx, 205, 3)) person(ctx, tx, 145, '#6b7142', '#f3c39b', '#474b2d');
+      u.panel(ctx, tx - 16, 116, 32, 14, { fill: '#d8443a', border: '#1a0e20', hi: false }); u.text(ctx, 'ТЦК', tx, 119, { size: 8, align: 'center', color: '#fff' });
     }
     u.panel(ctx, W / 2 - 112, 8, 224, 20, { fill: '#2a2030' });
     u.text(ctx, 'ОБШУК КВАРТИРИ · раунд ' + Math.min(I.round + 1, 3) + '/3', W / 2, 12, { size: 8, align: 'center', color: '#fde98f' });
-    if (I.phase === 'choose') { R('#2a2030', W / 2 - 112, 28, 224, 4); R('#f7c948', W / 2 - 112, 28, 224 * Math.max(0, 1 - I.phT / 3.5), 4); }
+    if (I.phase === 'choose') { R('#2a2030', W / 2 - 112, 28, 224, 4); R('#f7c948', W / 2 - 112, 28, 224 * Math.max(0, 1 - I.phT / 5), 4); }
     u.panel(ctx, W / 2 - 172, 232, 344, 20, { fill: 'rgba(26,14,32,0.92)' });
     u.text(ctx, I.msg, W / 2, 237, { size: 8, align: 'center', color: '#fbf6ea' });
     if (I.stamp > 0) R('rgba(216,48,42,' + (0.3 * I.stamp).toFixed(3) + ')', 0, 0, W, H);
+    if (I.phase === 'rules') {
+      R('rgba(10,8,24,0.82)', 0, 0, W, H);
+      u.panel(ctx, W / 2 - 170, 52, 340, 150, { fill: '#2a2030', border: '#fde98f' });
+      u.text(ctx, 'ТЦК ПРИЙШЛИ З ОБШУКОМ!', W / 2, 64, { size: 12, align: 'center', color: '#ff6050', shadow: true });
+      const L = ['Ти вдома. Треба сховатися.', '', 'Над одним місцем зʼявляться жовті хвилі —', 'там скрипнуло, ТЦК піде туди першим.', 'Ховайся В ІНШЕ місце: тапни по ньому.', '', '3 раунди. Не знайшли жодного разу — +60 грн.'];
+      L.forEach((l, i) => u.text(ctx, l, W / 2, 88 + i * 13, { size: 8, align: 'center', color: i === 4 ? '#fde98f' : '#e8dcc8' }));
+      if (Math.floor(G.realTime * 2) % 2) u.text(ctx, (G.touch && G.touch.active) ? 'тапни, щоб почати' : 'Enter — почати', W / 2, 186, { size: 8, align: 'center', color: '#93c25b' });
+    }
   }
   function drawDate(ctx, u) {
     const W = VW(), H = VH(), ox = OX(), I = MG, R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h), t = G.realTime;
