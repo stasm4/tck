@@ -30798,7 +30798,8 @@
       place: d.place, placeLabel: PLACE_LABEL[d.place] || d.place,
       deadline: deadlineFor(d), start: startOf(d), weekday: d.weekday, dayPart: dayPart(startOf(d)),
       introText: introFor(d),
-      busRate: tier.busRate, huntChance: tier.huntChance || 0, quietMax: tier.quietMax || 0, maxBuses: tier.maxBuses, tckHp: tier.tckHp,
+      // кампанія — трохи легша: буси на ~15% рідше, перерва між облавами довша (нескінченний — без змін)
+      busRate: d.endless ? tier.busRate : Math.round(tier.busRate * 0.85 * 100) / 100, huntChance: tier.huntChance || 0, quietMax: (tier.quietMax || 0) && !d.endless ? tier.quietMax + 6 : (tier.quietMax || 0), maxBuses: tier.maxBuses, tckHp: tier.tckHp,
       firstBus: tier.firstBus ? tier.firstBus.slice() : null,
       groupSize: tier.groupSize.slice(), tckSpeed: tier.tckSpeed, tckTypes: tier.tckTypes.slice(),
       typeWeights: Object.assign({}, tier.typeWeights),
