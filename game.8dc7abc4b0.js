@@ -30484,11 +30484,11 @@
     // ── Глава 5: після фіналу колл-центр втратив статус критичного — бронь Андрія анулювали ──
     // кожна місія глав 5–6 має свою механіку: обшук (mini), маскування (менше помічають), ВЛК (mini), крихкий вантаж (carry),
     // злодій (catch), квест із записками (collect), облава + вінчання (survive)
-    { tier: 6, title: 'Бронь злетіла', short: 'Бронь злетіла', weekday: 'Понеділок', start: 8 * 60 + 20, slack: 32,
-      brief: 'Колл-центр втратив статус критичного — бронь анулювали. Резерв+ лежить, а біля підʼїзду вже чекає бус. Відірвись, візьми довідку — і рекомендованим у ТЦК.',
+    { tier: 6, title: 'Бронь злетіла', short: 'Бронь злетіла', weekday: 'Понеділок', start: 8 * 60 + 20, slack: 22,
+      brief: 'Колл-центр втратив статус критичного — бронь анулювали. Резерв+ лежить. Довідка з роботи, ксерокопії — і рекомендованим листом у ТЦК, поки тебе не спакували.',
       steps: [
-        { type: 'escape', label: 'ТЦК біля підʼїзду! Тікай і відірвися' },
         { type: 'hold', at: 'office', label: 'Візьми довідку з роботи', hold: 1.6, doing: 'Начальник шукає печатку… в шухляді з печивом' },
+        { type: 'hold', at: 'press_prosp', label: 'Зроби ксерокопії в «Пресі»', hold: 1.2, doing: 'Ксерокс жує другий аркуш…' },
         { type: 'hold', at: 'np', label: 'Відправ документи рекомендованим', hold: 2.2, doing: 'Опис вкладення. З підписом. Ще раз.' }],
       events: [{ type: 'rain', at: [10, 16], chance: 1, dur: 70 }],
       star3: 'noPunch', place: 'nova_poshta',
@@ -30588,11 +30588,11 @@
       win: ['Баба Ніна: «Синку, ти ж той, що від ТЦК бігає?»', '«Ну то хоч раз побіг куди треба».', 'Тарасик: «А ти справжній герой?» — «Ні. Справжні — на фронті».'],
       late: ['Відбій тривоги застав вас на сходах.', 'Баба Зіна: «Ну, зате прогулялись».'] },
     { tier: 8, title: 'Військкомат', short: 'Військкомат', weekday: 'Четвер', start: 9 * 60 + 0, slack: 22,
-      brief: 'Тебе спакували просто біля підʼїзду. Ти вже у військкоматі, на ВЛК: ЛОР, окуліст, психіатр. Відкоси — і тікай до Каті, вона не знає, де ти.',
+      brief: 'Тебе спакували просто біля підʼїзду. Ти вже у військкоматі, на ВЛК: ЛОР, окуліст, психіатр. Відкоси — і до Каті, вона не знає, де ти.',
       steps: [
         { type: 'mini', game: 'vlk_psy', label: 'ВЛК: ЛОР, окуліст, психіатр — прослизни!' },
-        { type: 'escape', label: 'Тікай з військкомату! Відірвися від погоні' },
-        { type: 'go', at: 'coffee_prosp', label: 'Біжи до Каті — вона хвилюється' }],
+        { type: 'go', at: 'coffee_prosp', label: 'Вибрався! Біжи до Каті — вона хвилюється' }],
+      events: [{ type: 'raid', at: [8, 16], chance: 1 }],
       star3: 'clean', place: 'square',
       win: ['Катя: «Де ти був?!»', 'Ти: «У психіатра. Сказав, що бачу буси на плямах».', 'Катя: «А ти бачиш?» — «Я їх бачу всюди».'],
       late: ['Катя вже обдзвонила всі лікарні.', 'І всі ТЦК.', 'Тепер про тебе знає навіть той, хто не знав.'] },
@@ -31360,8 +31360,8 @@
       });
       toast('Підійди до кожного — підуть за тобою.', 2600);
     }
-    if (s.type === 'lure') { s.lastChase = -99; s.reT = 0; spawnPursuers(3, 150, 230, ['rude', 'polite', 'tired']); toast('Нехай тебе побачать — і біжи, щоб не відстали!', 2600); }
-    if (s.type === 'escape') { s.calm = 0; if (!(G.tck && G.tck.chaseActive)) spawnPursuers(3, 130, 210, ['rude', 'sprinter', 'polite']); }
+    if (s.type === 'lure') { s.lastChase = -99; s.reT = 0; spawnPursuers(3, 150, 230, ['rude', 'polite', 'tired'], null, true); toast('Нехай тебе побачать — і біжи, щоб не відстали!', 2600); }
+    if (s.type === 'escape') { s.calm = 0; s.t0 = S.t; s.tries = 0; s.retry = 7; s.chased = realChase(); if (!s.chased) { spawnPursuers(3, 130, 210, ['rude', 'sprinter', 'polite'], null, true); s.tries = 1; } }
     if (s.type === 'defend') { s.left = s.dur || 40; s.wave = 3; s.outT = 0; }
     if (s.type === 'catch' && p) {
       const q = npcSpot(p.x, p.y, 34, 60);
@@ -31423,10 +31423,10 @@
 
   // ── "протримайся" ──
   // round 9: облава — група під'їжджає бусом і вискакує в погоню (а не з'являється на вулиці)
-  function spawnPursuers(n, rMin, rMax, types, onCrew) {
+  function spawnPursuers(n, rMin, rMax, types, onCrew, noForce) {
     const p = G.player;
     if (!p || !G.tck || !G.bus || !G.bus.spawnDrop) return null;
-    if (G.tck.forceChase) G.tck.forceChase('mission');
+    if (G.tck.forceChase && !noForce) G.tck.forceChase('mission');
     const b = G.bus.spawnDrop(rMin, rMax + 120, { crew: n, crewTypes: types || null, onCrew });
     if (b) { S.squadBuses = (S.squadBuses || []).concat([b]); b.squadStep = S.idx; }
     return b;
@@ -31438,6 +31438,12 @@
       for (const t of b.crewOut ? b.crewOut() : []) if (t.state !== 'give_up') t.giveUp();
     }
     S.squadBuses = [];
+  }
+  // справжня погоня: ТЦК поруч і женуться (а не просто «режим погоні» без жодного ТЦК)
+  function realChase() {
+    const p = G.player;
+    if (!p || !G.tck || !G.tck.chaseActive) return false;
+    return G.tck.list.some((t) => t.alive && !t.ko && (t.state === 'chase' || t.state === 'search') && Math.hypot(t.x - p.x, t.y - p.y) < 340);
   }
   function startSurvive(s) {
     s.left = s.dur;
@@ -31759,10 +31765,9 @@
         break;
       }
       case 'lure': {
-        const chase = G.tck && G.tck.chaseActive;
+        const chase = realChase();
         if (chase) s.lastChase = S.t;
-        if (S.chaseEvT != null && S.chaseEvT > s.lastChase) s.lastChase = S.chaseEvT;
-        if (!chase && S.t - s.lastChase > 7) { s.reT -= dt; if (s.reT <= 0) { s.reT = 9; spawnPursuers(3, 150, 230, ['rude', 'polite', 'tired']); toast('Вони тебе загубили! Покажись ще раз.', 1800); } }
+        if (!chase && S.t - s.lastChase > 7) { s.reT -= dt; if (s.reT <= 0) { s.reT = 9; spawnPursuers(3, 150, 230, ['rude', 'polite', 'tired'], null, true); toast('Вони тебе загубили! Покажись ще раз.', 1800); } }
         if (reached(poi(s.at))) {
           if (S.t - s.lastChase < 6) completeStep();
           else if (!s.warn) { s.warn = true; toast('Погоня відстала — заведи їх сюди!', 1800); }
@@ -31770,7 +31775,16 @@
         break;
       }
       case 'escape': {
-        if (G.tck && G.tck.chaseActive) s.calm = 0; else s.calm += dt;
+        // спершу бус має приїхати і почати погоню; лише тоді — «відірвися»
+        const chase = G.tck && G.tck.chaseActive;
+        if (!s.chased && realChase()) { s.chased = true; s.t = 0; toast('Тебе помітили! Відірвися.', 1800); }
+        if (!s.chased) {
+          s.retry -= dt;
+          if (s.retry <= 0 && s.tries < 3) { s.retry = 9; s.tries++; spawnPursuers(3, 130, 210, ['rude', 'sprinter', 'polite'], null, s.tries < 3); }
+          if (s.t > 25) { toast('Бус проїхав повз. Пронесло.', 2000); completeStep(); }
+          break;
+        }
+        if (chase) s.calm = 0; else s.calm += dt;
         if (s.calm > 2 && s.t > 3) { toast('Відірвався!', 1800); completeStep(); }
         else if (s.t > 40) { toast('ТЦК видихлись і відстали.', 2000); completeStep(); }
         break;
@@ -31782,7 +31796,7 @@
         if (inside) s.outWarn = false;
         if (inside && !s.arrived) { s.arrived = true; s.wave = 4; toast('Катя: «Постій поруч, я швидко!»', 1800); }
         if (s.arrived) s.wave -= dt;
-        if (s.arrived && s.wave <= 0) { s.wave = 14; if (!(G.tck && G.tck.chaseActive)) { spawnPursuers(3, 150, 230, ['rude', 'polite', 'sprinter']); toast('Поруч ще група ТЦК!', 1600); } }
+        if (s.arrived && s.wave <= 0) { s.wave = 14; if (!realChase()) { spawnPursuers(3, 150, 230, ['rude', 'polite', 'sprinter'], null, true); toast('Поруч ще група ТЦК!', 1600); } }
         if (s.left <= 0) { toast('Вистояв!', 1800); completeStep(); }
         break;
       }
@@ -31945,6 +31959,7 @@
       if (best) return { x: best.x, y: best.y, label: best.name };
     }
     if (s.type === 'escape') {
+      if (!s.chased) return null;
       // найближче укриття (підʼїзд/кущі) — куди бігти, щоб відірватися
       let best = null, bd = 1e18;
       for (const h of (G.world && G.world.hideSpots) || []) { const d = p ? Math.hypot(h.x - p.x, h.y - p.y) : 0; if (d > 30 && d < bd) { bd = d; best = h; } }
@@ -32422,7 +32437,7 @@
       return y + 10;
     }
     if (s.type === 'escape') {
-      u.text(ctx, G.tck && G.tck.chaseActive ? 'Тебе женуть — сховайся!' : 'Тихо…', x, y, { size: 8, color: '#ff6050' });
+      u.text(ctx, !s.chased ? 'Бус ТЦК підʼїжджає…' : G.tck && G.tck.chaseActive ? 'Тебе женуть — відірвися!' : 'Тихо… ще трохи', x, y, { size: 8, color: '#ff6050' });
       return y + 10;
     }
     if (s.type === 'defend') {
