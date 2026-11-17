@@ -30505,14 +30505,14 @@
       star3: 'stealth', place: 'square',
       win: ['Катя: «Андрію, ти чого в окулярах?»', 'Маскування впізнали за 0.4 секунди.', 'Добре, що Катя — не ТЦК.'],
       late: ['Кіоск закритий.', 'Ти в окулярах, куртці і з новою зачіскою.', 'Тебе не впізнала навіть мама.'] },
-    { tier: 6, title: 'Вступ у бурсу', short: 'Бурса', weekday: 'Середа', start: 9 * 60 + 10, slack: 16,
-      brief: 'Студентам — відстрочка. Бурса бере на зварювальника. Подай документи і пройди медогляд… якщо це справді медогляд.',
+    { tier: 6, title: 'Вступ у бурсу', short: 'Бурса', weekday: 'Середа', start: 9 * 60 + 10, slack: 20,
+      brief: 'Студентам — відстрочка. Бурса бере на зварювальника. Завір копії документів, подай їх до обіду — а біля бурси вже чатує бус. Пройди до метро непомітно.',
       steps: [
+        { type: 'hold', at: 'notary', label: 'Завір копію атестата в нотаріуса', hold: 1.4, doing: 'Нотаріус: «Атестат 2017 року? Вступаєте?» — Так.' },
         { type: 'hold', at: 'bursa', label: 'Подай документи в бурсу', hold: 2.0, doing: 'Вахтерка: «Ти не старий для бурси?»' },
-        { type: 'mini', game: 'vlk', at: 'bursa', label: 'Медогляд… це ж виїзна ВЛК! Прослизни' },
-        { type: 'go', at: 'metroA', label: 'Тікай у метро «Спальна»' }],
-      events: [{ type: 'raid', at: [25, 40], chance: 0.7 }],
-      star3: 'noHide', place: 'metro',
+        { type: 'stealth', at: 'metroA', label: 'Пройди повз бус до метро «Спальна» непомітно' }],
+      events: [{ type: 'rain', at: [6, 12], chance: 0.6 }],
+      star3: 'stealth', place: 'metro',
       win: ['Тебе зарахували.', 'Група ЗВ-11: тобі 25, решті — по 15.', 'Староста — ти. Без голосування.'],
       late: ['Прийом документів закрито.', 'Вахтерка: «Приходь у серпні, синку».'] },
     { tier: 7, title: 'Генератор для діда', short: 'Генератор', weekday: 'Четвер', start: 19 * 60 + 50, slack: 20,
@@ -34639,7 +34639,7 @@
 // G.brawl.tryGrab(tck, dmg) → bool — почати захват замість звичайної шкоди; в headless вимкнено (G.cfg.fullBrawl = true — увімкнути)
 // Місто як зброя: двері підʼїзду (бʼють ТЦК поруч), ривок у смітник (шкірки під ноги), авто збивають ТЦК з ніг.
 // Вороги: сітка, бус упоперек вулиці. (Round 31: дрон прибрано — нереалістично.)
-// G.minigames.start(game, cb) — міні-ігри 'vlk' / 'search' (сцена 'mini'); cb({clean, hits}).
+// G.minigames.start(game, cb) — міні-ігри 'vlk' / 'vlk_psy' / 'date' (сцена 'mini'); cb({clean, hits}).
 (function () {
   const G = window.G;
   const inStub = () => typeof globalThis !== 'undefined' && globalThis.__stub && !G.cfg.fullBrawl;
@@ -35039,7 +35039,6 @@
     { q: 'Мама питає, коли весілля.', a: ['А можна без мами?', 'Після перемоги. Обіцяю.', 'Майор вже одружився. Наша черга?'], ok: 1,
       good: 'Катя: «Тримаю за слово».', bad: ['Катя: «Мама це почує.»', 'Катя: «Не порівнюй нас з ними!»'] },
   ];
-  const SPOTS = [{ n: 'ШАФА', x: 40 }, { n: 'ЛІЖКО', x: 150 }, { n: 'БАЛКОН', x: 260 }, { n: 'ВАННА', x: 370 }];
   const VW = () => G.cfg.VIEW_W, VH = () => G.cfg.VIEW_H;
   const OX = () => Math.round((VW() - 480) / 2);
   function finish() {
@@ -35058,7 +35057,6 @@
       Object.assign(MG, { game, cb, t: 0, hits: 0, round: 0, phase: 'play', phT: 0, sel: -1, stamp: 0, x: 0, msg: '', checked: [], psy, opts: null });
       if (game === 'date') dateRound();
       if (game === 'vlk') { MG.phase = 'rules'; MG.phT = 0; }
-      if (game === 'search') { searchRound(); MG.phase = 'rules'; MG.phT = 0; }
       G.setState('mini');
     },
   };
@@ -35069,12 +35067,6 @@
     MG.opts = o; // MG.opts[кнопка] → індекс відповіді
   }
   function dateRect(i) { const W = VW(); return { x: W / 2 - 150, y: 150 + i * 26, w: 300, h: 22 }; }
-  function searchRound() {
-    MG.phase = 'choose'; MG.phT = 0; MG.sel = -1; MG.checked = [];
-    const heard = Math.floor(rnd() * 4);
-    MG.heard = heard;
-    MG.msg = 'Скрип біля: ' + SPOTS[heard].n + '. Куди сховаєшся?';
-  }
   const tap = () => { const I = G.input; const m = I.mouse; return { any: I.pressed('confirm') || I.pressed('attack') || m.clicked, m }; };
   S.update = function (dt, real) {
     MG.t += real; MG.phT += real;
@@ -35102,7 +35094,8 @@
         if (I.pressed('down') || I.pressed('right')) { MG.sel = MG.sel >= 2 ? 0 : MG.sel + 1; sfx('click'); }
         let go = false;
         if (T.m.clicked) for (let i = 0; i < 3; i++) { const r = dateRect(i); if (T.m.x >= r.x && T.m.x < r.x + r.w && T.m.y >= r.y && T.m.y < r.y + r.h) { MG.sel = i; go = true; } }
-        if (MG.sel >= 0 && (go || I.pressed('confirm') || I.pressed('attack'))) {
+        if (MG.sel < 0 && !go && (I.pressed('confirm') || I.pressed('attack'))) { MG.sel = 0; sfx('click'); }
+        else if (MG.sel >= 0 && (go || I.pressed('confirm') || I.pressed('attack'))) {
           const D = DATE[MG.round], ok = MG.opts[MG.sel] === D.ok;
           if (ok) { MG.msg = D.good; MG.heart = 1; sfx('unlock'); }
           else { MG.hits++; MG.msg = D.bad[MG.hits % D.bad.length]; MG.stamp = 0.6; sfx('door_slam', { pitch: 1.4 }); }
@@ -35114,39 +35107,8 @@
         else dateRound();
       } else if (MG.phase === 'end' && MG.phT > 2.4) finish();
       if (MG.heart > 0) MG.heart = Math.max(0, MG.heart - real);
-    } else if (MG.game === 'search') {
-      if (MG.phase === 'rules') { if (MG.phT > 0.6 && (T.any || MG.phT > 6)) { MG.phase = 'choose'; MG.phT = 0; } return; }
-      if (MG.phase === 'choose') {
-        if (I.pressed('left')) MG.sel = Math.max(0, (MG.sel < 0 ? 1 : MG.sel) - 1);
-        if (I.pressed('right')) MG.sel = Math.min(3, MG.sel + 1);
-        const ox = OX();
-        if (T.m.clicked) for (let i = 0; i < 4; i++) if (T.m.x >= ox + SPOTS[i].x - 34 && T.m.x <= ox + SPOTS[i].x + 34 && T.m.y > 44 && T.m.y < 204) MG.sel = i, MG.go = true;
-        if (MG.sel >= 0 && (MG.go || I.pressed('confirm') || I.pressed('attack'))) { MG.go = false; startCheck(); }
-        else if (MG.phT > 5) { MG.sel = MG.sel < 0 ? (MG.heard + 2) % 4 : MG.sel; startCheck(); }
-      } else if (MG.phase === 'check') {
-        if (MG.phT > 0.9) {
-          MG.phT = 0;
-          const c = MG.todo.shift();
-          if (c === undefined) { nextSearch(false); return; }
-          MG.checked.push(c); MG.lastX = SPOTS[c].x;
-          sfx('door', { pitch: 0.8 });
-          if (c === MG.sel) { MG.hits++; MG.stamp = 0.9; sfx('door_slam'); nextSearch(true); }
-        }
-      } else if (MG.phase === 'res' && MG.phT > 1.5) {
-        MG.round++;
-        if (MG.round >= 3) { MG.phase = 'end'; MG.phT = 0; MG.msg = MG.hits === 0 ? 'Не знайшли. «Мабуть, переїхав.» +60 грн' : 'Знаходили ' + MG.hits + ' раз. Вискочив через балкон.'; if (MG.hits === 0 && G.progress && G.progress.addMoney) G.progress.addMoney(60); }
-        else searchRound();
-      } else if (MG.phase === 'end' && MG.phT > 2) finish();
     }
   };
-  function startCheck() {
-    MG.phase = 'check'; MG.phT = 0; MG.lastX = -24;
-    const n = MG.round === 0 ? 1 : 2, others = [0, 1, 2, 3].filter((i) => i !== MG.heard);
-    MG.todo = [MG.heard];
-    for (let k = 1; k < n; k++) MG.todo.push(others.splice(Math.floor(rnd() * others.length), 1)[0]);
-    MG.msg = 'ТЦК обшукує квартиру…';
-  }
-  function nextSearch(found) { MG.phase = 'res'; MG.phT = 0; MG.msg = found ? 'Знайшли! Ледь вирвався.' : 'Пронесло…'; if (!found) sfx('pickup'); }
   const RC = (ctx, c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
   function stampDraw(ctx, u) {
     if (MG.stamp <= 0) return;
@@ -35233,70 +35195,6 @@
       if (Math.floor(G.realTime * 2) % 2) u.text(ctx, (G.touch && G.touch.active) ? 'тапни, щоб почати' : 'Enter — почати', W / 2, 186, { size: 8, align: 'center', color: '#93c25b' });
     }
   }
-  function drawSearch(ctx, u) {
-    const W = VW(), H = VH(), ox = OX(), I = MG, R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h), t = G.realTime;
-    // шпалери, плінтус, підлога
-    R('#8a7460', 0, 0, W, 198); for (let k = 0; k < W; k += 24) R('rgba(255,240,210,0.07)', k, 0, 12, 198);
-    for (let k = 12; k < W; k += 48) for (let q = 14; q < 190; q += 34) R('rgba(60,40,28,0.16)', k + 4, q, 4, 4);
-    R('#3e2c20', 0, 192, W, 7); R('#5c4a3c', 0, 199, W, H - 199);
-    for (let k = 0; k < W; k += 40) R('rgba(0,0,0,0.14)', k, 199, 1, H - 199); for (let k = 216; k < H; k += 18) R('rgba(0,0,0,0.08)', 0, k, W, 1);
-    // килим із візерунком
-    R('#5a1f1c', ox + 108, 203, 264, 20); R('#8a3a30', ox + 112, 205, 256, 16); for (let k = 0; k < 16; k++) R(k % 2 ? '#c8a050' : '#5a1f1c', ox + 118 + k * 16, 211, 8, 4);
-    // лампа, картини між меблями
-    R('#3a3036', W / 2 - 1, 0, 2, 26); R('#c8a050', W / 2 - 16, 26, 32, 10); R('#fde98f', W / 2 - 10, 36, 20, 3);
-    [[92, '#4a7a9a'], [204, '#7a8a4a'], [314, '#9a5a4a']].forEach((q) => { R('#3a2616', ox + q[0], 92, 26, 30); R(q[1], ox + q[0] + 3, 95, 20, 24); R('rgba(255,255,255,0.25)', ox + q[0] + 3, 110, 20, 2); });
-    for (let i = 0; i < 4; i++) {
-      const sp = SPOTS[i], x = ox + sp.x, sel = I.sel === i, chk = I.checked.indexOf(i) >= 0;
-      if (sel) R('rgba(253,233,143,0.28)', x - 40, 60, 80, 138);
-      if (i === 0) { // шафа
-        R('#2e1e12', x - 33, 64, 66, 134); R('#7a5636', x - 30, 68, 60, 126); R('#946c48', x - 30, 68, 60, 3); R('#2e1e12', x - 1, 68, 2, 126);
-        R('#5e4228', x - 25, 78, 19, 44); R('#5e4228', x + 6, 78, 19, 44); R('#5e4228', x - 25, 130, 19, 54); R('#5e4228', x + 6, 130, 19, 54); R('#f7c948', x - 6, 126, 3, 8); R('#f7c948', x + 3, 126, 3, 8);
-        if (chk) { R('#16100a', x + 1, 68, 29, 126); R('#c84a3a', x + 7, 76, 7, 44); R('#3f6fa0', x + 17, 76, 8, 52); }
-      } else if (i === 1) { // ліжко
-        R('#4a3020', x - 36, 108, 7, 90); R('#4a3020', x + 29, 128, 7, 70); R('#3a2618', x - 36, 150, 72, 10);
-        R('#eef0f4', x - 29, 128, 24, 16); R('#d8dce4', x - 29, 140, 24, 4); R('#4f7fb0', x - 6, 122, 35, 28); R('#6a9ac8', x - 6, 122, 35, 4); for (let k = 0; k < 3; k++) R('#3f6a98', x + 2 + k * 11, 128, 4, 18);
-        R('#120c08', x - 29, 160, 58, 30); R('#3a2618', x - 29, 190, 58, 8);
-        if (chk) R('#4f7fb0', x + 6, 150, 23, 32);
-      } else if (i === 2) { // балкон
-        R('#e8e4d8', x - 31, 64, 62, 134); R('#6fb0dc', x - 26, 70, 52, 122); R('#a8d8f0', x - 26, 70, 52, 40); R('#7c8ea4', x - 22, 118, 16, 32); R('#6c7e94', x + 2, 110, 20, 40);
-        R('#59626e', x - 26, 150, 52, 3); for (let k = -23; k < 26; k += 9) R('#59626e', x + k, 150, 2, 42); R('#e8e4d8', x - 1, 70, 2, 122); R('#f7c948', x + 6, 130, 3, 8);
-        if (chk) R('rgba(30,20,30,0.35)', x - 26, 70, 26, 122);
-      } else { // ванна
-        R('#e8e4d8', x - 33, 64, 66, 134); R('#bcd0d8', x - 29, 68, 58, 126);
-        for (let q = 68; q < 150; q += 12) R('rgba(255,255,255,0.4)', x - 29, q, 58, 1); for (let k = -29; k < 29; k += 12) R('rgba(255,255,255,0.4)', x + k, 68, 1, 82);
-        R('#fbf8f0', x - 29, 150, 58, 36); R('#d8d4c8', x - 29, 150, 58, 4); R('#d8d4c8', x - 27, 186, 8, 8); R('#d8d4c8', x + 19, 186, 8, 8);
-        R('#9aa0a8', x + 16, 132, 4, 20); R('#9aa0a8', x + 8, 132, 12, 3); R('#7fb8d8', x + 8, 135, 2, 16);
-        if (chk) R('rgba(30,20,30,0.3)', x - 29, 68, 58, 82);
-      }
-      u.panel(ctx, x - 27, 44, 54, 14, { fill: sel ? '#fde98f' : 'rgba(26,14,32,0.92)', border: '#1a0e20', hi: false });
-      u.text(ctx, sp.n, x, 47, { size: 8, align: 'center', color: sel ? '#1a0e20' : '#fbf6ea' });
-      if (chk) u.text(ctx, 'ПЕРЕВІРИЛИ', x, 100, { size: 7, align: 'center', color: '#fde98f', outline: '#1a0e20' });
-      if (I.phase === 'choose' && I.heard === i) { const k = (t * 2.5) % 1; ctx.save(); ctx.strokeStyle = 'rgba(253,233,143,' + (0.9 - k * 0.9).toFixed(2) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, 34, 3 + k * 9, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); ctx.restore(); }
-    }
-    if (I.phase === 'check' || I.phase === 'res') {
-      R('rgba(10,8,24,0.45)', 0, 0, W, H);
-      if (I.sel >= 0 && I.phase === 'check') { const x = ox + SPOTS[I.sel].x, blink = Math.floor(t * 3) % 5 ? 1 : 0; if (blink) { R('#fbf8f0', x - 7, 138, 5, 4); R('#fbf8f0', x + 2, 138, 5, 4); R('#1a0e20', x - 5, 139, 2, 2); R('#1a0e20', x + 4, 139, 2, 2); } }
-      const to = I.phase === 'check' && I.todo.length ? SPOTS[I.todo[0]].x : I.lastX, k = I.phase === 'check' ? Math.min(1, I.phT / 0.75) : 1, tx = ox + I.lastX + (to - I.lastX) * k;
-      // ліхтарик
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,240,190,0.28)'; ctx.beginPath(); ctx.moveTo(tx + 6, 158); ctx.lineTo(ox + to - 36, 70); ctx.lineTo(ox + to + 36, 70); ctx.closePath(); ctx.fill(); ctx.restore();
-      if (!bigSprite(ctx, 'tck', { type: 'rude', dir: 'right', frame: k < 1 ? Math.floor(t * 8) % 4 : 0 }, tx, 205, 3)) person(ctx, tx, 145, '#6b7142', '#f3c39b', '#474b2d');
-      u.panel(ctx, tx - 16, 116, 32, 14, { fill: '#d8443a', border: '#1a0e20', hi: false }); u.text(ctx, 'ТЦК', tx, 119, { size: 8, align: 'center', color: '#fff' });
-    }
-    u.panel(ctx, W / 2 - 112, 8, 224, 20, { fill: '#2a2030' });
-    u.text(ctx, 'ОБШУК КВАРТИРИ · раунд ' + Math.min(I.round + 1, 3) + '/3', W / 2, 12, { size: 8, align: 'center', color: '#fde98f' });
-    if (I.phase === 'choose') { R('#2a2030', W / 2 - 112, 28, 224, 4); R('#f7c948', W / 2 - 112, 28, 224 * Math.max(0, 1 - I.phT / 5), 4); }
-    u.panel(ctx, W / 2 - 172, 232, 344, 20, { fill: 'rgba(26,14,32,0.92)' });
-    u.text(ctx, I.msg, W / 2, 237, { size: 8, align: 'center', color: '#fbf6ea' });
-    if (I.stamp > 0) R('rgba(216,48,42,' + (0.3 * I.stamp).toFixed(3) + ')', 0, 0, W, H);
-    if (I.phase === 'rules') {
-      R('rgba(10,8,24,0.82)', 0, 0, W, H);
-      u.panel(ctx, W / 2 - 170, 52, 340, 150, { fill: '#2a2030', border: '#fde98f' });
-      u.text(ctx, 'ТЦК ПРИЙШЛИ З ОБШУКОМ!', W / 2, 64, { size: 12, align: 'center', color: '#ff6050', shadow: true });
-      const L = ['Ти вдома. Треба сховатися.', '', 'Над одним місцем зʼявляться жовті хвилі —', 'там скрипнуло, ТЦК піде туди першим.', 'Ховайся В ІНШЕ місце: тапни по ньому.', '', '3 раунди. Не знайшли жодного разу — +60 грн.'];
-      L.forEach((l, i) => u.text(ctx, l, W / 2, 88 + i * 13, { size: 8, align: 'center', color: i === 4 ? '#fde98f' : '#e8dcc8' }));
-      if (Math.floor(G.realTime * 2) % 2) u.text(ctx, (G.touch && G.touch.active) ? 'тапни, щоб почати' : 'Enter — почати', W / 2, 186, { size: 8, align: 'center', color: '#93c25b' });
-    }
-  }
   function drawDate(ctx, u) {
     const W = VW(), H = VH(), ox = OX(), I = MG, R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h), t = G.realTime;
     // вечірній сквер: небо, дерева, ліхтар, фонтан
@@ -35331,7 +35229,7 @@
   }
   S.draw = function (ctx) {
     const u = G.ui.gfx;
-    if (MG.game === 'vlk') drawVlk(ctx, u); else if (MG.game === 'search') drawSearch(ctx, u); else if (MG.game === 'date') drawDate(ctx, u);
+    if (MG.game === 'vlk') drawVlk(ctx, u); else if (MG.game === 'date') drawDate(ctx, u);
   };
 })();
 
