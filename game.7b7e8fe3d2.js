@@ -30564,10 +30564,10 @@
       brief: 'Катя помітила: клієнтів її кіоску один за одним пакують. Хтось бере американо і щось записує. Прослідкуй, куди він несе список, — тільки не підходь близько.',
       steps: [
         { type: 'hold', at: 'coffee_prosp', label: 'Розпитай Катю', hold: 1.0, doing: 'Катя: «Он він! У кепці. Вже йде…»' },
-        { type: 'tail', at: 'motherland', name: 'У кепці', label: 'Прослідкуй за підозрілим (не підходь близько)' },
-        { type: 'photo', at: 'motherland', label: 'Сфоткай, як він віддає список водію буса', hold: 1.4, doing: 'Фото є. Обличчя видно. І список.' }],
+        { type: 'tail', at: 'pharmacy', name: 'У кепці', label: 'Прослідкуй за підозрілим (не підходь близько)' },
+        { type: 'photo', at: 'pharmacy', label: 'Сфоткай, як він віддає список водію буса', hold: 1.4, doing: 'Фото є. Обличчя видно. І список.' }],
       events: [{ type: 'rain', at: [12, 20], chance: 0.6 }],
-      star3: 'unseen', place: 'motherland',
+      star3: 'unseen', place: 'pharmacy',
       win: ['Фото пішло в чат «Де ТЦК Київ».', 'За годину стукача знав увесь район.', 'Американо він тепер пʼє вдома.'],
       late: ['Стукач пішов.', 'Але фото ти встиг. Розмите, як твоє майбутнє.'] },
     { tier: 3, title: 'Перше побачення', short: 'Побачення', weekday: 'Вівторок', start: 18 * 60 + 30, slack: 20,
@@ -30610,9 +30610,9 @@
       win: ['Вася по рації: «Проїхали! Хлопці передають дякую».', '«Кажуть, з них пиво».', 'ТЦК досі шукають тебе між яблуками.'],
       late: ['Вася виїхав сам, обʼїзною.', 'Ти бігав просто так.', 'Кардіо — теж непогано.'] },
     { tier: 4, title: 'Кіоск Каті', short: 'Кіоск', weekday: 'Субота', start: 21 * 60 + 10, slack: 40,
-      brief: 'Блекаут. Катя рахує касу в темному кіоску і боїться сама. Побудь поруч 40 секунд — навіть якщо навколо кружляють ТЦК.',
+      brief: 'Блекаут. Катя рахує касу в темному кіоску і боїться сама. Побудь поруч 30 секунд — навіть якщо навколо кружляють ТЦК.',
       steps: [
-        { type: 'defend', at: 'coffee_prosp', dur: 40, label: 'Будь поруч з Катею, поки вона рахує касу' },
+        { type: 'defend', at: 'coffee_prosp', dur: 30, label: 'Будь поруч з Катею, поки вона рахує касу' },
         { type: 'hold', at: 'coffee_prosp', label: 'Допоможи опустити ролету', hold: 1.6, doing: 'Ролета заїдає. Як і все в цьому місті.' }],
       events: [{ type: 'blackout', at: [0.5, 2], chance: 1, dur: 80 }],
       star3: 'noHide', place: 'square',
@@ -31349,7 +31349,7 @@
     if (s.type === 'stealth') { s.spottedHere = false; toast('Чат «Де ТЦК Київ»: бус ТЦК чатує біля дороги! Не попадись водію на очі.', 3200); }
     if (s.type === 'carry') { s.hp = 100; s.lastHits = S.hits; s.lastPunch = S.punches; toast((s.item || 'Вантаж') + ' крихкий: біг, удари і падіння його псують.', 3000); }
     if (s.type === 'tail' && p) {
-      const q = npcSpot(p.x, p.y, 40, 70), dest = poi(s.at);
+      const q = npcSpot(p.x, p.y, 110, 160), dest = poi(s.at);
       const w = new Walker(q.x, q.y, dest ? { x: dest.x + 10, y: dest.y + 6 } : q, s.name || 'Підозрілий');
       s.npc = w; s.closeT = 0; s.farT = 0; S.ents.push(w); G.addEntity(w);
     }
@@ -31746,7 +31746,7 @@
         const d = Math.hypot(p.x - w.x, p.y - w.y);
         // надто близько (особливо коли він озирається) — помітив; надто далеко — чекає, але це підозріло
         const near = w.look ? 70 : 34;
-        if (d < near && !p.hidden) { s.closeT += dt; if (s.closeT > (w.look ? 0.5 : 1.2) && !S.tailSpotted) { S.tailSpotted = true; say(w, G.rng.pick(['Ти чого за мною ходиш?', 'Хлопче, ми знайомі?', 'Не треба за мною йти!']), 2200, 'shout'); toast('Він тебе помітив! Тримай дистанцію.', 2000); } }
+        if (d < near && !p.hidden && s.t > 3) { s.closeT += dt; if (s.closeT > (w.look ? 0.5 : 1.2) && !S.tailSpotted) { S.tailSpotted = true; say(w, G.rng.pick(['Ти чого за мною ходиш?', 'Хлопче, ми знайомі?', 'Не треба за мною йти!']), 2200, 'shout'); toast('Він тебе помітив! Тримай дистанцію.', 2000); } }
         else s.closeT = Math.max(0, s.closeT - dt);
         if (d > 230) { s.farT += dt; if (s.farT > 1 && !w.arrived) w.waitT = Math.max(w.waitT, 0.3); if (s.farT > 1 && !s.farWarn) { s.farWarn = true; toast('Не загуби його! Підійди ближче.', 1800); } } else { s.farT = 0; s.farWarn = false; }
         if (w.arrived && d < 200) completeStep();
@@ -31796,7 +31796,7 @@
       }
       case 'defend': {
         const q = poi(s.at);
-        const inside = q && Math.hypot(p.x - q.x, p.y - q.y) < 80 && !p.hidden;
+        const inside = q && Math.hypot(p.x - q.x, p.y - q.y) < 130;
         if (inside) { s.left -= dt; s.outT = 0; } else if (s.arrived) { s.outT += dt; if (s.outT > 1.5 && !s.outWarn) { s.outWarn = true; toast('Повернись до Каті! Час іде, тільки коли ти поруч.', 2000); } }
         if (inside) s.outWarn = false;
         if (inside && !s.arrived) { s.arrived = true; s.wave = 4; toast('Катя: «Постій поруч, я швидко!»', 1800); }
