@@ -28259,7 +28259,7 @@
         say: [{ t: 'До понеділка ще дожити треба.', x: 12, y: 8, w: 124, tail: [76, 50] }],
         title: 'ГЛАВА 4. МАЙОР' },
     ]] },
-    finale: { n: 5, title: 'ФІНАЛ', sub: 'Гаряча лінія', col: '#f7c948', credits: true, pages: [[
+    finale: { n: 5, title: 'ФІНАЛ ІСТОРІЇ', sub: 'Гаряча лінія', col: '#f7c948', pages: [[
       { r: L4[0], from: 'left', bg: 'metro', P: {},
         actors: [{ hero: true, x: 64, feet: 100, s: 3 }],
         cap: 'Метро «Хрещатик». 23:58.',
@@ -28292,12 +28292,44 @@
         say: [{ who: 'Андрій', t: 'Вже біжу, мам. Просто біжу.', x: 222, y: 8, w: 110, right: true, tail: [176, 44] }],
         title: 'КІНЕЦЬ. МАБУТЬ.' },
     ]] },
+    // після місії 30: перемога, ТЦК — під суд, титри; далі — нескінченний режим
+    victory: { n: 9, title: 'ПЕРЕМОГА', sub: 'Справжній фінал', col: '#3c6fb4', credits: true, pages: [[
+      { r: L4[0], from: 'left', bg: 'phone', P: { title: 'Новини', notif: true, pw: 120, msgs: [{ card: true, t: 'ОФІЦІЙНО: ВІЙНА ЗАКІНЧИЛАСЬ. ПЕРЕМОГА!' }] },
+        actors: [{ port: HERO, x: 134, y: 40, s: 2 }],
+        cap: 'Понеділок. 8:00.',
+        say: [{ kind: 'think', t: 'Я... можу не бігти?', x: 226, y: 104, w: 96, right: true, tail: [176, 96] }] },
+      { r: L4[1], from: 'right', bg: 'burst', P: {},
+        actors: [{ port: HERO, x: 30, y: 30, s: 2 }],
+        say: [{ kind: 'shout', t: 'ПЕРЕМОГА!!!', x: 120, y: 20, w: 100, tail: [90, 50] }] },
+      { r: L4[2], from: 'left', bg: 'sky', P: { tod: 'day', sx: 60, sy: 30, ground: 100 },
+        actors: [{ bus: true, x: 150, y: 96, s: 1, dir: 'right' }],
+        cap: 'За тиждень — розслідування. Усіх, хто пакував людей на вулицях, — під суд.',
+        capB: 'Буси ТЦК їдуть. Цього разу — у СІЗО.' },
+      { r: L4[3], from: 'right', bg: 'cab', P: {},
+        actors: [{ port: 'tolik_tck', x: 56, y: 34, s: 2 }],
+        say: [{ who: 'Вася', kind: 'radio', t: 'Знову за кермом буса! Тільки тепер ТЦК — пасажири. Пристебніться, панове.', x: 4, y: 4, w: 144, tail: [100, 50] }] },
+    ], [
+      { r: L4[0], from: 'left', bg: 'office', P: { night: true },
+        actors: [{ port: 'major_shock', x: 120, y: 30, s: 2 }],
+        say: [{ who: 'Майор', t: 'А мене за що?! Я ж тепер родина!', x: 6, y: 8, w: 110, tail: [130, 60] }] },
+      { r: L4[1], from: 'right', bg: 'tesha', P: { sx: 40 },
+        actors: [{ port: 'tesha_dreamy', x: 124, y: 34, s: 2 }],
+        say: [{ who: 'Галина Степанівна', t: 'Чекатиму, Валерику. Холодець передам. Свіжий.', x: 8, y: 20, w: 112, tail: [124, 60] }] },
+      { r: L4[2], from: 'left', bg: 'kiosk',
+        actors: [{ port: 'katya_happy', x: 18, y: 36, s: 2 }, { port: HERO, x: 136, y: 40, s: 2 }],
+        say: [{ who: 'Катя', t: 'Ти обіцяв: весілля після перемоги.', x: 6, y: 20, w: 112, tail: [60, 52] },
+          { who: 'Андрій', t: 'Субота. І я нікуди не біжу.', x: 228, y: 8, w: 108, right: true, tail: [180, 46] }] },
+      { r: L4[3], from: 'right', bg: 'phone', P: { title: 'Мама', bgc: '#8a6a7a', msgs: [{ t: 'Синку, а кефір?' }] },
+        actors: [{ port: HERO, x: 128, y: 34, s: 2 }],
+        say: [{ who: 'Андрій', t: 'Вже йду, мам. Не біжу. Йду.', x: 222, y: 8, w: 110, right: true, tail: [176, 44] }],
+        title: 'КІНЕЦЬ. ТЕПЕР — ТОЧНО.' },
+    ]] },
   };
   const CREDITS = [
     ['ТЦК', 27, '#f7c948'], ['гра про Андрія, каву і бюрократію', 8, '#e8dcc8'], [''],
     ['У РОЛЯХ', 10, '#f7c948'],
-    ['Андрій — оператор колл-центру, 25 років'], ['Катя — бариста з кіоску «Кава»'], ['Галина Степанівна — «теща»'],
-    ['Майор Валерій — мегафон'], ['Вася — водій (тепер легально)'], ['Мама — головна по кефіру'], ['Начальник — гаряча лінія'],
+    ['Андрій — оператор колл-центру, 25 років'], ['Катя — бариста з кіоску «Кава», наречена'], ['Галина Степанівна — «теща»'],
+    ['Майор Валерій — мегафон (тепер у СІЗО)'], ['Вася — водій (тепер легально)'], ['Мама — головна по кефіру'], ['Начальник — гаряча лінія'],
     ['Батюшка — свічки за бронь'], ['Буси ТЦК — у ролі самих себе'], ['Голуби Києва — у ролі голубів'], [''],
     ['МУЗИКА І ЗВУКИ', 10, '#f7c948'], ['Музика — Web Audio, наживо в браузері'],
     ['Сирена цивільної оборони: запис BogdanKravhenko143452435,'], ['Wikimedia Commons, ліцензія CC BY-SA 4.0'], [''],
@@ -28486,6 +28518,14 @@
       20: ['major', 'Андрію, обручки — то святе. Але бус за тобою їде за планом. Нічого особистого.'],
       21: ['tolik', 'Мальчишник офіційно почався! Майор свій проводить у бусі. На чергуванні.'],
       22: ['major', 'Дружбо, хлопці приготували мені подарунок. Здогадайся, який. Біжи.'],
+      23: ['tolik', 'Андрюхо, той у кепці — наш позаштатний. Майор платить йому кавою.'],
+      24: ['tolik', 'Побачення? Вимкни рацію, романтик. Ой, це ж я тобі кажу.'],
+      25: ['major', 'Тривога. Я в укритті. Андрію, бабусь — у метро. Це наказ. Неофіційний.'],
+      26: ['major', 'Андрію, я не знав, що тебе привезли. Я на лікарняному. Біжи, поки я «хворий».'],
+      27: ['tolik', 'Я в бусі з тещею. Вона рахує мої помилки. Відводь їх скоріше!'],
+      28: ['major', 'Кіоск Каті? Хлопці, туди не ходіть. Ну, вони не слухають. Тримайся.'],
+      29: ['tolik', 'Свічки в парку, кажеш? Я відволічу патруль. Розкажу їм про свого кота.'],
+      30: ['tolik', 'АНДРЮХО! ТИ ЧУВ?! ПЕРЕМОГА!!! Майор плаче в мегафон!'],
     },
     chase: [
       ['major', 'Андрію, я знаю, що ти купив батон. Нарізний.'],
@@ -28578,7 +28618,8 @@
       const id = 'comic_ch' + ch.n;
       return this.seen(id) && !G.cfg.storyAlways ? null : id;
     },
-    wantsFinale(m) { return storyOn() && !!m && !m.mode && !m.endless && missionN(m) === 15; }, // фінал історії з Майором — після місії 15 (глави 5–6 — епілог)
+    wantsFinale(m) { return storyOn() && !!m && !m.mode && !m.endless && missionN(m) === 15; }, // фінал історії з Майором — після місії 15 (без титрів)
+    wantsVictory(m) { return storyOn() && !!m && !m.mode && !m.endless && missionN(m) === ((G.missions && G.missions.CAMPAIGN) || 30); },
     radio(who, text) { showRadio(who, text); },
     trigger,
     reset() { RS.msg = null; RS.lastAt = -1e9; RS.runT = 0; RS.startDone = false; RS.pending = null; RS.log = []; },
@@ -28696,6 +28737,7 @@
       const m = G.run && G.run.mission;
       if (G.story && name === 'intro') { const cid = G.story.comicFor(m); if (cid && SCENES[cid]) { first = cid; chain = 'intro'; } }
       if (G.story && (name === 'win' || name === 'late_win' || name === '_ending') && G.story.wantsFinale(m)) chain = 'finale';
+      else if (G.story && (name === 'win' || name === 'late_win' || name === '_ending') && G.story.wantsVictory && G.story.wantsVictory(m)) chain = 'victory';
       start(first, onEnd);
       if (chain) cs.next = chain;
       // headless-тести інших агентів (jsc + dom_stub) розраховані на миттєві кат-сцени-заглушки →
@@ -30277,6 +30319,8 @@
     noHide: 'Жодного разу не ховатися',
     major: 'Нокаутувати Майора',
     fragile: 'Донести цілим',
+    unseen: 'Підозрілий тебе не помітив',
+    clean: 'Без жодної помилки',
   };
 
   // ═══════════════════════════ Кампанія ═══════════════════════════
@@ -30291,6 +30335,8 @@
     { n: 4, title: 'Майор', from: 13, to: 15, gate: 24 },
     { n: 5, title: 'Бронь злетіла', from: 16, to: 19, gate: 28 },
     { n: 6, title: 'Весілля Майора', from: 20, to: 22, gate: 36 },
+    { n: 7, title: 'Катя', from: 23, to: 26, gate: 44 },
+    { n: 8, title: 'Перемога', from: 27, to: 30, gate: 50 },
   ];
   const CAMPAIGN = [null,
     { tier: 1, title: 'Доберіться до роботи', short: 'На роботу', weekday: 'Вівторок', start: 7 * 60 + 40, fixedDeadline: 9 * 60,
@@ -30511,6 +30557,86 @@
       star3: 'noPunch', place: 'church',
       win: ['«Гірко!»', 'Майор: «Андрію… дякую. І тікай. У хлопців план».', 'Галина Степанівна кинула букет. Впіймав Вася.'],
       late: ['Обручки подав Вася.', 'Майор: «А дружба де?» — «Тікає, як завжди».', 'Весілля вдалось. Без тебе.'] },
+    // ── Глава 7: Катя ── (стеження, побачення-діалог, евакуація сусідів, військкомат з ВЛК і психіатром)
+    { tier: 7, title: 'Стукач', short: 'Стукач', weekday: 'Понеділок', start: 10 * 60 + 10, slack: 20,
+      brief: 'Катя помітила: клієнтів її кіоску один за одним пакують. Хтось бере американо і щось записує. Прослідкуй, куди він несе список, — тільки не підходь близько.',
+      steps: [
+        { type: 'hold', at: 'coffee_prosp', label: 'Розпитай Катю', hold: 1.0, doing: 'Катя: «Он він! У кепці. Вже йде…»' },
+        { type: 'tail', at: 'notary', name: 'У кепці', label: 'Прослідкуй за підозрілим (не підходь близько)' },
+        { type: 'photo', at: 'notary', label: 'Сфоткай, як він завіряє список для ТЦК', hold: 1.4, doing: 'Фото є. Обличчя видно. І печатка.' }],
+      events: [{ type: 'rain', at: [12, 20], chance: 0.6 }],
+      star3: 'unseen', place: 'square',
+      win: ['Фото пішло в чат «Де ТЦК Київ».', 'За годину стукача знав увесь район.', 'Американо він тепер пʼє вдома.'],
+      late: ['Стукач пішов.', 'Але фото ти встиг. Розмите, як твоє майбутнє.'] },
+    { tier: 7, title: 'Перше побачення', short: 'Побачення', weekday: 'Вівторок', start: 18 * 60 + 30, slack: 20,
+      brief: 'Справжнє побачення з Катею. Квіти, сквер, розмова. ТЦК — вистачить, сьогодні головне — не бовкнути дурницю.',
+      steps: [
+        { type: 'hold', at: 'flowers_kiosk', label: 'Купи Каті тюльпани', hold: 0.8, doing: 'Не хризантеми. ТОЧНО не хризантеми.' },
+        { type: 'go', at: 'coffee_sq', label: 'Зустрінь Катю в сквері' },
+        { type: 'mini', game: 'date', at: 'fountain_sq', label: 'Розмова біля фонтану: не бовкни дурницю' }],
+      events: [{ type: 'checkpoint', at: [6, 12], chance: 0.6 }],
+      star3: 'clean', place: 'square',
+      win: ['Катя: «Наступного разу — кіно?»', 'Ти: «Тільки якщо зал без вікон».', 'Вона сміється. Ти — теж. Вперше за рік.'],
+      late: ['Катя чекала пів години.', 'Але дочекалась.', 'Це щось та значить.'] },
+    { tier: 7, title: 'Укриття', short: 'Укриття', weekday: 'Середа', start: 6 * 60 + 40, slack: 22,
+      brief: 'Тривога о шостій ранку, ринок тільки відкривається. Баба Ніна з медом, баба Зіна з яблуками і малий Тарасик самі до метро не дійдуть. Збери їх — і в укриття.',
+      steps: [
+        { type: 'gather', center: 'market', radius: 260, at: 'metroA', who: [['granny', 'Баба Ніна'], ['granny', 'Баба Зіна'], ['kid', 'Тарасик']],
+          label: 'Збери людей на ринку і відведи в метро «Спальна»' }],
+      events: [{ type: 'air_raid', at: [0.5, 1.5], chance: 1, dur: 100 }],
+      star3: 'noHit', place: 'metro',
+      win: ['Баба Ніна: «Синку, ти ж той, що від ТЦК бігає?»', '«Ну то хоч раз побіг куди треба».', 'Тарасик: «А ти справжній герой?» — «Ні. Справжні — на фронті».'],
+      late: ['Відбій тривоги застав вас на сходах.', 'Баба Зіна: «Ну, зате прогулялись».'] },
+    { tier: 8, title: 'Військкомат', short: 'Військкомат', weekday: 'Четвер', start: 9 * 60 + 0, slack: 22,
+      brief: 'Тебе спакували просто біля підʼїзду. Ти вже у військкоматі, на ВЛК: ЛОР, окуліст, психіатр. Відкоси — і тікай до Каті, вона не знає, де ти.',
+      steps: [
+        { type: 'mini', game: 'vlk_psy', label: 'ВЛК: ЛОР, окуліст, психіатр — прослизни!' },
+        { type: 'escape', label: 'Тікай з військкомату! Відірвися від погоні' },
+        { type: 'go', at: 'coffee_prosp', label: 'Біжи до Каті — вона хвилюється' }],
+      star3: 'clean', place: 'square',
+      win: ['Катя: «Де ти був?!»', 'Ти: «У психіатра. Сказав, що бачу буси на плямах».', 'Катя: «А ти бачиш?» — «Я їх бачу всюди».'],
+      late: ['Катя вже обдзвонила всі лікарні.', 'І всі ТЦК.', 'Тепер про тебе знає навіть той, хто не знав.'] },
+    // ── Глава 8: Перемога ── (приманка, оборона кіоску, освідчення, перемога)
+    { tier: 8, title: 'Приманка', short: 'Приманка', weekday: 'Пʼятниця', start: 15 * 60 + 20, slack: 20,
+      brief: 'Вася вивозить тещу і сусідів з приватного сектору, а вулицю перегородив бус ТЦК. Покажись їм — і заведи погоню аж до ринку. Потім відірвись.',
+      steps: [
+        { type: 'go', at: 'house1', label: 'Дійди до приватного сектору' },
+        { type: 'lure', at: 'market', label: 'Покажись ТЦК і заведи погоню до ринку' },
+        { type: 'escape', label: 'Відірвися від погоні' }],
+      star3: 'noHit', place: 'market',
+      win: ['Вася по рації: «Виїхали! Теща передає: “Зять — герой”».', '«Але холодець усе одно несвіжий».', 'ТЦК досі шукають тебе між яблуками.'],
+      late: ['Вася виїхав сам, обʼїзною.', 'Ти бігав просто так.', 'Кардіо — теж непогано.'] },
+    { tier: 7, title: 'Кіоск Каті', short: 'Кіоск', weekday: 'Субота', start: 21 * 60 + 10, slack: 40,
+      brief: 'Блекаут. Катя зачиняє кіоск у темряві, а поруч кружляють ТЦК. Будь поруч і не пускай їх до кіоску 40 секунд.',
+      steps: [
+        { type: 'defend', at: 'coffee_prosp', dur: 40, label: 'Охороняй кіоск, поки Катя рахує касу' },
+        { type: 'hold', at: 'coffee_prosp', label: 'Допоможи опустити ролету', hold: 1.6, doing: 'Ролета заїдає. Як і все в цьому місті.' }],
+      events: [{ type: 'blackout', at: [0.5, 2], chance: 1, dur: 80 }],
+      star3: 'noHide', place: 'square',
+      win: ['Катя: «Ти стояв тут під ліхтарем, як мішень».', '«Заради мене?»', 'Ти: «Ну… і заради кави».'],
+      late: ['Катя зачинила кіоск сама.', 'Ти приніс їй ліхтарик.', 'Вона поцілувала тебе в щоку. Ліхтарик не знадобився.'] },
+    { tier: 8, title: 'Освідчення', short: 'Освідчення', weekday: 'Неділя', start: 20 * 60 + 40, slack: 22,
+      brief: 'Ти вирішив: сьогодні. Троянди, свічки по парку — і питання, від якого страшніше, ніж від будь-якого буса.',
+      steps: [
+        { type: 'hold', at: 'flowers_shop', label: 'Купи троянди', hold: 1.0, doing: 'Флорист: «Освідчення? Тоді — червоні».' },
+        { type: 'collect', center: 'park', n: 4, radius: 240, label: 'Розстав свічки в парку', item: 'page', names: ['Свічка', 'Ще свічка', 'Третя', 'Остання'] },
+        { type: 'hold', at: 'fountain_sq', label: 'Освідчись Каті', hold: 3.0, doing: 'Встаєш на одне коліно… Катя: «ТАК!»' }],
+      events: [{ type: 'blackout', at: [4, 8], chance: 1, dur: 70 }, { type: 'checkpoint', at: [14, 22], chance: 0.7 }],
+      star3: 'noHit', place: 'square',
+      win: ['Вона сказала «так».', 'Галина Степанівна по телефону: «НАРЕШТІ!»', 'Майор по рації: «Вітаю. Але бус — за планом».'],
+      late: ['Свічки догоріли.', 'Катя сказала «так» при ліхтарику телефону.', 'Так навіть краще.'] },
+    { tier: 6, title: 'Перемога', short: 'Перемога', weekday: 'Понеділок', start: 8 * 60 + 0, slack: 35,
+      // після перемоги випадкових бусів і облав нема — лише «останній ТЦК», що не чув новин
+      tierObj: { busRate: 0.01, maxBuses: 0, huntChance: 0, quietMax: 0, firstBus: [9999, 9999], tckHp: 1, groupSize: [1, 1], tckSpeed: 1, tckTypes: ['tired'], typeWeights: { tired: 1 } },
+      brief: 'Ранок. По всіх каналах: ПЕРЕМОГА! Війна закінчилась. Тільки останній бус ТЦК ще не чув новин. Покажи їм — і біжи до Каті на сквер.',
+      steps: [
+        { type: 'hold', at: 'press_prosp', label: 'Купи свіжу газету з новиною', hold: 1.0, doing: 'Заголовок на всю сторінку: «ПЕРЕМОГА!»' },
+        { type: 'catch', npc: 'tck', label: 'Останній ТЦК не вірить! Наздожени й покажи газету',
+          taunt: ['Яка ще перемога?!', 'Це фейк!', 'У мене план до кінця місяця!'], back: 'Прочитав. Сів на бордюр. Плаче.' },
+        { type: 'hold', at: 'fountain_sq', label: 'Зустрінь Перемогу з Катею', hold: 2.4, doing: 'Катя обіймає тебе. Ти більше не озираєшся.' }],
+      star3: 'fast', place: 'square',
+      win: ['Ти більше не тікаєш.', 'Ти просто йдеш.', 'І це найкраще відчуття у світі.'],
+      late: ['Ти запізнився на свято.', 'Але свято не закінчиться.', 'Тепер — ніколи.'] },
   ];
   const N_CAMP = CAMPAIGN.length - 1;
 
@@ -30632,7 +30758,11 @@
         continue;
       }
       if (s.type === 'survive' || s.type === 'boss') { sec += (s.dur || 30) * 0.5; continue; }
-      if (s.type === 'catch') { sec += 18; continue; }
+      if (s.type === 'catch') { sec += 30; continue; }
+      if (s.type === 'escape') { sec += 20; continue; }
+      if (s.type === 'defend') { sec += (s.dur || 40) + 10; }
+      if (s.type === 'mini' && !s.at) continue;
+      if (s.type === 'gather') { const c = poi(s.center); if (c) { sec += routeSec(at, c) + (s.radius || 220) * 2 / WALK; at = c; } }
       if (s.type === 'carry') { const q = poi(s.at); if (q) { sec += routeSec(at, q) * 1.15; at = q; } continue; }
       const q = poi(s.at);
       if (!q) continue;
@@ -30909,12 +31039,12 @@
         ctx.fillStyle = c; ctx.fillRect(Math.round(this.x - 2), Math.round(top - 12 + bob), 5, 9);
         G.text(ctx, this.mark, Math.round(this.x), Math.round(top - 12 + bob), { size: 8, align: 'center', color: '#1a0e20' });
       }
-      if (this.name && this.follow) G.text(ctx, this.name, Math.round(this.x), Math.round(top - 9), { size: 8, align: 'center', color: '#fde98f', shadow: true });
+      if (this.name && this.follow && !this.mark) G.text(ctx, this.name, Math.round(this.x), Math.round(top - 9), { size: 8, align: 'center', color: '#fde98f', shadow: true });
     }
   }
   // злодій (крок 'catch'): тікає від гравця дворами, з часом видихається; наздогнав — крок зараховано
   class Thief extends QuestNpc {
-    constructor(x, y) { super(x, y, 'man', { skin: 4 }); this.body = 'slide'; this.thief = true; this.t = 0; this.wp = null; this.repath = 0; }
+    constructor(x, y, tck) { super(x, y, 'man', { skin: 4 }); this.body = 'slide'; this.thief = true; this.tck = !!tck; this.t = 0; this.wp = null; this.repath = 0; }
     update(dt) {
       const p = G.player;
       this.t += dt;
@@ -30942,9 +31072,41 @@
       this.frame = [1, 2, 3, 2][Math.floor(this.anim) % 4];
     }
     draw(ctx) {
-      super.draw(ctx);
+      let drawn = false;
+      if (this.tck) {
+        let img = null;
+        try { img = G.sprites.get('tck', { type: 'tired', dir: this.dir, frame: this.frame }); } catch (e) { img = null; }
+        if (img) { ctx.drawImage(img, Math.round(this.x - img.width / 2), Math.round(this.y + this.h / 2 - img.height)); drawn = true; }
+      }
+      if (!drawn) super.draw(ctx);
       const bob = Math.round(Math.sin(G.realTime * 6) * 1.5);
-      G.text(ctx, 'ЗЛОДІЙ', Math.round(this.x), Math.round(this.y - 34 + bob), { size: 8, align: 'center', color: '#ff6050', shadow: true });
+      G.text(ctx, this.tck ? 'ТЦК' : 'ЗЛОДІЙ', Math.round(this.x), Math.round(this.y - 34 + bob), { size: 8, align: 'center', color: '#ff6050', shadow: true });
+    }
+  }
+  // підозрілий (крок 'tail'): іде до цілі, інколи зупиняється й озирається
+  class Walker extends QuestNpc {
+    constructor(x, y, dest, name) { super(x, y, 'citizen', { skin: 3, name, follow: true }); this.dest = dest; this.path = null; this.pi = 0; this.pauseT = 0; this.walkT = 4 + rnd() * 3; this.look = 0; this.arrived = false; this.waitT = 0; }
+    update(dt) {
+      const p = G.player;
+      if (this.arrived || this.waitT > 0) { this.waitT = Math.max(0, this.waitT - dt); this.vx = this.vy = 0; this.frame = 0; if (p) this.dir = G.util.dirOf(p.x - this.x, p.y - this.y, this.dir); return; }
+      if (this.pauseT > 0) { this.pauseT -= dt; this.vx = this.vy = 0; this.frame = 0; this.look = 1; if (p) this.dir = G.util.dirOf(p.x - this.x, p.y - this.y, this.dir); return; }
+      this.look = 0;
+      this.walkT -= dt;
+      if (this.walkT <= 0) { this.walkT = 5 + rnd() * 4; this.pauseT = 1.2 + rnd() * 0.8; return; }
+      if (!this.path) { this.path = pathPoints({ x: this.x, y: this.y }, this.dest); this.pi = 0; }
+      while (this.path && this.pi < this.path.length && Math.hypot(this.path[this.pi].x - this.x, this.path[this.pi].y - this.y) < 5) this.pi++;
+      const w = this.path && this.path[this.pi] ? this.path[this.pi] : this.dest;
+      const dx = w.x - this.x, dy = w.y - this.y, dd = Math.hypot(dx, dy);
+      if (dd < 6 && (!this.path || this.pi >= this.path.length)) { this.arrived = true; this.vx = this.vy = 0; return; }
+      const sp = 54;
+      this.vx = dx / (dd || 1) * sp; this.vy = dy / (dd || 1) * sp;
+      this.dir = G.util.dirOf(this.vx, this.vy, this.dir);
+      this.anim += dt * 6;
+      this.frame = [1, 2, 3, 2][Math.floor(this.anim) % 4];
+    }
+    draw(ctx) {
+      super.draw(ctx);
+      if (this.look) G.text(ctx, '?', Math.round(this.x), Math.round(this.y - 40), { size: 10, align: 'center', color: '#f7c948', shadow: true });
     }
   }
   function drawCat(ctx, x, y) {
@@ -31183,9 +31345,28 @@
     if (s.type === 'boss') startBoss(s);
     if (s.type === 'stealth') { s.spottedHere = false; toast('Чат «Де ТЦК Київ»: бус ТЦК чатує біля дороги! Не попадись водію на очі.', 3200); }
     if (s.type === 'carry') { s.hp = 100; s.lastHits = S.hits; s.lastPunch = S.punches; toast((s.item || 'Вантаж') + ' крихкий: біг, удари і падіння його псують.', 3000); }
+    if (s.type === 'tail' && p) {
+      const q = npcSpot(p.x, p.y, 40, 70), dest = poi(s.at);
+      const w = new Walker(q.x, q.y, dest ? { x: dest.x + 10, y: dest.y + 6 } : q, s.name || 'Підозрілий');
+      s.npc = w; s.closeT = 0; s.farT = 0; S.ents.push(w); G.addEntity(w);
+    }
+    if (s.type === 'gather') {
+      const c = poi(s.center);
+      s.npcs = [];
+      (s.who || [['granny', 'Сусідка']]).forEach((w, i) => {
+        const q = c ? npcSpot(c.x, c.y, 60 + i * 60, s.radius || 220) : { x: p.x, y: p.y };
+        const n = new QuestNpc(q.x, q.y, w[0], { follow: true, skin: 1 + i, name: w[1], mark: '!' });
+        n.following = false; n.home = null; n.gather = true;
+        s.npcs.push(n); S.ents.push(n); G.addEntity(n);
+      });
+      toast('Підійди до кожного — підуть за тобою.', 2600);
+    }
+    if (s.type === 'lure') { s.lastChase = -99; s.reT = 0; spawnPursuers(3, 150, 230, ['rude', 'polite', 'tired']); toast('Нехай тебе побачать — і біжи, щоб не відстали!', 2600); }
+    if (s.type === 'escape') { s.calm = 0; if (!(G.tck && G.tck.chaseActive)) spawnPursuers(3, 130, 210, ['rude', 'sprinter', 'polite']); }
+    if (s.type === 'defend') { s.left = s.dur || 40; s.wave = 3; s.outT = 0; }
     if (s.type === 'catch' && p) {
       const q = npcSpot(p.x, p.y, 34, 60);
-      const th = new Thief(q.x, q.y);
+      const th = new Thief(q.x, q.y, s.npc === 'tck');
       s.thief = th; S.ents.push(th); G.addEntity(th);
       say(th, G.rng.pick(s.taunt || ['Дякую!', 'Це тепер моє!', 'Наздожени, якщо зможеш!']), 1800, 'shout');
       sfx('shout', { x: q.x, y: q.y });
@@ -31220,6 +31401,9 @@
     if (s.type === 'stealth') endPosts((cp) => cp.stealth); // прослизнув — блокпост згортається
     if (s.disguise) { S.disguised = true; toast('Маскування готове: ТЦК помічають тебе значно гірше.', 3000); }
     if (s.type === 'catch' && s.thief) { const th = s.thief; th.caughtBy = true; say(th, G.rng.pick(['Та на, на! Жартую я!', 'Все, все, віддаю!', 'Я просто подивитись!']), 2200, 'shout'); setTimeout(() => { th.alive = false; }, 2500); toast(s.back || 'Повернув своє!', 2000); }
+    if (s.type === 'tail' && s.npc) { const w = s.npc; w.waitT = 999; }
+    if (s.type === 'gather' && s.npcs) for (const n of s.npcs) { n.following = false; say(n, G.rng.pick(['Дякую, синку!', 'Ох, дійшли!', 'Ура, метро!']), 2000); }
+    if (s.type === 'escape' || s.type === 'defend') squadsLeave();
     if (s.type === 'carry') { S.carried = true; if (!S.broken) toast((s.item || 'Вантаж') + ' донесено цілим!', 2200); }
     if (S.idx + 1 < S.steps.length) {
       if (G.ui && G.ui.bigText && s.type !== 'deliver') G.ui.bigText('✓', 600, { size: 24, color: '#93c25b' });
@@ -31519,10 +31703,10 @@
     };
     switch (s.type) {
       case 'mini': {
-        const q = poi(s.at);
-        if (reached(q) && !p.hidden && !p.riding && !s.started && S.t > 1.5) {
-          s.started = true;
-          if (G.minigames) G.minigames.start(s.game, (r) => { if (r.clean) toast('Чисто! Ні одного штампа.', 2000); completeStep(); }); else completeStep();
+        const q = s.at ? poi(s.at) : null;
+        if ((!s.at || reached(q)) && !p.hidden && !p.riding && !s.started && S.t > 1.5) {
+          s.started = true; S.minis = (S.minis || 0) + 1;
+          if (G.minigames) G.minigames.start(s.game, (r) => { if (!r.clean) S.miniDirty = true; else if (s.game !== 'date') toast('Чисто! Ні одного штампа.', 2000); completeStep(); }); else completeStep();
         }
         break;
       }
@@ -31545,6 +31729,62 @@
           }
         }
         if (reached(poi(s.at))) completeStep();
+        break;
+      }
+      case 'tail': {
+        const w = s.npc;
+        if (!w) { completeStep(); break; }
+        const d = Math.hypot(p.x - w.x, p.y - w.y);
+        // надто близько (особливо коли він озирається) — помітив; надто далеко — чекає, але це підозріло
+        const near = w.look ? 70 : 34;
+        if (d < near && !p.hidden) { s.closeT += dt; if (s.closeT > (w.look ? 0.5 : 1.2) && !S.tailSpotted) { S.tailSpotted = true; say(w, G.rng.pick(['Ти чого за мною ходиш?', 'Хлопче, ми знайомі?', 'Не треба за мною йти!']), 2200, 'shout'); toast('Він тебе помітив! Тримай дистанцію.', 2000); } }
+        else s.closeT = Math.max(0, s.closeT - dt);
+        if (d > 230) { s.farT += dt; if (s.farT > 1 && !w.arrived) w.waitT = Math.max(w.waitT, 0.3); if (s.farT > 1 && !s.farWarn) { s.farWarn = true; toast('Не загуби його! Він чекає на світлофорі.', 1800); } } else { s.farT = 0; s.farWarn = false; }
+        if (w.arrived && d < 200) completeStep();
+        break;
+      }
+      case 'gather': {
+        let all = true, inShelter = true;
+        const sh = poi(s.at);
+        for (const n of s.npcs || []) {
+          if (!n.following) {
+            all = false;
+            if (Math.hypot(p.x - n.x, p.y - n.y) < 26 && !p.hidden) { n.following = true; n.mark = null; sfx('pickup'); say(n, G.rng.pick(['Ой, синку, веди!', 'Я з тобою!', 'Тільки не біжи!']), 1800); toast(n.name + ' з тобою (' + s.npcs.filter((o) => o.following).length + '/' + s.npcs.length + ')', 1600); }
+            continue;
+          }
+          const dd = Math.hypot(p.x - n.x, p.y - n.y);
+          if (dd > 380) { n.farT = (n.farT || 0) + dt; if (n.farT > 5) { const r = randomWalkable(p.x, p.y, 50, 90); n.x = r.x; n.y = r.y; n.path = null; n.farT = 0; } } else n.farT = 0;
+          if (!sh || Math.hypot(n.x - sh.x, n.y - sh.y) > 70) inShelter = false;
+        }
+        if (all && inShelter && reached(sh)) completeStep();
+        break;
+      }
+      case 'lure': {
+        const chase = G.tck && G.tck.chaseActive;
+        if (chase) s.lastChase = S.t;
+        if (S.chaseEvT != null && S.chaseEvT > s.lastChase) s.lastChase = S.chaseEvT;
+        if (!chase && S.t - s.lastChase > 7) { s.reT -= dt; if (s.reT <= 0) { s.reT = 9; spawnPursuers(3, 150, 230, ['rude', 'polite', 'tired']); toast('Вони тебе загубили! Покажись ще раз.', 1800); } }
+        if (reached(poi(s.at))) {
+          if (S.t - s.lastChase < 6) completeStep();
+          else if (!s.warn) { s.warn = true; toast('Погоня відстала — заведи їх сюди!', 1800); }
+        }
+        break;
+      }
+      case 'escape': {
+        if (G.tck && G.tck.chaseActive) s.calm = 0; else s.calm += dt;
+        if (s.calm > 2 && s.t > 3) { toast('Відірвався!', 1800); completeStep(); }
+        else if (s.t > 40) { toast('ТЦК видихлись і відстали.', 2000); completeStep(); }
+        break;
+      }
+      case 'defend': {
+        const q = poi(s.at);
+        const inside = q && Math.hypot(p.x - q.x, p.y - q.y) < 80 && !p.hidden;
+        if (inside) { s.left -= dt; s.outT = 0; } else { s.outT += dt; if (s.outT > 1.5 && !s.outWarn) { s.outWarn = true; toast('Повернись до кіоску! Час іде, тільки коли ти поруч.', 2000); } }
+        if (inside) s.outWarn = false;
+        if (inside && !s.arrived) { s.arrived = true; s.wave = 4; toast('Катя: «Постій поруч, я швидко!»', 1800); }
+        if (s.arrived) s.wave -= dt;
+        if (s.arrived && s.wave <= 0) { s.wave = 14; if (!(G.tck && G.tck.chaseActive)) { spawnPursuers(3, 150, 230, ['rude', 'polite', 'sprinter']); toast('Ще група ТЦК іде до кіоску!', 1600); } }
+        if (s.left <= 0) { toast('Вистояв!', 1800); completeStep(); }
         break;
       }
       case 'catch': {
@@ -31698,7 +31938,19 @@
       if (best) return { x: best.x, y: best.y, label: best.name || s.label };
     }
     if ((s.type === 'meet' || (s.type === 'escort' && s.lag)) && S.friend) return { x: S.friend.x, y: S.friend.y, label: 'Вася' };
-    if (s.type === 'catch') return s.thief ? { x: s.thief.x, y: s.thief.y, label: 'Злодій' } : null;
+    if (s.type === 'catch') return s.thief ? { x: s.thief.x, y: s.thief.y, label: s.npc === 'tck' ? 'ТЦК' : 'Злодій' } : null;
+    if (s.type === 'tail') return s.npc ? { x: s.npc.x, y: s.npc.y, label: s.npc.name } : null;
+    if (s.type === 'gather' && s.npcs) {
+      let best = null, bd = 1e18;
+      for (const n of s.npcs) if (!n.following) { const d = p ? Math.hypot(n.x - p.x, n.y - p.y) : 0; if (d < bd) { bd = d; best = n; } }
+      if (best) return { x: best.x, y: best.y, label: best.name };
+    }
+    if (s.type === 'escape') {
+      // найближче укриття (підʼїзд/кущі) — куди бігти, щоб відірватися
+      let best = null, bd = 1e18;
+      for (const h of (G.world && G.world.hideSpots) || []) { const d = p ? Math.hypot(h.x - p.x, h.y - p.y) : 0; if (d > 30 && d < bd) { bd = d; best = h; } }
+      return best ? { x: best.x, y: best.y, label: 'Сховайся' } : null;
+    }
     if (s.type === 'survive' || s.type === 'boss') {
       const q = poi(s.next);
       return q ? { x: q.x, y: q.y, label: q.label } : null;
@@ -32111,7 +32363,7 @@
   }
   function subH(s) {
     if (!s) return 0;
-    if (s.type === 'hold' || s.type === 'photo' || s.type === 'deliver' || s.type === 'collect' || s.type === 'survive' || s.type === 'boss' || (s.type === 'escort' && S.friend) || s.type === 'stealth' || s.type === 'carry' || s.type === 'catch') return 10;
+    if (s.type === 'hold' || s.type === 'photo' || s.type === 'deliver' || s.type === 'collect' || s.type === 'survive' || s.type === 'boss' || (s.type === 'escort' && S.friend) || s.type === 'stealth' || s.type === 'carry' || s.type === 'catch' || s.type === 'tail' || s.type === 'gather' || s.type === 'lure' || s.type === 'escape' || s.type === 'defend') return 10;
     return 0;
   }
   function drawSub(ctx, u, s, x, y, w) {
@@ -32155,9 +32407,32 @@
       u.bar(ctx, x, y + 2, w - 4, 4, k, k > 0.5 ? '#93c25b' : k > 0.2 ? '#f7c948' : '#ff6050', '#2a2030');
       return y + 8;
     }
+    if (s.type === 'tail' && s.npc && p) {
+      const d = Math.hypot(p.x - s.npc.x, p.y - s.npc.y);
+      const t = d < 40 ? 'Надто близько!' : d > 220 ? 'Відстаєш!' : 'Дистанція нормальна';
+      u.text(ctx, t, x, y, { size: 8, color: d < 40 || d > 220 ? '#ff6050' : '#93c25b' });
+      return y + 10;
+    }
+    if (s.type === 'gather' && s.npcs) {
+      u.text(ctx, 'З тобою ' + s.npcs.filter((n) => n.following).length + '/' + s.npcs.length, x, y, { size: 8, color: '#93c25b' });
+      return y + 10;
+    }
+    if (s.type === 'lure') {
+      const on = S.t - (s.lastChase || -99) < 6;
+      u.text(ctx, on ? 'Погоня за тобою — веди!' : 'Покажись ТЦК!', x, y, { size: 8, color: on ? '#93c25b' : '#f7c948' });
+      return y + 10;
+    }
+    if (s.type === 'escape') {
+      u.text(ctx, G.tck && G.tck.chaseActive ? 'Тебе женуть — сховайся!' : 'Тихо…', x, y, { size: 8, color: '#ff6050' });
+      return y + 10;
+    }
+    if (s.type === 'defend') {
+      u.text(ctx, 'Ще ' + fmtSec(Math.max(0, s.left)) + ' біля кіоску', x, y, { size: 8, color: '#f7c948' });
+      return y + 10;
+    }
     if (s.type === 'catch' && s.thief && p) {
       const d = Math.round(Math.hypot(p.x - s.thief.x, p.y - s.thief.y) / 16);
-      u.text(ctx, 'Злодій за ' + d + ' м · біжи!', x, y, { size: 8, color: '#ff6050' });
+      u.text(ctx, (s.npc === 'tck' ? 'ТЦК' : 'Злодій') + ' за ' + d + ' м · біжи!', x, y, { size: 8, color: '#ff6050' });
       return y + 10;
     }
     if (s.type === 'stealth') {
@@ -32200,6 +32475,8 @@
     else if (c === 'noHide') ok = S.hides === 0;
     else if (c === 'major') ok = S.majorKo;
     else if (c === 'fragile') ok = !!S.carried && !S.broken;
+    else if (c === 'unseen') ok = !S.tailSpotted;
+    else if (c === 'clean') ok = !!S.minis && !S.miniDirty;
     return {
       n: S.n, star3: c, star3Text: STAR3[c] || '', challenge: !!(ok && finished),
       tips: S.money.tips, tipsAll: S.tipsAll, deliveries: S.deliveries, sideMoney: S.money.sides,
@@ -32244,6 +32521,7 @@
     }
   });
   G.events.on('player:hit', () => { if (S) S.hits++; });
+  G.events.on('chase:start', () => { if (S) S.chaseEvT = S.t; });
   G.events.on('player:punch', () => { if (S) S.punches++; });
   G.events.on('player:hide', () => { if (S && S.inited) S.hides++; });
   const onSpot = () => {
@@ -32275,16 +32553,28 @@
   const okKey = () => pressed('confirm') || pressed('attack');
   const click = (n) => sfx(n || 'click');
   const MSel = { sel: 1, t: 0, mx: -1, my: -1 };
-  const CARD = { x0: 86, y0: 28, w: 92, h: 23, gx: 4, gy: 3 }; // 6 глав — 6 рядів
+  // 8 глав — дві сторінки по 4 глави; на другій сторінці 5-й ряд — нескінченний режим
+  const CARD = { x0: 86, y0: 30, w: 92, h: 30, gx: 4, gy: 4 };
+  const PER_PAGE = 4;
   function cards() {
     const out = [];
-    for (const ch of CHAPTERS) for (let n = ch.from; n <= ch.to; n++) {
-      const col = n - ch.from, row = ch.n - 1;
-      out.push({ n, r: { x: CARD.x0 + col * (CARD.w + CARD.gx), y: CARD.y0 + row * (CARD.h + CARD.gy), w: CARD.w, h: CARD.h } });
+    for (const ch of CHAPTERS) for (let n = ch.from; n <= ch.to; n++) out.push({ n, row: ch.n - 1, col: n - ch.from });
+    out.push({ n: N_CAMP + 1, endless: true, row: CHAPTERS.length, col: 0 });
+    for (const c of out) {
+      c.page = Math.min(Math.ceil(CHAPTERS.length / PER_PAGE) - 1, Math.floor(c.row / PER_PAGE));
+      const lr = c.row - c.page * PER_PAGE;
+      c.r = { x: CARD.x0 + c.col * (CARD.w + CARD.gx), y: CARD.y0 + lr * (CARD.h + CARD.gy), w: CARD.w, h: CARD.h };
     }
-    const lastCh = CHAPTERS[CHAPTERS.length - 1], ec = Math.min(3, lastCh.to - lastCh.from + 1);
-    out.push({ n: N_CAMP + 1, endless: true, r: { x: CARD.x0 + ec * (CARD.w + CARD.gx), y: CARD.y0 + (lastCh.n - 1) * (CARD.h + CARD.gy), w: CARD.w, h: CARD.h } });
     return out;
+  }
+  function pageOf(n) { const c = cards().find((o) => o.n === Math.min(n, N_CAMP + 1)); return c ? c.page : 0; }
+  const PAGES = () => Math.ceil(CHAPTERS.length / PER_PAGE);
+  function pageBtn(dir) { const VW = G.cfg.VIEW_W; return { x: VW / 2 + (dir < 0 ? -58 : 34), y: 4, w: 24, h: 18 }; }
+  function switchPage(dir) {
+    const pg = Math.max(0, Math.min(PAGES() - 1, pageOf(MSel.sel) + dir));
+    if (pg === pageOf(MSel.sel)) return;
+    const first = cards().find((c) => c.page === pg);
+    if (first) { MSel.sel = first.n; click(); }
   }
   function mouseMoved() { const m = G.input.mouse, mv = m.x !== MSel.mx || m.y !== MSel.my; MSel.mx = m.x; MSel.my = m.y; return mv; }
   function startMission(n) {
@@ -32314,8 +32604,9 @@
     const i = cs.findIndex((c) => c.n === MSel.sel);
     const move = (dc, dr) => {
       const c = cs[Math.max(0, i)];
-      const cx = c.r.x + dc * (CARD.w + CARD.gx), cy = c.r.y + dr * (CARD.h + CARD.gy);
-      const nb = cs.find((o) => Math.abs(o.r.x - cx) < 4 && Math.abs(o.r.y - cy) < 4);
+      let nb = null;
+      if (dr) { const row = cs.filter((o) => o.row === c.row + dr); if (row.length) nb = row.reduce((a, o) => (Math.abs(o.col - c.col) < Math.abs(a.col - c.col) ? o : a)); }
+      else nb = cs.find((o) => o.row === c.row && o.col === c.col + dc);
       if (nb) { MSel.sel = nb.n; click(); }
     };
     if (pressed('pause')) { G.input.consume('pause'); click(); G.setState('menu'); return; }
@@ -32324,7 +32615,10 @@
     if (pressed('up')) move(0, -1);
     if (pressed('down')) move(0, 1);
     const m = G.input.mouse, mv = mouseMoved();
-    for (const c of cs) if (u_in(m, c.r)) { if (mv) MSel.sel = c.n; if (m.clicked) { if (MSel.sel === c.n) startMission(c.n); MSel.sel = c.n; } }
+    if (m.clicked && u_in(m, pageBtn(-1))) { switchPage(-1); return; }
+    if (m.clicked && u_in(m, pageBtn(1))) { switchPage(1); return; }
+    const pg = pageOf(MSel.sel);
+    for (const c of cs) if (c.page === pg && u_in(m, c.r)) { if (mv) MSel.sel = c.n; if (m.clicked) { if (MSel.sel === c.n) startMission(c.n); MSel.sel = c.n; } }
     if (okKey()) startMission(MSel.sel);
   };
   function u_in(m, r) { return m.x >= r.x && m.y >= r.y && m.x < r.x + r.w && m.y < r.y + r.h; }
@@ -32338,55 +32632,67 @@
     drawStarIcon(ctx, VW - 128, 9, 1, true);
     u.text(ctx, tot + '/' + max, VW - 118, 9, { size: 8, color: '#fde98f' });
     u.text(ctx, (P ? P.money : 0) + ' грн', VW - 8, 9, { size: 8, align: 'right', color: '#93c25b' });
+    // сторінки глав
+    const pg = pageOf(MSel.sel), np = PAGES();
+    for (const dir of [-1, 1]) {
+      const b = pageBtn(dir), on = dir < 0 ? pg > 0 : pg < np - 1;
+      u.panel(ctx, b.x, b.y, b.w, b.h, { fill: on ? 'rgba(94,152,70,0.9)' : 'rgba(30,24,36,0.9)', border: '#1a0e20' });
+      u.text(ctx, dir < 0 ? '<' : '>', b.x + b.w / 2, b.y + 5, { size: 8, align: 'center', color: on ? '#fde98f' : '#5c5766' });
+    }
+    u.text(ctx, 'Глави ' + (pg * PER_PAGE + 1) + '–' + Math.min(CHAPTERS.length, pg * PER_PAGE + PER_PAGE), VW / 2 - 2, 9, { size: 8, align: 'center', color: '#e8dcc8' });
     // глави
     for (const ch of CHAPTERS) {
-      const y = CARD.y0 + (ch.n - 1) * (CARD.h + CARD.gy);
+      if (Math.floor((ch.n - 1) / PER_PAGE) !== pg) continue;
+      const y = CARD.y0 + ((ch.n - 1) % PER_PAGE) * (CARD.h + CARD.gy);
       const open = !P || P.totalStars >= ch.gate;
-      u.text(ctx, 'ГЛАВА ' + ch.n, 8, y, { size: 8, color: open ? '#fde98f' : '#7a7280' });
-      if (ch.gate && !open) { drawStarIcon(ctx, 8, y + 11, 1, false); u.text(ctx, ch.gate + ' потрібно', 18, y + 11, { size: 8, color: '#ef8a3b' }); }
-      else { let tt = ch.title; while (tt.length > 3 && u.measure(tt, 8) > 76) tt = tt.slice(0, -2) + '…'; u.text(ctx, tt, 8, y + 11, { size: 8, color: open ? '#e8dcc8' : '#5c5766' }); }
+      u.text(ctx, 'ГЛАВА ' + ch.n, 8, y + 2, { size: 8, color: open ? '#fde98f' : '#7a7280' });
+      if (ch.gate && !open) { drawStarIcon(ctx, 8, y + 13, 1, false); u.text(ctx, ch.gate + ' потрібно', 18, y + 13, { size: 8, color: '#ef8a3b' }); }
+      else { let tt = ch.title; while (tt.length > 3 && u.measure(tt, 8) > 76) tt = tt.slice(0, -2) + '…'; u.text(ctx, tt, 8, y + 13, { size: 8, color: open ? '#e8dcc8' : '#5c5766' }); }
     }
     const cs = cards();
+    const ecard = cs.find((c) => c.endless);
+    if (ecard && ecard.page === pg) { u.text(ctx, 'ПІСЛЯ', 8, ecard.r.y + 2, { size: 8, color: '#fde98f' }); u.text(ctx, 'ПЕРЕМОГИ', 8, ecard.r.y + 13, { size: 8, color: '#e8dcc8' }); }
     for (const c of cs) {
+      if (c.page !== pg) continue;
       const r = c.r, sel = c.n === MSel.sel;
       const open = P ? P.isMissionOpen(c.n) : c.n === 1;
       const stars = P ? P.starsOf(c.n) : 0;
       u.panel(ctx, r.x, r.y, r.w, r.h, { fill: !open ? 'rgba(30,24,36,0.95)' : sel ? 'rgba(94,152,70,0.9)' : stars ? 'rgba(69,41,63,0.95)' : 'rgba(58,46,68,0.95)', border: sel ? '#fde98f' : '#1a0e20' });
       if (c.endless) {
-        u.text(ctx, 'НЕСКІНЧЕННИЙ', r.x + r.w / 2, r.y + 2, { size: 8, align: 'center', color: open ? '#fde98f' : '#7a7280' });
-        u.text(ctx, open ? 'день ' + (P.endlessDay || N_CAMP + 1) : 'після місії ' + N_CAMP, r.x + r.w / 2, r.y + 12, { size: 8, align: 'center', color: open ? '#e8dcc8' : '#5c5766' });
-        if (!open) u.icon(ctx, 'unlock', r.x + r.w - 10, r.y + 13);
+        u.text(ctx, 'НЕСКІНЧЕННИЙ', r.x + r.w / 2, r.y + 4, { size: 8, align: 'center', color: open ? '#fde98f' : '#7a7280' });
+        u.text(ctx, open ? 'день ' + (P.endlessDay || N_CAMP + 1) : 'після місії ' + N_CAMP, r.x + r.w / 2, r.y + 16, { size: 8, align: 'center', color: open ? '#e8dcc8' : '#5c5766' });
+        if (!open) u.icon(ctx, 'unlock', r.x + r.w - 10, r.y + 18);
         continue;
       }
       const d = def(c.n);
-      u.text(ctx, String(c.n), r.x + 5, r.y + 1, { size: 10, color: open ? '#fde98f' : '#5c5766', shadow: true });
+      u.text(ctx, String(c.n), r.x + 5, r.y + 3, { size: 10, color: open ? '#fde98f' : '#5c5766', shadow: true });
       const tx = r.x + 5 + u.measure(String(c.n), 10) + 5;
       let t = d.short || d.title;
       while (t.length > 3 && u.measure(t, 8) > r.x + r.w - 4 - tx) t = t.slice(0, -2) + '…';
-      u.text(ctx, t, tx, r.y + 3, { size: 8, color: open ? '#fbf6ea' : '#5c5766' });
-      if (open) for (let k = 0; k < 3; k++) drawStarIcon(ctx, r.x + 26 + k * 14, r.y + 14, 1, k < stars);
-      else u.icon(ctx, 'unlock', r.x + r.w / 2 - 3, r.y + 13);
+      u.text(ctx, t, tx, r.y + 5, { size: 8, color: open ? '#fbf6ea' : '#5c5766' });
+      if (open) for (let k = 0; k < 3; k++) drawStarIcon(ctx, r.x + 26 + k * 14, r.y + 18, 1, k < stars);
+      else u.icon(ctx, 'unlock', r.x + r.w / 2 - 3, r.y + 17);
     }
     // деталі
-    const n = MSel.sel, py = 188;
-    u.panel(ctx, 8, py, VW - 16, 74, { fill: 'rgba(42,26,46,0.95)' });
+    const n = MSel.sel, py = 200;
+    u.panel(ctx, 8, py, VW - 16, 66, { fill: 'rgba(42,26,46,0.95)' });
     if (n > N_CAMP) {
       u.text(ctx, 'Нескінченний режим', 16, py + 5, { size: 10, color: '#fde98f', shadow: true });
       const bl = u.wrap('Кожен день — випадкові доручення, події й більше бусів. Чим далі, тим смішніше (і страшніше).', VW - 40, 8);
-      for (let k = 0; k < bl.length && k < 3; k++) u.text(ctx, bl[k], 16, py + 22 + k * 10, { size: 8, color: '#e8dcc8' });
-      if (P && P.endlessBest) u.text(ctx, 'Рекорд: день ' + P.endlessBest, 16, py + 58, { size: 8, color: '#93c25b' });
+      for (let k = 0; k < bl.length && k < 3; k++) u.text(ctx, bl[k], 16, py + 19 + k * 10, { size: 8, color: '#e8dcc8' });
+      if (P && P.endlessBest) u.text(ctx, 'Рекорд: день ' + P.endlessBest, 16, py + 53, { size: 8, color: '#93c25b' });
     } else {
       const d = def(n), open = P ? P.isMissionOpen(n) : n === 1;
       u.text(ctx, n + '. ' + d.title, 16, py + 5, { size: 10, color: open ? '#fde98f' : '#b4abb2', shadow: true });
       const bl = u.wrap(open ? d.brief : lockText(n), VW - 40, 8);
-      for (let k = 0; k < bl.length && k < 2; k++) u.text(ctx, bl[k], 16, py + 21 + k * 10, { size: 8, color: open ? '#e8dcc8' : '#ef8a3b' });
+      for (let k = 0; k < bl.length && k < 2; k++) u.text(ctx, bl[k], 16, py + 19 + k * 10, { size: 8, color: open ? '#e8dcc8' : '#ef8a3b' });
       const best = P && P.bestOf ? P.bestOf(n) : null;
       const m = build(n);
-      drawStarIcon(ctx, 16, py + 45, 1, true); u.text(ctx, 'Дійти', 26, py + 45, { size: 8, color: '#b4abb2' });
-      drawStarIcon(ctx, 70, py + 45, 1, true); u.text(ctx, clock(m.start) + '→' + clock(m.deadline), 80, py + 45, { size: 8, color: '#b4abb2' });
-      drawStarIcon(ctx, 150, py + 45, 1, true); u.text(ctx, STAR3[d.star3] || '', 160, py + 45, { size: 8, color: '#b4abb2' });
-      u.text(ctx, d.weekday + ', ' + dayPart(m.start).replace('ранку', 'ранок').replace('дня', 'день').replace('вечора', 'вечір').replace('ночі', 'ніч') + ' · кроків: ' + d.steps.length + (d.events && d.events.length ? ' · події: ' + d.events.length : '') + (best != null ? ' · рекорд ' + clock(best) : ''), 16, py + 58, { size: 8, color: '#8c8494' });
-      if (open) u.text(ctx, (G.touch && G.touch.active) ? 'тапни ще раз — грати' : 'Enter — грати', VW - 16, py + 58, { size: 8, align: 'right', color: Math.floor(MSel.t * 2) % 2 ? '#fde98f' : '#93c25b' });
+      drawStarIcon(ctx, 16, py + 41, 1, true); u.text(ctx, 'Дійти', 26, py + 41, { size: 8, color: '#b4abb2' });
+      drawStarIcon(ctx, 70, py + 41, 1, true); u.text(ctx, clock(m.start) + '→' + clock(m.deadline), 80, py + 41, { size: 8, color: '#b4abb2' });
+      drawStarIcon(ctx, 150, py + 41, 1, true); u.text(ctx, STAR3[d.star3] || '', 160, py + 41, { size: 8, color: '#b4abb2' });
+      u.text(ctx, d.weekday + ', ' + dayPart(m.start).replace('ранку', 'ранок').replace('дня', 'день').replace('вечора', 'вечір').replace('ночі', 'ніч') + ' · кроків: ' + d.steps.length + (d.events && d.events.length ? ' · події: ' + d.events.length : '') + (best != null ? ' · рекорд ' + clock(best) : ''), 16, py + 53, { size: 8, color: '#8c8494' });
+      if (open) u.text(ctx, (G.touch && G.touch.active) ? 'тапни ще раз — грати' : 'Enter — грати', VW - 16, py + 53, { size: 8, align: 'right', color: Math.floor(MSel.t * 2) % 2 ? '#fde98f' : '#93c25b' });
     }
     if (!(G.touch && G.touch.active)) u.text(ctx, 'Esc — меню', VW - 8, 22, { size: 8, align: 'right', color: 'rgba(255,255,255,0.45)' });
     if (G.ui) G.ui.drawOverlay(ctx);
@@ -34721,25 +35027,48 @@
     { who: 'ОКУЛІСТ', q: 'Скільки пальців?', ex: '«Я сліпий!»', a: 'Два — то й досить. Придатний.' },
     { who: 'ХІРУРГ', q: 'Ноги є? Руки є?', ex: '«Спина болить!»', a: 'Бігти ж зміг. Придатний.' },
   ];
+  // ВЛК з психіатром (місія «Військкомат»): третій кабінет — психіатр із плямою Роршаха
+  const VLK_PSY = [VLK[0], VLK[1],
+    { who: 'ПСИХІАТР', q: 'Що бачиш на плямі?', ex: '«Бус ТЦК!»', a: 'Адекватна реакція. Придатний.' }];
+  const vl = () => (MG.psy ? VLK_PSY : VLK);
+  // побачення з Катею: три питання, по три відповіді; правильна — щира, а не жарт про ТЦК
+  const DATE = [
+    { q: 'Ти чого весь час озираєшся?', a: ['Звичка. Але поруч з тобою — менше.', 'Шию розминаю. Тренер сказав.', 'Там бус! А, ні. Маршрутка.'], ok: 0,
+      good: 'Катя всміхається.', bad: ['Катя: «Тренер з чого?»', 'Катя здригнулась. Незручно.'] },
+    { q: 'А що ти любиш, крім кави?', a: ['Бігати. Дуже. Щодня.', 'Сидіти вдома, як Вася. Два роки.', 'Ранки біля твого кіоску.'], ok: 2,
+      good: 'Катя червоніє.', bad: ['Катя: «Від кого бігати?»', 'Катя: «…Оу.»'] },
+    { q: 'Мама питає, коли весілля.', a: ['А можна без мами?', 'Після перемоги. Обіцяю.', 'Майор вже одружився. Наша черга?'], ok: 1,
+      good: 'Катя: «Тримаю за слово».', bad: ['Катя: «Мама це почує.»', 'Катя: «Не порівнюй нас з ними!»'] },
+  ];
   const SPOTS = [{ n: 'ШАФА', x: 40 }, { n: 'ЛІЖКО', x: 150 }, { n: 'БАЛКОН', x: 260 }, { n: 'ВАННА', x: 370 }];
   const VW = () => G.cfg.VIEW_W, VH = () => G.cfg.VIEW_H;
   const OX = () => Math.round((VW() - 480) / 2);
   function finish() {
-    const cb = MG.cb, res = { hits: MG.hits, clean: MG.hits === 0 };
+    const cb = MG.cb, res = { hits: MG.hits, clean: MG.hits === 0 }, wasDate = MG.game === 'date';
     MG.game = null; MG.cb = null;
     G.setState('play');
     const p = P();
-    if (p) { p.invuln = Math.max(p.invuln || 0, 2); if (res.hits) p.hp = Math.max(10, p.hp - 10 * res.hits); }
+    if (p) { p.invuln = Math.max(p.invuln || 0, 2); if (res.hits && !wasDate) p.hp = Math.max(10, p.hp - 10 * res.hits); }
     if (cb) cb(res);
   }
   G.minigames = {
     start(game, cb) {
       if (inStub()) { if (cb) cb({ hits: 0, clean: true }); return; }
-      Object.assign(MG, { game, cb, t: 0, hits: 0, round: 0, phase: 'play', phT: 0, sel: -1, stamp: 0, x: 0, msg: '', checked: [] });
+      const psy = game === 'vlk_psy';
+      if (psy) game = 'vlk';
+      Object.assign(MG, { game, cb, t: 0, hits: 0, round: 0, phase: 'play', phT: 0, sel: -1, stamp: 0, x: 0, msg: '', checked: [], psy, opts: null });
+      if (game === 'date') dateRound();
       if (game === 'search') searchRound();
       G.setState('mini');
     },
   };
+  function dateRound() {
+    MG.phase = 'choose'; MG.phT = 0; MG.sel = -1; MG.msg = '';
+    const o = [0, 1, 2];
+    for (let i = 2; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = o[i]; o[i] = o[j]; o[j] = t; }
+    MG.opts = o; // MG.opts[кнопка] → індекс відповіді
+  }
+  function dateRect(i) { const W = VW(); return { x: W / 2 - 150, y: 150 + i * 26, w: 300, h: 22 }; }
   function searchRound() {
     MG.phase = 'choose'; MG.phT = 0; MG.sel = -1; MG.checked = [];
     const heard = Math.floor(rnd() * 4);
@@ -34758,14 +35087,32 @@
         if (T.any) {
           const zone = 0.2 - MG.round * 0.03, ok = Math.abs(MG.x - 0.5) < zone;
           if (ok) { MG.msg = 'Прослизнув, поки лікар дивився в папірці!'; sfx('pickup'); }
-          else { MG.hits++; MG.stamp = 0.9; MG.msg = VLK[MG.round].a; sfx('door_slam'); shake(0, 0); }
+          else { MG.hits++; MG.stamp = 0.9; MG.msg = vl()[MG.round].a; sfx('door_slam'); shake(0, 0); }
           MG.phase = 'res'; MG.phT = 0;
         }
       } else if (MG.phase === 'res' && MG.phT > 1.5) {
         MG.round++;
-        if (MG.round >= VLK.length) { MG.phase = 'end'; MG.phT = 0; MG.msg = MG.hits === 0 ? 'Лікарі нічого не помітили. +60 грн' : 'Штампів: ' + MG.hits + '. Втік через вікно коридору.'; if (MG.hits === 0 && G.progress && G.progress.addMoney) G.progress.addMoney(60); }
+        if (MG.round >= vl().length) { MG.phase = 'end'; MG.phT = 0; MG.msg = MG.hits === 0 ? 'Лікарі нічого не помітили. +60 грн' : 'Штампів: ' + MG.hits + '. Втік через вікно коридору.'; if (MG.hits === 0 && G.progress && G.progress.addMoney) G.progress.addMoney(60); }
         else { MG.phase = 'play'; MG.phT = 0; MG.msg = ''; }
       } else if (MG.phase === 'end' && MG.phT > 2) finish();
+    } else if (MG.game === 'date') {
+      if (MG.phase === 'choose') {
+        if (I.pressed('up') || I.pressed('left')) { MG.sel = MG.sel <= 0 ? 2 : MG.sel - 1; sfx('click'); }
+        if (I.pressed('down') || I.pressed('right')) { MG.sel = MG.sel >= 2 ? 0 : MG.sel + 1; sfx('click'); }
+        let go = false;
+        if (T.m.clicked) for (let i = 0; i < 3; i++) { const r = dateRect(i); if (T.m.x >= r.x && T.m.x < r.x + r.w && T.m.y >= r.y && T.m.y < r.y + r.h) { MG.sel = i; go = true; } }
+        if (MG.sel >= 0 && (go || I.pressed('confirm') || I.pressed('attack'))) {
+          const D = DATE[MG.round], ok = MG.opts[MG.sel] === D.ok;
+          if (ok) { MG.msg = D.good; MG.heart = 1; sfx('unlock'); }
+          else { MG.hits++; MG.msg = D.bad[MG.hits % D.bad.length]; MG.stamp = 0.6; sfx('door_slam', { pitch: 1.4 }); }
+          MG.phase = 'res'; MG.phT = 0;
+        }
+      } else if (MG.phase === 'res' && MG.phT > 1.8) {
+        MG.round++;
+        if (MG.round >= DATE.length) { MG.phase = 'end'; MG.phT = 0; MG.msg = MG.hits === 0 ? 'Ідеальне побачення. Катя бере тебе за руку.' : MG.hits === 1 ? 'Майже ідеально. Катя все одно всміхається.' : 'Незграбно. Але Катя каже: «Ти смішний». Це добре?'; }
+        else dateRound();
+      } else if (MG.phase === 'end' && MG.phT > 2.4) finish();
+      if (MG.heart > 0) MG.heart = Math.max(0, MG.heart - real);
     } else if (MG.game === 'search') {
       if (MG.phase === 'choose') {
         if (I.pressed('left')) MG.sel = Math.max(0, (MG.sel < 0 ? 1 : MG.sel) - 1);
@@ -34827,7 +35174,7 @@
     if (r === 0) { RC(ctx, '#d8d4c8', x - 7, y - 16 + (away ? 3 : 0), 14, 6); RC(ctx, '#fde98f', x - 2, y - 15 + (away ? 3 : 0), 4, 4); } // лобове дзеркало ЛОРа
   }
   function drawVlk(ctx, u) {
-    const W = VW(), ox = OX(), I = MG, r = Math.min(I.round, VLK.length - 1), D = VLK[r], R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h);
+    const W = VW(), ox = OX(), I = MG, r = Math.min(I.round, vl().length - 1), D = vl()[r], R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h);
     const zone = 0.2 - r * 0.03, away = I.phase === 'play' && Math.abs(I.x - 0.5) < zone;
     ctx.save();
     if (I.stamp > 0.55) ctx.translate(Math.round(Math.sin(G.realTime * 80) * 3), 0);
@@ -34845,6 +35192,7 @@
     R('#fbf8f0', ox + 104, 38, 58, 70); R('#2a2030', ox + 104, 38, 58, 2);
     if (r === 0) { R('#e98fae', ox + 122, 50, 22, 40); R('#fbf8f0', ox + 128, 58, 10, 24); R('#e98fae', ox + 131, 64, 6, 12); u.text(ctx, 'ВУХО', ox + 133, 94, { size: 7, align: 'center', color: '#2a2030' }); }
     else if (r === 1) [[12, 6], [9, 5], [6, 6], [4, 7], [3, 8]].forEach((q, i) => { for (let k = 0; k < q[1]; k++) R('#2a2030', ox + 133 - (q[1] * (q[0] / 2 + 1)) / 2 + k * (q[0] / 2 + 1), 46 + i * 11, Math.max(2, q[0] / 3), Math.max(2, q[0] / 2)); });
+    else if (I.psy) { for (let k = 0; k < 9; k++) { const yy = 46 + k * 6, ww = [6, 14, 20, 16, 22, 18, 12, 16, 8][k]; R('#2a2030', ox + 133 - ww, yy, ww, 5); R('#2a2030', ox + 133, yy, ww, 5); } R('#fbf8f0', ox + 127, 60, 3, 4); R('#fbf8f0', ox + 136, 60, 3, 4); }
     else { R('#d8d4c8', ox + 126, 44, 14, 14); R('#2a2030', ox + 129, 49, 3, 3); R('#2a2030', ox + 134, 49, 3, 3); R('#d8d4c8', ox + 132, 58, 3, 28); for (let k = 0; k < 4; k++) R('#d8d4c8', ox + 122, 62 + k * 5, 22, 2); R('#d8d4c8', ox + 126, 86, 3, 18); R('#d8d4c8', ox + 137, 86, 3, 18); }
     // годинник, двері ВИХІД
     R('#2a2030', ox + 228, 40, 22, 22); R('#fbf8f0', ox + 230, 42, 18, 18); R('#2a2030', ox + 238, 44, 2, 8); R('#2a2030', ox + 238, 50, 7, 2);
@@ -34930,9 +35278,41 @@
     u.text(ctx, I.msg, W / 2, 237, { size: 8, align: 'center', color: '#fbf6ea' });
     if (I.stamp > 0) R('rgba(216,48,42,' + (0.3 * I.stamp).toFixed(3) + ')', 0, 0, W, H);
   }
+  function drawDate(ctx, u) {
+    const W = VW(), H = VH(), ox = OX(), I = MG, R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h), t = G.realTime;
+    // вечірній сквер: небо, дерева, ліхтар, фонтан
+    R('#3c2f5c', 0, 0, W, 60); R('#6a4a74', 0, 60, W, 40); R('#c8786a', 0, 100, W, 18); R('#2e3a2c', 0, 118, W, H - 118);
+    for (let k = 0; k < 6; k++) { const x = ox + 20 + k * 86; R('#1f2a1e', x + 10, 70, 6, 50); R('#2c4a2a', x - 4, 46, 34, 30); R('#365a32', x, 40, 26, 14); }
+    R('#9aa0a8', ox + 430, 40, 4, 80); R('#fde98f', ox + 424, 34, 16, 8); R('rgba(253,233,143,0.12)', ox + 380, 42, 110, 80);
+    R('#8a8478', ox + 200, 108, 80, 10); R('#6fb0dc', ox + 206, 104, 68, 6); R('#bfe6f0', ox + 238, 90 + Math.round(Math.sin(t * 6) * 2), 4, 16);
+    // портрети: Катя ліворуч, герой праворуч
+    const port = (v, x, y) => { let img = null; try { img = v === 'hero' ? G.sprites.portrait('player', (P() && P().skin) || 'office') : G.sprites.portrait('npc', v); } catch (e) { img = null; } if (img) { ctx.imageSmoothingEnabled = false; ctx.drawImage(img, Math.round(x), Math.round(y), img.width * 2, img.height * 2); } };
+    const kv = I.phase === 'res' ? (I.heart > 0 || I.msg === DATE[Math.min(I.round, 2)].good ? 'katya_happy' : 'katya_worried') : I.phase === 'end' ? (I.hits < 2 ? 'katya_happy' : 'katya') : 'katya';
+    port(kv, ox + 40, 34); port('hero', ox + 360, 38);
+    if (I.heart > 0) { const k = 1 - I.heart; ctx.save(); ctx.globalAlpha = I.heart; u.text(ctx, '♥', ox + 110, 30 - k * 24, { size: 18, align: 'center', color: '#ff6a8a', outline: '#1a0e20' }); ctx.restore(); }
+    u.panel(ctx, W / 2 - 112, 8, 224, 20, { fill: '#2a2030' });
+    u.text(ctx, 'ПОБАЧЕННЯ · питання ' + Math.min(I.round + 1, 3) + '/3', W / 2, 12, { size: 8, align: 'center', color: '#fde98f' });
+    for (let k = 0; k < 3; k++) u.text(ctx, '♥', ox + 420 + k * 16, 12, { size: 10, color: k < 3 - I.hits ? '#ff6a8a' : 'rgba(26,14,32,0.5)' });
+    const D = DATE[Math.min(I.round, DATE.length - 1)];
+    if (I.phase !== 'end') {
+      u.panel(ctx, W / 2 - 110, 112, 220, 24, { fill: '#fbf6ea', border: '#2a1a2e' });
+      u.text(ctx, 'Катя: «' + D.q + '»', W / 2, 119, { size: 8, align: 'center', color: '#2a1a2e' });
+    }
+    if (I.phase === 'choose') {
+      for (let i = 0; i < 3; i++) {
+        const r = dateRect(i), sel = I.sel === i;
+        u.panel(ctx, r.x, r.y, r.w, r.h, { fill: sel ? '#fde98f' : 'rgba(26,14,32,0.92)', border: '#1a0e20' });
+        u.text(ctx, (i + 1) + '. ' + D.a[I.opts[i]], r.x + 8, r.y + 7, { size: 8, color: sel ? '#1a0e20' : '#fbf6ea' });
+      }
+    } else {
+      u.panel(ctx, W / 2 - 160, 170, 320, 24, { fill: 'rgba(26,14,32,0.92)' });
+      u.text(ctx, I.msg, W / 2, 178, { size: 8, align: 'center', color: '#fbf6ea' });
+    }
+    if (I.stamp > 0) R('rgba(216,48,42,' + (0.2 * I.stamp).toFixed(3) + ')', 0, 0, W, H);
+  }
   S.draw = function (ctx) {
     const u = G.ui.gfx;
-    if (MG.game === 'vlk') drawVlk(ctx, u); else if (MG.game === 'search') drawSearch(ctx, u);
+    if (MG.game === 'vlk') drawVlk(ctx, u); else if (MG.game === 'search') drawSearch(ctx, u); else if (MG.game === 'date') drawDate(ctx, u);
   };
 })();
 
