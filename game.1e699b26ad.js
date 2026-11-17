@@ -30588,11 +30588,12 @@
       win: ['Баба Ніна: «Синку, ти ж той, що від ТЦК бігає?»', '«Ну то хоч раз побіг куди треба».', 'Тарасик: «А ти справжній герой?» — «Ні. Справжні — на фронті».'],
       late: ['Відбій тривоги застав вас на сходах.', 'Баба Зіна: «Ну, зате прогулялись».'] },
     { tier: 8, title: 'Військкомат', short: 'Військкомат', weekday: 'Четвер', start: 9 * 60 + 0, slack: 22,
-      brief: 'Тебе спакували просто біля підʼїзду. Ти вже у військкоматі, на ВЛК: ЛОР, окуліст, психіатр. Відкоси — і до Каті, вона не знає, де ти.',
+      brief: 'Тебе спакували просто біля підʼїзду. Ти у військкоматі, на ВЛК: ЛОР, окуліст, психіатр. Прослизни повз лікарів, вилізь через вікно коридору — і подалі від району, до Каті.',
       steps: [
         { type: 'mini', game: 'vlk_psy', label: 'ВЛК: ЛОР, окуліст, психіатр — прослизни!' },
-        { type: 'go', at: 'coffee_prosp', label: 'Вибрався! Біжи до Каті — вона хвилюється' }],
-      events: [{ type: 'raid', at: [8, 16], chance: 1 }],
+        { type: 'go', at: 'metroB', label: 'Вибрався через вікно! Подалі від району — до метро «Хрещатик»' },
+        { type: 'hold', at: 'coffee_sq', label: 'Катя чекає в сквері — обійми її', hold: 1.4, doing: 'Катя: «Ти де був?!» — і не відпускає.' }],
+      events: [{ type: 'raid', at: [14, 26], chance: 1 }, { type: 'rain', at: [5, 10], chance: 0.6 }],
       star3: 'clean', place: 'square',
       win: ['Катя: «Де ти був?!»', 'Ти: «У психіатра. Сказав, що бачу буси на плямах».', 'Катя: «А ти бачиш?» — «Я їх бачу всюди».'],
       late: ['Катя вже обдзвонила всі лікарні.', 'І всі ТЦК.', 'Тепер про тебе знає навіть той, хто не знав.'] },
@@ -30619,7 +30620,7 @@
       brief: 'Ти вирішив: сьогодні. Троянди, свічки по парку — і питання, від якого страшніше, ніж від будь-якого буса.',
       steps: [
         { type: 'hold', at: 'flowers_shop', label: 'Купи троянди', hold: 1.0, doing: 'Флорист: «Освідчення? Тоді — червоні».' },
-        { type: 'collect', center: 'park', n: 4, radius: 240, label: 'Розстав свічки в парку', item: 'page', names: ['Свічка', 'Ще свічка', 'Третя', 'Остання'] },
+        { type: 'collect', center: 'park', n: 4, radius: 240, label: 'Розстав свічки в парку', item: 'page', names: ['Перша свічка', 'Друга свічка', 'Третя свічка', 'Остання свічка'] },
         { type: 'hold', at: 'fountain_sq', label: 'Освідчись Каті', hold: 3.0, doing: 'Встаєш на одне коліно… Катя: «ТАК!»' }],
       events: [{ type: 'blackout', at: [4, 8], chance: 1, dur: 70 }, { type: 'checkpoint', at: [14, 22], chance: 0.7 }],
       star3: 'noHit', place: 'square',
@@ -31168,7 +31169,7 @@
             q = randomWalkable(c.x, c.y, 60, s.radius || 260);
             if (!s.points.some((o) => Math.hypot(o.x - q.x, o.y - q.y) < 70)) break;
           }
-          s.points.push({ x: q.x, y: q.y, got: false, name: 'Сторінка ' + (i + 1), acc: 0 });
+          s.points.push({ x: q.x, y: q.y, got: false, name: (s.itemName || 'Аркуш') + ' ' + (i + 1), acc: 0 });
         }
       }
     });
@@ -31744,7 +31745,7 @@
         const near = w.look ? 70 : 34;
         if (d < near && !p.hidden) { s.closeT += dt; if (s.closeT > (w.look ? 0.5 : 1.2) && !S.tailSpotted) { S.tailSpotted = true; say(w, G.rng.pick(['Ти чого за мною ходиш?', 'Хлопче, ми знайомі?', 'Не треба за мною йти!']), 2200, 'shout'); toast('Він тебе помітив! Тримай дистанцію.', 2000); } }
         else s.closeT = Math.max(0, s.closeT - dt);
-        if (d > 230) { s.farT += dt; if (s.farT > 1 && !w.arrived) w.waitT = Math.max(w.waitT, 0.3); if (s.farT > 1 && !s.farWarn) { s.farWarn = true; toast('Не загуби його! Він чекає на світлофорі.', 1800); } } else { s.farT = 0; s.farWarn = false; }
+        if (d > 230) { s.farT += dt; if (s.farT > 1 && !w.arrived) w.waitT = Math.max(w.waitT, 0.3); if (s.farT > 1 && !s.farWarn) { s.farWarn = true; toast('Не загуби його! Підійди ближче.', 1800); } } else { s.farT = 0; s.farWarn = false; }
         if (w.arrived && d < 200) completeStep();
         break;
       }
@@ -31767,7 +31768,8 @@
       case 'lure': {
         const chase = realChase();
         if (chase) s.lastChase = S.t;
-        if (!chase && S.t - s.lastChase > 7) { s.reT -= dt; if (s.reT <= 0) { s.reT = 9; spawnPursuers(3, 150, 230, ['rude', 'polite', 'tired'], null, true); toast('Вони тебе загубили! Покажись ще раз.', 1800); } }
+        if (S.chaseEvT != null && S.chaseEvT > s.lastChase) s.lastChase = S.chaseEvT; // chase:start — лише коли хтось справді побіг
+        if (!chase && S.t - s.lastChase > 7) { s.reT -= dt; if (s.reT <= 0) { s.reT = 12; spawnPursuers(3, 150, 230, ['rude', 'polite', 'tired']); toast('Вони тебе загубили — і вже їдуть шукати. Чекай і веди!', 2000); } }
         if (reached(poi(s.at))) {
           if (S.t - s.lastChase < 6) completeStep();
           else if (!s.warn) { s.warn = true; toast('Погоня відстала — заведи їх сюди!', 1800); }
@@ -31792,7 +31794,7 @@
       case 'defend': {
         const q = poi(s.at);
         const inside = q && Math.hypot(p.x - q.x, p.y - q.y) < 80 && !p.hidden;
-        if (inside) { s.left -= dt; s.outT = 0; } else { s.outT += dt; if (s.outT > 1.5 && !s.outWarn) { s.outWarn = true; toast('Повернись до Каті! Час іде, тільки коли ти поруч.', 2000); } }
+        if (inside) { s.left -= dt; s.outT = 0; } else if (s.arrived) { s.outT += dt; if (s.outT > 1.5 && !s.outWarn) { s.outWarn = true; toast('Повернись до Каті! Час іде, тільки коли ти поруч.', 2000); } }
         if (inside) s.outWarn = false;
         if (inside && !s.arrived) { s.arrived = true; s.wave = 4; toast('Катя: «Постій поруч, я швидко!»', 1800); }
         if (s.arrived) s.wave -= dt;
@@ -31817,7 +31819,8 @@
         const q = poi(s.at);
         const ok = reached(q) && !p.hidden && !p.riding;
         // фото — лише коли тебе зараз ніхто не бачить (погоня може тривати, але без свідків)
-        const chase = G.tck && G.tck.chaseActive && G.tck.seen;
+        // фото не вийде, лише якщо ТЦК поруч і бачить тебе (а не будь-яка погоня десь у районі)
+        const chase = s.type === 'photo' && G.tck && G.tck.list.some((t) => t.alive && !t.ko && t.sees && Math.hypot(t.x - p.x, t.y - p.y) < 240);
         if (ok && !(s.type === 'photo' && chase)) {
           s.acc += dt;
           if (s.acc >= (s.hold || 1)) completeStep();
@@ -31836,7 +31839,8 @@
             if (s.hold) { q.acc += dt; if (q.acc < s.hold) { left++; continue; } }
             q.got = true; sfx('pickup');
             const got = s.points.filter((o) => o.got).length;
-            toast((q.name || 'Є') + '! ' + got + '/' + s.points.length, 1800);
+            const nm = s.names && !s.pts ? s.names[got - 1] : q.name; // записки/свічки — по черзі знахідок
+            toast((nm || 'Є') + '! ' + got + '/' + s.points.length, 1800);
             continue;
           } else if (s.hold) q.acc = Math.max(0, q.acc - dt);
           left++;
