@@ -15755,16 +15755,17 @@
   function mStation(g, W, H, name, scroll, t) {
     const R = (c, x, y, w, h) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), w, h); };
     const sc = Math.round(scroll || 0);
+    const pm = (v, n) => ((v % n) + n) % n; // додатна остача (scroll буває відʼємний)
     // склепіння з арками
     R('#2a2632', 0, 0, W, 22);
-    for (let x = -(sc % 40) - 40; x < W + 40; x += 40) {
+    for (let x = -pm(sc, 40) - 40; x < W + 40; x += 40) {
       for (let k = 0; k < 20; k++) { const yy = 4 + Math.round(Math.sqrt(Math.max(0, 1 - Math.pow((k - 10) / 10, 2))) * -4) + 4; R('#3a3544', x + k * 2, yy, 2, 22 - yy); }
       R('#4a4456', x, 20, 40, 2); R('#211e28', x, 4, 2, 18);
     }
     // мармурова стіна
     R('#d9cdb4', 0, 22, W, 66);
     for (let y = 22; y < 88; y++) for (let x = 0; x < W; x += 1) { const n = mh(((x + sc) >> 0) * 7 + y * 131, 3); if (n > 0.985) R('#c2b498', x, y, 1, 1); else if (n < 0.012) R('#e8dfca', x, y, 1, 1); }
-    for (let x = -(sc % 32); x < W; x += 32) R('#c6b99e', x, 22, 1, 66);           // шви плит
+    for (let x = -pm(sc, 32); x < W; x += 32) R('#c6b99e', x, 22, 1, 66);           // шви плит
     R('#c6b99e', 0, 54, W, 1);
     R('#b8302a', 0, 74, W, 3); R('#8a2420', 0, 77, W, 1);                        // червона лінія
     R('#5a5262', 0, 84, W, 4); R('#3e3846', 0, 87, W, 1);                        // цоколь
@@ -15776,26 +15777,26 @@
     G.text(g, label, lx + tw / 2, 34, { size: 8, align: 'center', color: '#e8c060' });
     R('#e5483c', lx - 16, 33, 9, 9); G.text(g, 'М', lx - 12, 34, { size: 7, align: 'center', color: '#ffffff' });
     // люстри (київські: латунь + кулі)
-    for (let x = -(sc % 64) + 20; x < W + 20; x += 64) {
+    for (let x = -pm(sc, 64) + 20; x < W + 20; x += 64) {
       R('#6a5a34', x + 5, 22, 1, 6); R('#b8943a', x, 28, 11, 2); R('#8a6a24', x, 30, 11, 1);
       for (const bx of [0, 4, 8]) { R('#fff2c8', x + bx, 31, 3, 3); R('#ffffff', x + bx + 1, 31, 1, 1); }
       g.fillStyle = 'rgba(255,236,190,0.10)'; g.beginPath(); g.ellipse(x + 5, 40, 26, 14, 0, 0, Math.PI * 2); g.fill();
     }
     // колія
     R('#1a181e', 0, 88, W, 12);
-    for (let x = -(sc % 6); x < W; x += 6) R('#2c2a30', x, 95, 4, 2);              // шпали
+    for (let x = -pm(sc, 6); x < W; x += 6) R('#2c2a30', x, 95, 4, 2);              // шпали
     R('#8a8a94', 0, 93, W, 1); R('#8a8a94', 0, 97, W, 1);                          // рейки
     R('#5a5a62', 0, 94, W, 1);
     // платформа: граніт, жовта лінія з точками
     R('#7a7480', 0, MP.floorY, W, H - MP.floorY);
     for (let y = MP.floorY + 4; y < H; y += 8) R('#6c6672', 0, y, W, 1);
-    for (let y = MP.floorY + 4; y < H; y += 8) for (let x = -(sc % 16) + ((y >> 3) & 1) * 8; x < W; x += 16) R('#6c6672', x, y, 1, 8);
+    for (let y = MP.floorY + 4; y < H; y += 8) for (let x = -pm(sc, 16) + ((y >> 3) & 1) * 8; x < W; x += 16) R('#6c6672', x, y, 1, 8);
     for (let y = MP.floorY + 2; y < H; y++) for (let x = 0; x < W; x += 1) if (mh(((x + sc) >> 0) * 13 + y * 7, 5) > 0.992) R('#9a94a0', x, y, 1, 1);
     R('#4a4650', 0, MP.floorY, W, 1);
     R('#e8b830', 0, MP.floorY + 1, W, 2);
-    for (let x = -(sc % 4); x < W; x += 4) R('#b88a18', x, MP.floorY + 2, 1, 1);
+    for (let x = -pm(sc, 4); x < W; x += 4) R('#b88a18', x, MP.floorY + 2, 1, 1);
     // відблиск люстр на підлозі
-    for (let x = -(sc % 64) + 25; x < W + 20; x += 64) { g.fillStyle = 'rgba(255,236,190,0.08)'; g.fillRect(x - 14, MP.floorY + 4, 30, H - MP.floorY - 4); }
+    for (let x = -pm(sc, 64) + 25; x < W + 20; x += 64) { g.fillStyle = 'rgba(255,236,190,0.08)'; g.fillRect(x - 14, MP.floorY + 4, 30, H - MP.floorY - 4); }
     void t;
   }
   // вагон 81-717 (синій, біла смуга): k — номер вагона, front — кабіна з фарами
@@ -15896,7 +15897,8 @@
       for (let i = 0; i < 4; i++) { const s = (t * 9 + i * 0.37) % 1; if (s < 0.3) { g.fillStyle = s < 0.15 ? '#fff6a0' : '#f2a020'; g.fillRect(Math.round(stopX + 20 + i * 100 - s * 20), MP.trainY + 38 + Math.round(s * 4), 1, 1); } }
       const k = (t - 1.65) / 1.1; if (k < 0.12) fade = 1 - k / 0.12;
     } else {
-      const k = ease((t - 2.75) / 0.7), scroll = (1 - k) * 360;
+      // потяг їде праворуч → станція «куди» пропливає ліворуч (назустріч) і плавно зупиняється
+      const k = ease((t - 2.75) / 0.7), scroll = -(1 - k) * 360;
       mStation(g, W2, 135 + yOff, m.to.name, scroll, t);
       mPassengers(g, scroll - 40);
       mTrain(g, stopX, MP.trainY, t > 3.45 ? U.clamp((t - 3.45) / 0.2, 0, 1) : 0, t);
