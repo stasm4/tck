@@ -31396,6 +31396,27 @@
   // ── «Військкомат»: героя пакують просто біля підʼїзду — справжній бус і справжні ТЦК у місті ──
   // spawn → drive (бус підʼїжджає) → walk (двоє ТЦК виходять) → grab (крутять) → drag (до дверей) → leave (бус їде, камера за ним)
   // → кат-сцена bus_vlk (салон буса) → ВЛК (vlk_full) → герой «вибрався через вікно» біля POI office.
+  // після ВЛК: військкомату на мапі нема — герой вибрався через вікно і дворами прибіг на край району
+  // (тротуар біля вʼїзду в район, далеко від метро «Хрещатик», ближче до дому)
+  function escapeSpot() {
+    const Wd = G.world, sp = Wd && Wd.spawnPoints && Wd.spawnPoints.bus, goal = poi('metroB'), home = poi('home');
+    if (!sp || !sp.length || !goal) return null;
+    const c = sp.filter((e) => { const dg = Math.hypot(e.x - goal.x, e.y - goal.y); return dg > 700 && dg < 1900; });
+    const list = (c.length ? c : sp).slice().sort((a, b) => (home ? Math.hypot(a.x - home.x, a.y - home.y) - Math.hypot(b.x - home.x, b.y - home.y) : 0));
+    for (const e of list) {
+      const ex = Math.floor(e.x / T), ey = Math.floor(e.y / T);
+      for (let r = 1; r < 10; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const tx = ex + dx, ty = ey + dy;
+        if (tx < 3 || ty < 3 || tx >= Wd.w - 3 || ty >= Wd.h - 3) continue;
+        const tl = Wd.tileAt(tx, ty);
+        if (!tl || tl.type !== 'sidewalk' || !Wd.isWalkable(tx, ty)) continue;
+        const q = { x: (tx + 0.5) * T, y: (ty + 0.5) * T };
+        if (Wd.path(q, goal).length) return q;
+      }
+    }
+    return null;
+  }
   function arrestTick(s, p, dt) {
     const A = s.ar || (s.ar = { ph: 'spawn', t: 0, crew: [] });
     S.arresting = true;
@@ -31406,11 +31427,12 @@
       for (const t of A.crew) t.alive = false;
       if (A.bus) A.bus.alive = false;
       const done = (r) => {
-        const q = poi('office') || poi('home');
+        const q = escapeSpot() || poi('home');
         S.arresting = false;
         p.caught = false; p.hidden = false; p.invuln = Math.max(p.invuln || 0, 3);
         if (q) { p.x = q.x; p.y = q.y; p.vx = p.vy = 0; if (G.camera && G.camera.follow) G.camera.follow(p, true); }
-        if (!r.clean) S.miniDirty = true; else toast('Чисто! Ні одного штампа.', 2000);
+        if (!r.clean) S.miniDirty = true;
+        toast(r.clean ? 'Чисто! І через вікно туалету — на волю.' : 'Вікно в туалеті військкомату. Дворами — на край району.', 2600);
         completeStep();
       };
       const mini = () => { if (G.minigames) G.minigames.start('vlk_full', done); else done({ clean: true }); };
@@ -31469,7 +31491,9 @@
       }
       A.crew.forEach((t, i) => { t.scriptTarget = { x: p.x + (i ? 15 : -15), y: p.y + 2 }; });
       if (A.crew.length === 1 && !A.said0) { A.said0 = true; ui(A.crew[0], 'Стояти! ТЦК!', 1400); sfx('shout'); }
-      if (A.crew.length === 2 && (A.crew.every((t) => t.arrived) || A.t > 6)) { A.ph = 'grab'; A.t = 0; sfx('hit'); if (G.camera && G.camera.shake) G.camera.shake(3, 300); }
+      if (A.crew.length === 2 && (A.crew.every((t) => t.arrived) || A.t > 6)) {
+        A.crew.forEach((t, i) => { if (Math.hypot(t.x - p.x, t.y - p.y) > 22) { t.x = p.x + (i ? 15 : -15); t.y = p.y + 2; } });
+        A.ph = 'grab'; A.t = 0; sfx('hit'); if (G.camera && G.camera.shake) G.camera.shake(3, 300); }
       return;
     }
     if (A.ph === 'grab') {
@@ -31482,11 +31506,25 @@
       return;
     }
     if (A.ph === 'drag') {
-      A.crew.forEach((t, i) => { t.scriptTarget = { x: d.x + (i ? 8 : -8), y: d.y }; });
-      const k = Math.min(1, dt * 1.6);
-      const mx = (A.crew[0].x + A.crew[1].x) / 2, my = (A.crew[0].y + A.crew[1].y) / 2;
-      p.x += (mx - p.x) * k * 3; p.y += (my - p.y) * k * 3;
-      if (Math.hypot(p.x - d.x, p.y - d.y) < 10 || A.t > 4) {
+      // ведуть по прохідному шляху (в обхід дерев/лавок), ТЦК — з боків, не застрягають
+      if (!A.path) {
+        A.path = (G.world && G.world.path ? (G.world.path({ x: p.x, y: p.y }, { x: d.x, y: d.y }) || []) : []).slice();
+        A.path.push({ x: d.x, y: d.y }); A.pi = 0; A.ux = 0; A.uy = 1;
+      }
+      let st = 46 * dt;
+      while (st > 0 && A.pi < A.path.length) {
+        const q = A.path[A.pi], dx = q.x - p.x, dy = q.y - p.y, L = Math.hypot(dx, dy);
+        if (L < 0.01) { A.pi++; continue; }
+        A.ux = dx / L; A.uy = dy / L;
+        if (L <= st) { p.x = q.x; p.y = q.y; st -= L; A.pi++; } else { p.x += A.ux * st; p.y += A.uy * st; st = 0; }
+      }
+      p.dir = Math.abs(A.ux) > Math.abs(A.uy) ? (A.ux > 0 ? 'right' : 'left') : (A.uy > 0 ? 'down' : 'up');
+      A.crew.forEach((t, i) => {
+        const sg = i ? 1 : -1, tx = p.x - A.uy * 11 * sg - A.ux * 3, ty = p.y + A.ux * 6 * sg - A.uy * 3;
+        t.scriptTarget = { x: tx, y: ty };
+        if (Math.hypot(t.x - tx, t.y - ty) > 7) { t.x += (tx - t.x) * Math.min(1, dt * 10); t.y += (ty - t.y) * Math.min(1, dt * 10); }
+      });
+      if (A.pi >= A.path.length || A.t > 9) {
         p.hidden = true; for (const t of A.crew) t.alive = false;
         b.doorOpen = false; sfx('slide_door', { x: b.x, y: b.y, pitch: 0.9 }); G.after(450, () => sfx('door_slam', { x: b.x, y: b.y }), {});
         A.ph = 'leave'; A.t = 0;
