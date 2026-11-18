@@ -1166,7 +1166,7 @@
       if (inR(lx, ly, PAUSE(), 6)) { rec.kind = 'pause'; if (G.ui && G.ui.pauseMenu) G.ui.pauseMenu.resume(); else pulse('pause'); return; }
       if (!(G.ui && G.ui.pauseMenu)) { rec.kind = 'pause'; pulse('pause'); return; }
     }
-    if (st === 'cutscene' && inR(lx, ly, SKIP(), 4)) { rec.kind = 'skip'; pulse('confirm'); return; }
+    if (st === 'cutscene' && !(G.cutscene && G.cutscene.locked) && inR(lx, ly, SKIP(), 4)) { rec.kind = 'skip'; pulse('confirm'); return; }
     if (st === 'missions' && inR(lx, ly, BACK(), 4)) { rec.kind = 'back'; pulse('pause'); return; }
     // меню, діалог, результат, гардероб, крамниця, вибір місій, кат-сцени: тап = клік миші
     I.tap(t.clientX, t.clientY, { type: 'touchstart', code: '' });
@@ -1550,7 +1550,7 @@
     } else if (st === 'paused') {
       drawPause(ctx, heldKind('pause'), true); // підказки малює меню паузи (70_ui)
     } else if (st === 'cutscene') {
-      panelBtn(ctx, SKIP(), 'ПРОПУСТИТИ', heldKind('skip'));
+      if (!(G.cutscene && G.cutscene.locked)) panelBtn(ctx, SKIP(), 'ПРОПУСТИТИ', heldKind('skip'));
     } else if (st === 'missions') {
       panelBtn(ctx, BACK(), 'НАЗАД', heldKind('back'));
     }
@@ -28359,7 +28359,7 @@
         title: 'КІНЕЦЬ. МАБУТЬ.' },
     ]] },
     // після місії 30: перемога, ТЦК — під суд, титри; далі — нескінченний режим
-    victory: { n: 9, title: 'ПЕРЕМОГА', sub: 'Справжній фінал', col: '#3c6fb4', credits: true, pages: [[
+    victory: { n: 9, title: 'ПЕРЕМОГА', sub: 'Справжній фінал', col: '#3c6fb4', credits: true, auto: true, pages: [[
       { r: L4[0], from: 'left', bg: 'phone', P: { title: 'Новини', notif: true, pw: 120, msgs: [{ card: true, t: 'ОФІЦІЙНО: ВІЙНА ЗАКІНЧИЛАСЬ. ПЕРЕМОГА!' }] },
         actors: [{ port: HERO, x: 134, y: 40, s: 2 }],
         cap: 'Понеділок. 8:00.',
@@ -28367,24 +28367,39 @@
       { r: L4[1], from: 'right', bg: 'burst', P: {},
         actors: [{ port: HERO, x: 30, y: 30, s: 2 }],
         say: [{ kind: 'shout', t: 'ПЕРЕМОГА!!!', x: 120, y: 20, w: 100, tail: [90, 50] }] },
-      { r: L4[2], from: 'left', bg: 'sky', P: { tod: 'day', sx: 60, sy: 30, ground: 100 },
-        actors: [{ bus: true, x: 150, y: 96, s: 1, dir: 'right' }],
-        cap: 'За тиждень — розслідування. Усіх, хто пакував людей на вулицях, — під суд.',
-        capB: 'Буси ТЦК їдуть. Цього разу — у СІЗО.' },
-      { r: L4[3], from: 'right', bg: 'cab', P: {},
-        actors: [{ port: 'tolik_tck', x: 56, y: 34, s: 2 }],
-        say: [{ who: 'Вася', kind: 'radio', t: 'Знову за кермом буса! Тільки тепер ТЦК — пасажири. Пристебніться, панове.', x: 4, y: 4, w: 144, tail: [100, 50] }] },
+      { r: L4[2], from: 'left', bg: 'kiosk',
+        actors: [{ port: 'katya_happy', x: 18, y: 36, s: 2 }],
+        say: [{ who: 'Катя', t: 'Сьогодні кава безкоштовна. Для всіх!', x: 122, y: 14, w: 104, tail: [100, 50] }] },
+      { r: L4[3], from: 'right', bg: 'sky', P: { tod: 'day', sx: 140, sy: 30, ground: 98, lamp: 200 },
+        actors: [{ hero: true, x: 76, feet: 116, s: 3, dir: 'down' }],
+        say: [{ kind: 'think', t: 'Вперше за два роки йду вулицею. І не озираюсь.', x: 120, y: 8, w: 104, tail: [96, 50] }] },
     ], [
-      { r: L4[0], from: 'left', bg: 'office', P: { night: true },
+      { r: L4[0], from: 'left', bg: 'phone', P: { title: 'Новини', notif: true, pw: 120, msgs: [{ card: true, t: 'СЛІДСТВО: ТЦК хапали людей просто на вулицях. Справи — до суду.' }] },
+        actors: [{ port: HERO, x: 134, y: 40, s: 2 }],
+        cap: 'Через місяць.' },
+      { r: L4[1], from: 'right', bg: 'office', P: { night: true },
         actors: [{ port: 'major_shock', x: 120, y: 30, s: 2 }],
-        say: [{ who: 'Майор', t: 'А мене за що?! Я ж тепер родина!', x: 6, y: 8, w: 110, tail: [130, 60] }] },
-      { r: L4[1], from: 'right', bg: 'tesha', P: { sx: 40 },
+        cap: 'Суд. Вирок: за викрадення людей — реальні строки.',
+        say: [{ who: 'Майор', t: 'А мене за що?! Я ж план виконував!', x: 6, y: 30, w: 110, tail: [130, 64] }] },
+      { r: L4[2], from: 'left', bg: 'cab', P: {},
+        actors: [{ port: 'tolik_tck', x: 56, y: 34, s: 2 }],
+        say: [{ who: 'Вася', kind: 'radio', t: 'Знову за кермом буса! Тільки тепер ТЦК — пасажири. Наступна зупинка — тюрма.', x: 4, y: 4, w: 144, tail: [100, 50] }] },
+      { r: L4[3], from: 'right', bg: 'sky', P: { tod: 'eve', sx: 60, sy: 30, ground: 100 },
+        actors: [{ bus: true, x: 150, y: 96, s: 1, dir: 'right' }],
+        cap: 'Буси ТЦК їдуть. Цього разу — у тюрму.',
+        capB: 'Людей на вулицях більше ніхто не пакує.' },
+    ], [
+      { r: L4[0], from: 'left', bg: 'tesha', P: { sx: 40 },
         actors: [{ port: 'tesha_dreamy', x: 124, y: 34, s: 2 }],
         say: [{ who: 'Галина Степанівна', t: 'Чекатиму, Валерику. Холодець передам. Свіжий.', x: 8, y: 20, w: 112, tail: [124, 60] }] },
-      { r: L4[2], from: 'left', bg: 'kiosk',
+      { r: L4[1], from: 'right', bg: 'kiosk',
         actors: [{ port: 'katya_happy', x: 18, y: 36, s: 2 }, { port: HERO, x: 136, y: 40, s: 2 }],
         say: [{ who: 'Катя', t: 'Ти обіцяв: весілля після перемоги.', x: 6, y: 20, w: 112, tail: [60, 52] },
           { who: 'Андрій', t: 'Субота. І я нікуди не біжу.', x: 228, y: 8, w: 108, right: true, tail: [180, 46] }] },
+      { r: L4[2], from: 'left', bg: 'sky', P: { tod: 'eve', sx: 20, sy: 34, ground: 98, bench: 60 },
+        actors: [{ hero: true, x: 150, feet: 116, s: 3, dir: 'left' }],
+        cap: 'Субота. Сквер. Весілля.',
+        say: [{ kind: 'think', t: 'Тепер я бігаю тільки зранку. Для здоровʼя.', x: 6, y: 34, w: 110, tail: [140, 60] }] },
       { r: L4[3], from: 'right', bg: 'phone', P: { title: 'Мама', bgc: '#8a6a7a', msgs: [{ t: 'Синку, а кефір?' }] },
         actors: [{ port: HERO, x: 128, y: 34, s: 2 }],
         say: [{ who: 'Андрій', t: 'Вже йду, мам. Не біжу. Йду.', x: 222, y: 8, w: 110, right: true, tail: [176, 44] }],
@@ -28395,8 +28410,8 @@
     ['ТЦК', 27, '#f7c948'], ['гра про Андрія, каву і бюрократію', 8, '#e8dcc8'], [''],
     ['У РОЛЯХ', 10, '#f7c948'],
     ['Андрій — оператор колл-центру, 25 років'], ['Катя — бариста з кіоску «Кава», наречена'], ['Галина Степанівна — «теща»'],
-    ['Майор Валерій — мегафон (тепер у СІЗО)'], ['Вася — водій (тепер легально)'], ['Мама — головна по кефіру'], ['Начальник — гаряча лінія'],
-    ['Батюшка — свічки за бронь'], ['Буси ТЦК — у ролі самих себе'], ['Голуби Києва — у ролі голубів'], [''],
+    ['Майор Валерій — мегафон (тепер у тюрмі)'], ['Вася — водій (тепер легально)'], ['Мама — головна по кефіру'], ['Начальник — гаряча лінія'],
+    ['Батюшка — свічки за бронь'], ['Буси ТЦК — у ролі самих себе (тепер возять ТЦК)'], ['Голуби Києва — у ролі голубів'], [''],
     ['МУЗИКА І ЗВУКИ', 10, '#f7c948'], ['Музика — Web Audio, наживо в браузері'],
     ['Сирена цивільної оборони: запис BogdanKravhenko143452435,'], ['Wikimedia Commons, ліцензія CC BY-SA 4.0'], [''],
     ['Усі персонажі вигадані.'], ['Збіги з вашою тещею — випадкові.'], [''],
@@ -28407,7 +28422,7 @@
   function comicScene(id) {
     const D = COMICS[id];
     return {
-      skippable: false, ownHint: true, wide: true,
+      skippable: false, ownHint: true, wide: true, locked: !!D.auto,
       build(c) {
         c.D = D; c.page = 0; c.pi = 0; c.pT = 0; c.pc = 0; c.phase = 'title'; c.phT = 0; c.cred = 0; c.typeAcc = 0;
         if (G.audio && G.audio.music) G.audio.music('comic', { fade: 0.8 });
@@ -28431,7 +28446,7 @@
   function comicNext(c) {
     const ps = curPanels(c), p = ps[c.pi];
     if (c.phase === 'title') { c.phase = 'page'; c.pT = 0; sfxP('page'); return; }
-    if (c.phase === 'credits') { if (c.cred > 1.5) c.done = true; return; }
+    if (c.phase === 'credits') { if (c.cred > 1.5 && !c.D.auto) c.done = true; return; }
     if (c.phase === 'out') return;
     if (p && (c.pT < 0.35 || c.pc < panelLen(p))) { c.pc = 1e6; c.pT = Math.max(c.pT, 0.35); return; }
     if (c.pi < ps.length - 1) { c.pi++; c.pT = 0; c.pc = 0; sfxP('page', { pitch: 1.6, vol: 0.5 }); return; }
@@ -28441,14 +28456,17 @@
   function comicUpdate(c, dt) {
     c.phT += dt; c.pT += dt;
     const inp = c.T > 0.2 ? comicInput() : null;
-    if (inp === 'skip') { c.skipped = true; c.done = true; return; }
-    if (inp === 'adv') comicNext(c);
-    if (c.phase === 'title' && c.phT > 1.8) { c.phase = 'page'; c.pT = 0; sfxP('page'); }
+    if (c.D.auto) autoUpdate(c, dt); // мульт: грає сам, пропустити не можна (натискання ігноруються)
+    else {
+      if (inp === 'skip') { c.skipped = true; c.done = true; return; }
+      if (inp === 'adv') comicNext(c);
+    }
+    if (c.phase === 'title' && c.phT > (c.D.auto ? 2.8 : 1.8)) { c.phase = 'page'; c.pT = 0; sfxP('page'); }
     if (c.phase === 'page') {
       const p = curPanels(c)[c.pi];
       if (p && c.pT > 0.35) {
         const before = Math.floor(c.pc);
-        c.pc += dt * 42;
+        c.pc += dt * (c.D.auto ? 30 : 42);
         if (Math.floor(c.pc) !== before && Math.floor(c.pc) % 3 === 0 && c.pc < panelLen(p)) sfxP('type', { pitch: 1.1, vol: 0.4 });
       }
     }
@@ -28458,6 +28476,32 @@
       else c.done = true;
     }
     if (c.phase === 'credits') { c.cred += dt; if (c.cred > creditsDur() + 4) c.done = true; }
+  }
+  // ── мульт (D.auto): камера наїжджає на поточну панель, текст друкується сам, пауза на прочитання → наступна;
+  // після останньої панелі — відʼїзд на всю сторінку, і сторінка гортається ──
+  function autoUpdate(c, dt) {
+    if (c.phase === 'page') {
+      const ps = curPanels(c), p = ps[c.pi];
+      if (p && c.pT > 0.35 && c.pc >= panelLen(p)) {
+        c.hold = (c.hold || 0) + dt;
+        const need = 1.6 + panelLen(p) * 0.025;
+        if (c.pi < ps.length - 1) { if (c.hold > need) { c.hold = 0; comicNext(c); } }
+        else if (!c.overview) { if (c.hold > need) { c.overview = 0.001; c.hold = 0; } }
+      }
+      if (c.overview) { c.overview += dt; if (c.overview > 2.4) { c.overview = 0; c.hold = 0; comicNext(c); } }
+    }
+    // камера (у координатах сторінки 480×270, зсунутої на pox)
+    const pox = Math.floor((VW() - 480) / 2);
+    let tx = VW() / 2, ty = VH() / 2, ts = 1;
+    const p = curPanels(c)[c.pi];
+    if (c.phase === 'page' && p && !c.overview) {
+      const [x, y, w, h] = p.r;
+      ts = Math.min(VW() / (w + 14), VH() / (h + 14)); tx = pox + x + w / 2; ty = y + h / 2;
+      ts *= 1 + 0.035 * Math.min(1, c.pT / 6); // повільний наїзд
+    }
+    if (!c.cam) c.cam = { x: VW() / 2, y: VH() / 2, s: 1 };
+    const k = 1 - Math.exp(-dt * 3.2);
+    c.cam.x += (tx - c.cam.x) * k; c.cam.y += (ty - c.cam.y) * k; c.cam.s += (ts - c.cam.s) * k;
   }
   function creditsDur() { return (CREDITS.length * 16 + VH()) / 22; }
   function paper(ctx) {
@@ -28523,15 +28567,21 @@
     // Round 18: сторінка зверстана під 480 — на ширшому екрані панелі по центру, папір на всю ширину
     const pox = Math.floor((VW() - 480) / 2);
     if (c.phase === 'out') { const k = Math.min(1, c.phT / 0.45); ctx.translate(-Math.round(k * k * (VW() + pox)), 0); }
+    if (c.D.auto && c.cam) {
+      const sx = Math.sin(c.T * 0.5) * 1.5, sy = Math.cos(c.T * 0.37) * 1; // легке «дихання» камери
+      ctx.translate(VW() / 2, VH() / 2); ctx.scale(c.cam.s, c.cam.s); ctx.translate(-c.cam.x + sx, -c.cam.y + sy);
+    }
     ctx.translate(pox, 0);
     G.with480(() => { for (let i = 0; i <= c.pi && i < ps.length; i++) drawPanel(ctx, c, ps[i], i, T); });
     ctx.restore();
     // номер сторінки
+    if (c.D.auto) { cinemaBars(ctx); return; }
     txt(ctx, (c.page + 1) + '/' + c.D.pages.length, VW() - 8, VH() - 12, { size: 7, align: 'right', color: '#8a7a6a' });
     hint(ctx, c);
   }
+  function cinemaBars(ctx) { R_(ctx, '#0c0a1a', 0, 0, VW(), 10); R_(ctx, '#0c0a1a', 0, VH() - 10, VW(), 10); }
   function hint(ctx, c) {
-    if (c.T < 0.6) return;
+    if (c.T < 0.6 || c.D.auto) return;
     const touch = !!(G.touch && G.touch.active);
     const ps = curPanels(c), p = ps[c.pi];
     const ready = c.phase === 'title' || (p && c.pT > 0.35 && c.pc >= panelLen(p));
@@ -28552,9 +28602,223 @@
       if (s && y > -30 && y < VH() + 10) txt(ctx, s, VW() / 2, y, { size: sz, align: 'center', color: col || '#d8d0c4', shadow: true });
       y += sz >= 18 ? 30 : sz >= 10 ? 18 : 14;
     }
-    if (c.cred > 1.5 && Math.floor(G.realTime * 2) % 2) txt(ctx, (G.touch && G.touch.active) ? 'торкнись — далі' : 'Enter — далі', VW() / 2, VH() - 12, { size: 7, align: 'center', color: 'rgba(255,255,255,0.6)' });
+    if (!c.D.auto && c.cred > 1.5 && Math.floor(G.realTime * 2) % 2) txt(ctx, (G.touch && G.touch.active) ? 'торкнись — далі' : 'Enter — далі', VW() / 2, VH() - 12, { size: 7, align: 'center', color: 'rgba(255,255,255,0.6)' });
   }
   for (const id in COMICS) SCENES[id] = comicScene(id);
+
+  // ═══════════════ ФІНАЛЬНИЙ МУЛЬТ (після місії 30): справжнє місто, справжні спрайти, без пропуску ═══════════════
+  // 1) Ранок, сквер біля фонтану: новина «Війна закінчилась», люди радіють, конфеті, Андрій і Катя.
+  // 2) «Через місяць»: на вулиці біля скверу поліція затримує ТЦК за викрадення людей — ТЦК саджають у їхній же бус,
+  //    поліцейська машина з мигалками веде його в тюрму.  3) «Субота»: весілля в сквері, «Гірко!».  4) Титри (теж без пропуску).
+  function FilmActor(o) { Object.assign(this, { alive: true, kind: 'decor', x: 0, y: 0, w: 10, h: 12, dir: 'down', spd: 30, anim: 0, fr: 0, jump: 0, hidden: false }, o); }
+  FilmActor.prototype.draw = function (ctx) {
+    let img = null;
+    const fr = this.moving ? [1, 2, 3, 2][Math.floor(this.anim) % 4] : this.fr;
+    try {
+      if (this.spr === 'player') img = G.sprites.get('player', { skin: this.skin, dir: this.dir, frame: fr });
+      else if (this.spr === 'tck') img = G.sprites.get('tck', { type: this.type, dir: this.dir, frame: fr });
+      else img = G.sprites.get('npc', { variant: this.variant, dir: this.dir, frame: Math.min(3, fr), skin: this.skin || 0 });
+    } catch (e) { img = null; }
+    if (!img) return;
+    const j = this.jump > 0 ? Math.abs(Math.sin(this.jumpT * 7)) * 4 : 0;
+    G.drawShadow(ctx, Math.round(this.x), this.y + this.h / 2 - 1, 9, 0.28);
+    ctx.drawImage(img, Math.round(this.x - img.width / 2), Math.round(this.y + this.h / 2 - img.height - j));
+  };
+  function FilmCar(o) { Object.assign(this, { alive: true, kind: 'decor', x: 0, y: 0, dir: 'left', v: 0, vmax: 90, door: false, flash: false, hidden: false }, o);
+    let img = null; try { img = G.sprites.get(this.key, { dir: this.dir }); } catch (e) { img = null; }
+    this.w = img ? img.width : 60; this.h = img ? img.height : 24; }
+  FilmCar.prototype.draw = function (ctx) {
+    G.drawShadow(ctx, Math.round(this.x), this.y + this.h / 2 - 1, this.w * 0.75, 0.3);
+    const o = this.key === 'bus' ? { variant: this.door ? 'open' : 'closed', frame: this.v < 5 ? 1 : 0 } : { frame: this.flash ? Math.floor(G.realTime * 6) % 4 : 0 };
+    if (G.traffic && G.traffic.drawVehicle) G.traffic.drawVehicle(ctx, this, this.key, o);
+  };
+
+  SCENES.victory_film = {
+    skippable: false, locked: true, camera: true,
+    next: 'credits_final',
+    build(c) {
+      const Wd = G.world, MS = G.missions, T = G.cfg.TILE;
+      const F = (MS && MS.poi && MS.poi('fountain_sq')) || (G.player ? { x: G.player.x, y: G.player.y } : { x: 400, y: 400 });
+      c.actors = []; c.conf = []; c.confOn = false; c.hearts = [];
+      // світ завмирає: ховаємо всіх живих (люди, ТЦК, машини, гравець) — у кадрі тільки актори мульта
+      c.hid = [];
+      for (const e of G.entities) if (e.alive && !e.hidden && e.kind !== 'decor') { e.hidden = true; c.hid.push(e); }
+      if (G.ui && G.ui.reset) { try { G.ui.reset(); } catch (e) { /* */ } }
+      const walk = (x, y) => !Wd || !Wd.isWalkable || Wd.isWalkable(Math.floor(x / T), Math.floor(y / T));
+      const add = (o) => { const a = new (o.key ? FilmCar : FilmActor)(o); c.actors.push(a); G.entities.push(a); return a; };
+      const skin = (G.player && G.player.skin) || 'office';
+      // ── 1: сквер ──
+      const hero = add({ spr: 'player', skin, x: F.x - 7, y: F.y, dir: 'right' });
+      const katya = add({ spr: 'npc', variant: 'woman', skin: 2, x: F.x + 7, y: F.y, dir: 'left' });
+      const CROWD = [['man', 0], ['granny', 1], ['woman', 0], ['kid', 1], ['man', 3], ['citizen', 1], ['woman', 3], ['man', 1], ['kid', 0], ['granny', 2]];
+      const crowd = [];
+      for (let i = 0, k = 0; i < CROWD.length && k < 400; k++) {
+        const an = k * 2.399, r = 34 + (k % 7) * 9, x = F.x + Math.cos(an) * r * 1.3, y = F.y + Math.sin(an) * r * 0.8;
+        if (!walk(x, y) || Math.hypot(x - F.x, y - F.y) < 26) continue;
+        crowd.push(add({ spr: 'npc', variant: CROWD[i][0], skin: CROWD[i][1], x, y, dir: x < F.x ? 'right' : 'left', jumpT: i * 0.37 })); i++;
+      }
+      // ── 2: вулиця біля скверу (найближча горизонтальна смуга під/над сквером) ──
+      let lane = null;
+      if (Wd && Wd.roads) for (const e of Wd.roads.edges) for (const ln of e.lanes) {
+        if (Math.abs(ln.y1 - ln.y0) > 2 || Math.min(ln.x0, ln.x1) > F.x - 200 || Math.max(ln.x0, ln.x1) < F.x + 200) continue;
+        const d = Math.abs(ln.y0 - F.y);
+        if (d < 400 && (!lane || d < lane.d)) lane = { y: ln.y0, dir: ln.x1 < ln.x0 ? 'left' : 'right', d };
+      }
+      if (!lane) lane = { y: F.y + 200, dir: 'left' };
+      const L = lane.dir === 'left' ? -1 : 1, X0 = F.x, LY = lane.y;
+      const side = LY > F.y ? -1 : 1; // тротуар — з боку скверу
+      const bus = add({ key: 'bus', dir: lane.dir, x: X0, y: LY, hidden: true });
+      const pol = add({ key: 'police', dir: lane.dir, x: X0 - L * 380, y: LY, hidden: true, flash: true });
+      const door = { x: bus.x + L * 4, y: LY + side * (bus.h / 2 + 7) };
+      const cops = [add({ spr: 'npc', variant: 'policeman', x: 0, y: 0, hidden: true }), add({ spr: 'npc', variant: 'policeman', x: 0, y: 0, hidden: true })];
+      const tcks = ['rude', 'polite', 'tired'].map((t) => add({ spr: 'tck', type: t, x: door.x, y: door.y, hidden: true }));
+      const watchers = [add({ spr: 'npc', variant: 'citizen', skin: 0, x: X0 - 60, y: door.y + side * 22, dir: 'right', hidden: true }),
+        add({ spr: 'npc', variant: 'granny', skin: 1, x: X0 + 70, y: door.y + side * 26, dir: 'left', hidden: true })];
+      c.F = F; c.cam = { x: F.x, y: F.y - 4 };
+      G.camera.follow(c.cam, true); G.camera.setZoom(2.4, true); G.camera.update(0);
+      const base = () => G.camera.base || 1;
+      const camTo = (x, y, z, d) => ({ d, start: (c) => { c._c0 = { x: c.cam.x, y: c.cam.y, z: G.camera.zoom / base() }; },
+        tick: (c, k) => { const e = easeInOut(k); c.cam.x = G.util.lerp(c._c0.x, x, e); c.cam.y = G.util.lerp(c._c0.y, y, e); if (z) G.camera.zoom = G.camera.targetZoom = G.util.lerp(c._c0.z, z, e) * base(); } });
+      const say = (a, t, ms, st) => K.call(() => { if (G.ui && G.ui.bubble) G.ui.bubble(a, t, ms || 2200, { style: st || 'say' }); });
+      const go = (a, x, y, spd) => K.call(() => { a.tx = x; a.ty = y; if (spd) a.spd = spd; });
+      const show = (list, on) => K.call(() => { for (const a of list) a.hidden = !on; });
+      const sfx = (n, o) => K.sfx(n, o);
+      return [
+        K.overlay(1, '#000'), K.music(null, { fade: 0.6 }),
+        K.wait(0.6),
+        K.say('Понеділок. 8:00.', { size: 10, cps: 22 }), K.wait(0.9),
+        K.say('По всіх каналах — одна новина.', { size: 10, cps: 22, y: VH() / 2 + 10 }), K.wait(1.1), K.clear(0.4),
+        K.sfx('all_clear', { vol: 0.5 }),
+        K.say('ВІЙНА ЗАКІНЧИЛАСЬ', { size: 18, cps: 14, color: '#f7c948', outline: '#1a0e20', y: VH() / 2 - 14 }), K.wait(1.0),
+        K.say('ПЕРЕМОГА', { size: 27, cps: 10, color: '#fbf8f0', outline: '#1a0e20', y: VH() / 2 + 10 }), K.wait(1.4), K.clear(0.5),
+        K.music('morning', { fade: 1.5 }),
+        K.fade(0, 1.4),
+        say(hero, 'Катю… Ти чула?', 2000), K.wait(1.6),
+        say(katya, 'Чула. Все. Все!', 2000), K.wait(0.6),
+        K.call((c) => { c.confOn = true; for (const a of crowd) a.jump = 1; sfx('goal'); }),
+        camTo(F.x, F.y + 6, 1.5, 3.2),
+        say(crowd[0] || hero, 'ПЕРЕМОГА!', 2600, 'shout'), K.wait(0.5),
+        say(crowd[1] || hero, 'Слава Україні!', 2600, 'shout'), K.wait(0.5),
+        say(crowd[2] || hero, 'Героям слава!', 2600, 'shout'), K.wait(0.5),
+        say(crowd[4] || hero, 'Я можу йти на роботу пішки!', 2800), K.wait(1.2),
+        say(crowd[3] || hero, 'Тато їде додому!', 2600), K.wait(1.0),
+        camTo(F.x, F.y - 2, 2.2, 2.4),
+        K.call(() => { hero.dir = 'right'; katya.dir = 'left'; }),
+        say(hero, 'Я більше не тікаю. Ніколи.', 2600), K.wait(2.4),
+        say(katya, 'Тоді йди повільно. Поруч зі мною.', 2600), K.wait(2.6),
+        K.fade(1, 0.9),
+        // ── 2 ──
+        K.call((c) => { c.confOn = false; c.conf.length = 0; for (const a of crowd) { a.jump = 0; a.hidden = true; } hero.hidden = katya.hidden = true;
+          bus.hidden = false; pol.hidden = false; for (const w of watchers) w.hidden = false;
+          c.cam.x = X0 - L * 30; c.cam.y = LY + side * 14; G.camera.setZoom(2, true); G.camera.update(0); }),
+        K.say('Через місяць.', { size: 10, cps: 22 }), K.wait(1.0),
+        K.say('Слідство: ТЦК хапали людей просто на вулицях.', { size: 8, cps: 30, y: VH() / 2 + 12 }), K.wait(1.4), K.clear(0.4),
+        K.fade(0, 0.9),
+        sfx('siren', { vol: 0.35, dur: 3 }),
+        K.call(() => { pol.tx = X0 - L * 72; }),
+        camTo(X0 - L * 36, LY + side * 12, 2, 3.0),
+        { d: 0, until: () => pol.tx == null },
+        sfx('brakes', { vol: 0.6 }), K.wait(0.4),
+        K.call(() => { const sx = pol.x, sy = LY + side * (pol.h / 2 + 6); cops.forEach((p, i) => { p.x = sx + (i ? 8 : -8); p.y = sy; p.hidden = false; p.dir = lane.dir; }); }),
+        sfx('door', { vol: 0.6 }),
+        go(cops[0], door.x - 12, door.y + side * 6), go(cops[1], door.x + 12, door.y + side * 6), K.wait(1.6),
+        K.call(() => { for (const p of cops) p.dir = side < 0 ? 'down' : 'up'; }),
+        say(cops[0], 'Поліція! Відчиняйте.', 2000, 'shout'), K.wait(1.8),
+        K.call(() => { bus.door = true; }), sfx('slide_door'), K.wait(0.4),
+        K.call(() => { tcks.forEach((t, i) => G.after(i * 450, () => { t.hidden = false; t.x = door.x; t.y = door.y; t.tx = door.x + (i - 1) * 14; t.ty = door.y + side * 18; t.spd = 22; }, {})); }),
+        K.wait(1.8),
+        K.call(() => { for (const t of tcks) t.dir = side < 0 ? 'down' : 'up'; for (const p of cops) p.dir = p.x < door.x ? 'right' : 'left'; }),
+        say(cops[0], 'Ви затримані. Викрадення людей.', 2600), K.wait(2.6),
+        say(tcks[0], 'Та ми ж план виконували!', 2400, 'shout'), K.wait(2.2),
+        say(cops[1], 'У тюрмі й виконаєте.', 2200), K.wait(2.0),
+        say(tcks[2], 'А можна я просто піду?..', 2400), K.wait(2.2),
+        say(watchers[1], 'Ото й люди так просили!', 2400, 'shout'), K.wait(1.0),
+        say(watchers[0], 'Знімаю! Хай усі бачать.', 2200), K.wait(1.8),
+        K.call(() => { tcks.forEach((t, i) => { t.tx = door.x; t.ty = door.y; t.spd = 20; t.into = true; }); cops[0].tx = door.x - 6; cops[0].ty = door.y + side * 4; }),
+        { d: 0, until: () => tcks.every((t) => t.hidden), tick: () => { for (const t of tcks) if (t.into && !t.hidden && Math.hypot(t.x - door.x, t.y - door.y) < 3) t.hidden = true; } },
+        K.call(() => { cops[0].tx = door.x; cops[0].ty = door.y; }), K.wait(0.6), K.call(() => { cops[0].hidden = true; }),
+        K.call(() => { bus.door = false; }), sfx('slide_door', { pitch: 0.9 }), K.wait(0.4), sfx('door_slam'),
+        say(bus, 'Вася: Пристебніться, панове. Наступна зупинка — тюрма.', 3000), K.wait(2.6),
+        go(cops[1], pol.x, LY + side * (pol.h / 2 + 6)), K.wait(1.4), K.call(() => { cops[1].hidden = true; }), sfx('door', { vol: 0.5 }),
+        K.call(() => { pol.tx = X0 + L * 600; bus.tx = X0 + L * 560; bus.vmax = 70; }),
+        camTo(X0 + L * 160, LY + side * 10, 1.6, 3.2),
+        K.say('Людей на вулицях більше ніхто не пакує.', { size: 10, cps: 26, y: VH() - 40, box: true }), K.wait(1.8),
+        K.fade(1, 0.9), K.clear(0.2),
+        // ── 3: весілля ──
+        K.call((c) => { bus.hidden = pol.hidden = true; for (const w of watchers) w.hidden = true;
+          hero.hidden = katya.hidden = false; hero.x = F.x - 7; katya.x = F.x + 7; hero.y = katya.y = F.y - 10; hero.dir = katya.dir = 'down';
+          crowd.forEach((a) => { a.hidden = false; a.jump = 0; a.dir = a.x < F.x ? 'right' : 'left'; });
+          c.cam.x = F.x; c.cam.y = F.y + 8; G.camera.setZoom(2.2, true); G.camera.update(0); }),
+        K.say('Субота. Сквер. Весілля.', { size: 10, cps: 22 }), K.wait(1.2), K.clear(0.4),
+        K.fade(0, 1.0),
+        go(hero, F.x - 7, F.y + 20, 16), go(katya, F.x + 7, F.y + 20, 16), K.wait(2.6),
+        K.call(() => { hero.dir = 'right'; katya.dir = 'left'; }),
+        say(crowd[1] || hero, 'Гірко!', 2000, 'shout'), K.wait(0.5),
+        K.call((c) => { for (const a of crowd) a.jump = 1; c.confOn = true; }),
+        say(crowd[0] || hero, 'ГІРКО!', 2000, 'shout'), K.wait(0.8),
+        K.call((c) => { c.hearts.push({ x: F.x, y: F.y + 6, t: 0 }); sfx('goal', { pitch: 1.3 }); }), K.wait(1.6),
+        say(hero, 'Тепер я бігаю тільки зранку. Для здоровʼя.', 2800), K.wait(3.0),
+        camTo(F.x, F.y - 30, 1.2, 3.4),
+        K.say('КІНЕЦЬ', { size: 27, cps: 8, color: '#f7c948', outline: '#1a0e20', y: VH() / 2 - 30 }),
+        K.say('тепер — точно', { size: 10, cps: 16, y: VH() / 2 + 2 }), K.wait(2.2),
+        K.fade(1, 1.4), K.clear(0.3),
+      ];
+    },
+    update(c, dt) {
+      for (const a of c.actors || []) {
+        if (a.jump) a.jumpT = (a.jumpT || 0) + dt;
+        if (a.key) { // машина: розгін/гальмування до a.tx
+          if (a.tx == null) { a.v = 0; continue; }
+          const d = a.tx - a.x, ad = Math.abs(d);
+          if (ad < 1) { a.x = a.tx; a.tx = null; a.v = 0; continue; }
+          a.v = Math.min(a.vmax, a.v + 70 * dt, ad * 1.6 + 4);
+          a.x += Math.sign(d) * Math.min(ad, a.v * dt);
+          continue;
+        }
+        if (a.tx == null) { a.moving = false; continue; }
+        const dx = a.tx - a.x, dy = a.ty - a.y, d = Math.hypot(dx, dy);
+        if (d < 0.6) { a.x = a.tx; a.y = a.ty; a.tx = null; a.moving = false; continue; }
+        const s = Math.min(d, a.spd * dt);
+        a.x += dx / d * s; a.y += dy / d * s; a.moving = true; a.anim += dt * 8;
+        a.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      }
+      if (c.confOn) for (let i = 0; i < 2; i++) c.conf.push({ x: c.cam.x + (Math.random() - 0.5) * 260, y: c.cam.y - 80 - Math.random() * 20, vx: (Math.random() - 0.5) * 14, vy: 18 + Math.random() * 16, f: Math.floor(Math.random() * 8), t: 0, sw: Math.random() * 6 });
+      for (const q of c.conf) { q.t += dt; q.x += (q.vx + Math.sin(q.t * 4 + q.sw) * 10) * dt; q.y += q.vy * dt; }
+      if (c.conf.length) c.conf = c.conf.filter((q) => q.t < 6);
+      for (const h of c.hearts) h.t += dt;
+    },
+    draw(ctx, c) {
+      G.camera.apply(ctx);
+      for (const q of c.conf) {
+        let img = null; try { img = G.sprites.get('fx', { variant: 'confetti', frame: q.f }); } catch (e) { img = null; }
+        if (img) ctx.drawImage(img, Math.round(q.x), Math.round(q.y)); else { ctx.fillStyle = ['#f7c948', '#3c6fb4', '#e8506a', '#93c25b'][q.f & 3]; ctx.fillRect(Math.round(q.x), Math.round(q.y), 2, 2); }
+      }
+      for (const h of c.hearts) {
+        let img = null; try { img = G.sprites.get('icon', { variant: 'heart' }); } catch (e) { img = null; }
+        if (!img || h.t > 3) continue;
+        ctx.save(); ctx.globalAlpha = Math.min(1, 3 - h.t);
+        ctx.drawImage(img, Math.round(h.x - img.width / 2), Math.round(h.y - 26 - h.t * 8));
+        ctx.restore();
+      }
+      G.camera.reset(ctx);
+    },
+    finish(c) {
+      for (const a of c.actors || []) { a.alive = false; const i = G.entities.indexOf(a); if (i >= 0) G.entities.splice(i, 1); }
+      for (const e of c.hid || []) e.hidden = false;
+      if (G.player) { G.player.hidden = false; G.camera.follow(G.player, true); }
+      G.camera.setZoom(1, true);
+    },
+  };
+  SCENES.credits_final = {
+    skippable: false, locked: true, wide: true,
+    build(c) {
+      c.D = { auto: true }; c.cred = 0;
+      if (G.audio && G.audio.music) G.audio.music('morning', { fade: 1.5 });
+      return [{ d: 0, until: (cc) => cc.cred > creditsDur() + 3 }];
+    },
+    update(c, dt) { c.cred += dt; },
+    draw(ctx, c) { drawCredits(ctx, c); },
+  };
 
   // ═══════════════ G.story: прогрес сюжету, рація Майора/Васі, репліки NPC ═══════════════
   // G.story.seen(id) / markSeen(id) / resetSeen()   — переглянуті комікси (G.save 'story')
@@ -28791,6 +29055,7 @@
     current: null,
     get fixed() { return isFixed(cs); },
     get active() { return !!cs; },
+    get locked() { return !!(cs && cs.sc && cs.sc.locked); }, // фінальний мульт і титри — без «ПРОПУСТИТИ»
     get _c() { return cs; },          // round 14: стан поточної сцени (тести/рендери коміксів)
     play(name, onEnd) {
       if (name === 'trench') name = 'trench_fab';
@@ -28803,7 +29068,7 @@
       const m = G.run && G.run.mission;
       if (G.story && name === 'intro') { const cid = G.story.comicFor(m); if (cid && SCENES[cid]) { first = cid; chain = 'intro'; } }
       if (G.story && (name === 'win' || name === 'late_win' || name === '_ending') && G.story.wantsFinale(m)) chain = 'finale';
-      else if (G.story && (name === 'win' || name === 'late_win' || name === '_ending') && G.story.wantsVictory && G.story.wantsVictory(m)) chain = 'victory';
+      else if (G.story && (name === 'win' || name === 'late_win' || name === '_ending') && G.story.wantsVictory && G.story.wantsVictory(m)) chain = 'victory_film'; // мульт у місті + титри, без пропуску
       start(first, onEnd);
       if (chain) cs.next = chain;
       // headless-тести інших агентів (jsc + dom_stub) розраховані на миттєві кат-сцени-заглушки →
