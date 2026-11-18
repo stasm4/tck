@@ -22689,6 +22689,8 @@
     },
 
     // сценарний заїзд (перша зустріч): початок і кінець — не в коробці перехрестя і не на зебрі, кути — дугами
+    // маршрут двором до гравця (для сценарного арешту в місії «Військкомат»): {pts: смуга → біля гравця, target} | null
+    yardRoute(x, y, opts) { return yardRoute(x, y, opts) || yardRoute(x, y, { rMin: 30, rMax: 200, noLos: true, maxCost: 600 }); },
     spawnScripted(points, opts) {
       opts = opts || {};
       if (!points || points.length < 2) return null;
@@ -25975,6 +25977,34 @@
     draw(ctx, c) { if (c.bg === 'bus') drawVan(ctx, c); },
   };
 
+  // ── bus_vlk (місія «Військкомат»): той самий салон, але везуть на ВЛК — без окопу; далі міні-гра vlk_full ──
+  SCENES.bus_vlk = {
+    skippable: true,
+    build(c) {
+      c.doorK = 1; c.moving = false; c.speed = 0; c.scroll = 0; c.bump = 0; c.bumpT = 1.2;
+      const say = (text, sx, who) => K.say(text, { size: 8, cps: 30, box: true, who: who || 'ТЦК', x: sx + 40, y: 92, tail: { x: sx, y: 126 } });
+      return [
+        K.overlay(1, '#000'),
+        K.bg('bus'),
+        K.fade(0, 0.6),
+        K.call((c) => { c.moving = true; }),
+        K.wait(0.5),
+        say('Та не переживай. ВЛК — формальність.', VAN_PEOPLE[0].x * VANS),
+        K.wait(1.5), K.clear(0.3),
+        say('Я ж за хлібом вийшов…', VAN_PEOPLE[1].x * VANS, 'Ти'),
+        K.wait(1.3), K.clear(0.3),
+        say('Шість кабінетів — і ти придатний.', VAN_PEOPLE[2].x * VANS),
+        K.wait(1.4), K.clear(0.3),
+        K.fade(1, 0.7),
+        K.say('Військкомат. Обхідний лист.', { size: 10, cps: 18 }),
+        K.wait(1.4),
+        K.clear(0.4),
+      ];
+    },
+    update(c, dt) { SCENES.bus_inside.update(c, dt); },
+    draw(ctx, c) { if (c.bg === 'bus') drawVan(ctx, c); },
+  };
+
   function tileStrip(ctx, img, off, x0, x1, y) {
     if (!img) return;
     const w = img.width;
@@ -28663,7 +28693,7 @@
       RS.runT += dt;
       if (RS.msg) { RS.msg.t += dt; if (RS.msg.t > RS.msg.dur + 0.3) RS.msg = null; }
       if (!radioOn()) return;
-      if (!RS.startDone && RS.runT > 7 && !toastBusy()) { RS.startDone = true; trigger('start'); }
+      if (!RS.startDone && RS.runT > 7 && !toastBusy() && !(G.missions && G.missions.state && G.missions.state.arresting)) { RS.startDone = true; trigger('start'); }
       if (RS.pending) { if (RS.runT > RS.pending.until) RS.pending = null; else if (!toastBusy() && !RS.msg) { const k = RS.pending.kind; RS.pending = null; trigger(k); } }
     },
     drawHUD(ctx) {
@@ -31363,6 +31393,112 @@
 
   // ═══════════════════════════ Кроки ═══════════════════════════
   function cur() { return S && S.steps[S.idx]; }
+  // ── «Військкомат»: героя пакують просто біля підʼїзду — справжній бус і справжні ТЦК у місті ──
+  // spawn → drive (бус підʼїжджає) → walk (двоє ТЦК виходять) → grab (крутять) → drag (до дверей) → leave (бус їде, камера за ним)
+  // → кат-сцена bus_vlk (салон буса) → ВЛК (vlk_full) → герой «вибрався через вікно» біля POI office.
+  function arrestTick(s, p, dt) {
+    const A = s.ar || (s.ar = { ph: 'spawn', t: 0, crew: [] });
+    S.arresting = true;
+    A.t += dt;
+    const ui = (who, text, ms) => { if (G.ui && G.ui.bubble && who) G.ui.bubble(who, text, ms || 1700, { style: 'shout' }); };
+    const goMini = () => {
+      s.started = true; S.minis = (S.minis || 0) + 1;
+      for (const t of A.crew) t.alive = false;
+      if (A.bus) A.bus.alive = false;
+      const done = (r) => {
+        const q = poi('office') || poi('home');
+        S.arresting = false;
+        p.caught = false; p.hidden = false; p.invuln = Math.max(p.invuln || 0, 3);
+        if (q) { p.x = q.x; p.y = q.y; p.vx = p.vy = 0; if (G.camera && G.camera.follow) G.camera.follow(p, true); }
+        if (!r.clean) S.miniDirty = true; else toast('Чисто! Ні одного штампа.', 2000);
+        completeStep();
+      };
+      const mini = () => { if (G.minigames) G.minigames.start('vlk_full', done); else done({ clean: true }); };
+      if (G.cutscene && G.cutscene.play) G.cutscene.play('bus_vlk', mini); else mini();
+    };
+    if (A.ph === 'spawn') {
+      p.caught = true; p.vx = p.vy = 0;
+      let pts = null, best = null;
+      if (G.world && G.world.roads) {
+        best = null;
+        for (const e of G.world.roads.edges) for (const ln of e.lanes) {
+          const vx = ln.x1 - ln.x0, vy = ln.y1 - ln.y0, L = Math.hypot(vx, vy) || 1, ux = vx / L, uy = vy / L;
+          const k = Math.max(0, Math.min(L - 30, (p.x - ln.x0) * ux + (p.y - ln.y0) * uy));
+          if (k < 120) continue;
+          const sx = ln.x0 + ux * k, sy = ln.y0 + uy * k, d = Math.hypot(sx - p.x, sy - p.y);
+          if (d > 200 || (best && d >= best.d)) continue;
+          best = { d, pts: [{ x: sx - ux * Math.min(300, k), y: sy - uy * Math.min(300, k) }, { x: sx, y: sy }] };
+        }
+        if (best && best.d < 150) pts = best.pts;
+      }
+      // підʼїзд у дворі (дорога далеко) — бус заїжджає двором, як у звичайній грі
+      if (!pts && G.bus && G.bus.yardRoute) {
+        const r = G.bus.yardRoute(p.x, p.y, { maxCost: 600 });
+        if (r && r.pts && r.pts.length >= 2) {
+          const dense = [];
+          for (let i = 0; i < r.pts.length - 1; i++) { const a = r.pts[i], c = r.pts[i + 1], L = Math.hypot(c.x - a.x, c.y - a.y), n = Math.max(1, Math.ceil(L / 16)); for (let k = 0; k < n; k++) dense.push({ x: a.x + (c.x - a.x) * k / n, y: a.y + (c.y - a.y) * k / n }); }
+          dense.push(r.pts[r.pts.length - 1]);
+          let j = 0; // старт — остання точка поза кадром
+          for (let k = dense.length - 2; k >= 0; k--) { const q = dense[k]; if (Math.abs(q.x - G.camera.x) > G.cfg.VIEW_W / 2 + 40 || Math.abs(q.y - G.camera.y) > G.cfg.VIEW_H / 2 + 40) { j = k; break; } }
+          pts = dense.slice(Math.max(0, j - 2));
+        }
+      }
+      if (!pts && best) pts = best.pts;
+      A.bus = pts && G.bus && G.bus.spawnScripted ? G.bus.spawnScripted(pts, { crew: 0 }) : null;
+      if (!A.bus) { goMini(); return; }
+      A.ph = 'drive'; A.t = 0;
+      if (G.audio && G.audio.music) G.audio.music('chase');
+      return;
+    }
+    p.vx = p.vy = 0;
+    const b = A.bus;
+    if (A.ph === 'drive') {
+      if (A.t > 0.6 && !A.seen) { A.seen = true; ui(p, 'Ой…', 1200); }
+      if ((b.script && b.script.stopped) || A.t > 10) {
+        b.doorOpen = true; sfx('slide_door', { x: b.x, y: b.y });
+        A.ph = 'walk'; A.t = 0;
+      }
+      return;
+    }
+    const d = b.doorPoint(p);
+    if (A.ph === 'walk') {
+      const types = ['rude', 'polite'];
+      if (A.crew.length < 2 && A.t > 0.3 + A.crew.length * 0.45 && G.tck && G.tck.spawnGroup) {
+        const t = G.tck.spawnGroup(d.x, d.y, 1, [types[A.crew.length]], { state: 'script', bus: b, origin: 'bus', exact: true })[0];
+        if (t) A.crew.push(t); else { goMini(); return; }
+      }
+      A.crew.forEach((t, i) => { t.scriptTarget = { x: p.x + (i ? 15 : -15), y: p.y + 2 }; });
+      if (A.crew.length === 1 && !A.said0) { A.said0 = true; ui(A.crew[0], 'Стояти! ТЦК!', 1400); sfx('shout'); }
+      if (A.crew.length === 2 && (A.crew.every((t) => t.arrived) || A.t > 6)) { A.ph = 'grab'; A.t = 0; sfx('hit'); if (G.camera && G.camera.shake) G.camera.shake(3, 300); }
+      return;
+    }
+    if (A.ph === 'grab') {
+      A.crew.forEach((t, i) => { t.grabAnim = 0.5; t.face && t.face(p.x, p.y); t.scriptTarget = { x: p.x + (i ? 13 : -13), y: p.y + 1 }; });
+      p.dir = Math.floor(A.t * 3) % 2 ? 'left' : 'right';
+      if (!A.s1) { A.s1 = true; ui(A.crew[0], 'Документики покажемо?'); }
+      if (A.t > 1.5 && !A.s2) { A.s2 = true; ui(p, 'Я ж за хлібом вийшов!'); sfx('hit'); if (G.camera && G.camera.shake) G.camera.shake(2, 250); }
+      if (A.t > 3.0 && !A.s3) { A.s3 = true; ui(A.crew[1], 'В бусі розберемось.'); }
+      if (A.t > 4.4) { A.ph = 'drag'; A.t = 0; }
+      return;
+    }
+    if (A.ph === 'drag') {
+      A.crew.forEach((t, i) => { t.scriptTarget = { x: d.x + (i ? 8 : -8), y: d.y }; });
+      const k = Math.min(1, dt * 1.6);
+      const mx = (A.crew[0].x + A.crew[1].x) / 2, my = (A.crew[0].y + A.crew[1].y) / 2;
+      p.x += (mx - p.x) * k * 3; p.y += (my - p.y) * k * 3;
+      if (Math.hypot(p.x - d.x, p.y - d.y) < 10 || A.t > 4) {
+        p.hidden = true; for (const t of A.crew) t.alive = false;
+        b.doorOpen = false; sfx('slide_door', { x: b.x, y: b.y, pitch: 0.9 }); G.after(450, () => sfx('door_slam', { x: b.x, y: b.y }), {});
+        A.ph = 'leave'; A.t = 0;
+      }
+      return;
+    }
+    if (A.ph === 'leave') {
+      p.x = b.x; p.y = b.y;
+      if (A.t > 0.9 && !A.left) { A.left = true; if (G.ui && G.ui.bubble) G.ui.bubble(b, 'ГРЮК!', 900, { style: 'shout' }); }
+      if (A.t > 2.2) goMini();
+    }
+  }
   function activate(i) {
     S.idx = i;
     const s = S.steps[i];
@@ -31747,6 +31883,7 @@
     };
     switch (s.type) {
       case 'mini': {
+        if (s.game === 'vlk_full' && !s.started) { if (S.t > 1.2 && !p.riding) arrestTick(s, p, dt); break; } // місія «Військкомат»: арешт у місті
         const q = s.at ? poi(s.at) : null;
         if ((!s.at || reached(q)) && !p.hidden && !p.riding && !s.started && S.t > 1.5) {
           s.started = true; S.minis = (S.minis || 0) + 1;
@@ -35135,7 +35272,7 @@
       if (psy) game = 'vlk';
       Object.assign(MG, { game, cb, t: 0, hits: 0, round: 0, phase: 'play', phT: 0, sel: -1, stamp: 0, x: 0, msg: '', checked: [], psy, full, opts: null, cue: {} });
       if (game === 'date') dateRound();
-      if (game === 'vlk') { MG.phase = full ? 'grab' : 'rules'; MG.phT = 0; }
+      if (game === 'vlk') { MG.phase = 'rules'; MG.phT = 0; }
       G.setState('mini');
     },
   };
@@ -35152,13 +35289,6 @@
     if (MG.stamp > 0) MG.stamp -= real;
     const T = tap(), I = G.input;
     if (MG.game === 'vlk') {
-      // кат-сцени повної ВЛК: пакують біля підʼїзду → бус їде → військкомат → реєстратура (тап — пропустити)
-      const CUT = { grab: [10.2, 'ride'], ride: [2.8, 'arrive'], arrive: [8.4, 'hall'], hall: [8.6, 'rules'] };
-      if (CUT[MG.phase]) {
-        cutSfx(MG.phase, MG.phT);
-        if (MG.phT > CUT[MG.phase][0] || (MG.phT > 1 && T.any)) { MG.phase = CUT[MG.phase][1]; MG.phT = 0; MG.cue = {}; }
-        return;
-      }
       if (MG.phase === 'rules') { if (MG.phT > 0.6 && (T.any || MG.phT > (MG.full ? 9 : 6))) { MG.phase = 'play'; MG.phT = 0; } return; }
       if (MG.phase === 'play') {
         const v = MG.full ? 1 + MG.round * 0.2 : 1 + MG.round * 0.35;
@@ -35441,212 +35571,10 @@
     }
     if (I.stamp > 0) R('rgba(216,48,42,' + (0.2 * I.stamp).toFixed(3) + ')', 0, 0, W, H);
   }
-  // ═══════════════ Повна ВЛК: кат-сцени (пакують біля підʼїзду → бус → військкомат → реєстратура) ═══════════════
   function vZone(r) { return MG.full ? Math.max(0.1, 0.2 - r * 0.02) : 0.2 - r * 0.03; }
-  const CUE = {
-    grab: [[2.2, 'brakes'], [3.0, 'door_slam', { vol: 0.6 }], [3.3, 'shout'], [4.3, 'hit'], [5.0, 'shout'], [6.1, 'hit'], [7.7, 'door_slam'], [8.1, 'horn', { vol: 0.5 }]],
-    arrive: [[1.5, 'brakes'], [2.2, 'door_slam', { vol: 0.6 }], [6.3, 'door_slam', { vol: 0.7 }]],
-    hall: [[2.4, 'type'], [4.4, 'pickup']],
-  };
-  function cutSfx(ph, t) {
-    const L = CUE[ph]; if (!L) return;
-    for (let i = 0; i < L.length; i++) if (t >= L[i][0] && !MG.cue[ph + i]) { MG.cue[ph + i] = 1; if (t - L[i][0] < 0.3) sfx(L[i][1], L[i][2]); }
-  }
-  const lerp = (a, b, k) => a + (b - a) * Math.max(0, Math.min(1, k));
-  const seg = (t, a, b) => Math.max(0, Math.min(1, (t - a) / (b - a)));
-  const ease = (k) => k * k * (3 - 2 * k);
-  function spr(ctx, key, opts, cx, feet, sc, alpha, rot) {
-    let img = null;
-    try { img = G.sprites.get(key, opts); } catch (e) { img = null; }
-    if (!img || !img.width) return;
-    const w = img.width * sc, h = img.height * sc;
-    ctx.save(); ctx.globalAlpha = alpha == null ? 1 : alpha;
-    RC(ctx, 'rgba(0,0,0,0.22)', cx - w * 0.35, feet - 2, w * 0.7, 3);
-    ctx.imageSmoothingEnabled = false;
-    if (rot) { ctx.translate(Math.round(cx), Math.round(feet)); ctx.rotate(rot); ctx.drawImage(img, Math.round(-w / 2), Math.round(-h), Math.round(w), Math.round(h)); }
-    else ctx.drawImage(img, Math.round(cx - w / 2), Math.round(feet - h), Math.round(w), Math.round(h));
-    ctx.restore();
-  }
-  const walkF = (t, sp) => [1, 2, 3, 2][Math.floor(t * (sp || 8)) % 4];
-  const heroSkin = () => { const p = P(); return (p && p.skin) || 'office'; };
-  function cBubble(ctx, u, x, y, text, o) {
-    o = o || {};
-    const w = Math.ceil(u.measure(text, 8)) + 12, bx = Math.round(Math.max(4, Math.min(VW() - w - 4, x - w / 2))), by = Math.round(y - 18);
-    RC(ctx, '#1a0e20', bx - 1, by - 1, w + 2, 16); RC(ctx, o.bg || '#fbf6ea', bx, by, w, 14);
-    RC(ctx, o.bg || '#fbf6ea', Math.round(x) - 2, by + 14, 5, 2); RC(ctx, o.bg || '#fbf6ea', Math.round(x) - 1, by + 16, 3, 2);
-    u.text(ctx, text, bx + w / 2, by + 3, { size: 8, align: 'center', color: o.fg || '#1a0e20' });
-  }
-  function caption(ctx, u, text, a) {
-    if (a <= 0) return;
-    ctx.save(); ctx.globalAlpha = Math.min(1, a);
-    const w = Math.ceil(u.measure(text, 8)) + 16, x = Math.round(VW() / 2 - w / 2);
-    RC(ctx, 'rgba(16,10,24,0.86)', x, 8, w, 16); u.text(ctx, text, VW() / 2, 12, { size: 8, align: 'center', color: '#fde98f' });
-    ctx.restore();
-  }
-  function fade(ctx, a) { if (a > 0) RC(ctx, 'rgba(8,6,14,' + Math.min(1, a).toFixed(3) + ')', 0, 0, VW(), VH()); }
-  // зелений бус ТЦК збоку (дивиться праворуч): x — лівий край, gy — земля під колесами
-  function van(ctx, x, gy, door, lights) {
-    const R = (c, a, b, w, h) => RC(ctx, c, x + a, gy + b, w, h);
-    RC(ctx, 'rgba(0,0,0,0.3)', x + 6, gy - 3, 146, 5);
-    R('#3e6332', 0, -62, 124, 50); R('#4f7a3e', 2, -60, 120, 46); R('#5f8c4a', 2, -60, 120, 3);   // кузов
-    R('#3e6332', 124, -48, 30, 36); R('#4f7a3e', 124, -46, 28, 32);                                  // кабіна
-    for (let k = 0; k < 14; k++) R('#4f7a3e', 120 + Math.floor(k / 2), -60 + k, 4, 1);                // скіс даху
-    for (let k = 0; k < 12; k++) R('#22303a', 126 + Math.floor(k * 0.9), -44 + k, 14 - Math.floor(k * 0.9), 1); // лобове
-    R('#22303a', 104, -54, 18, 14); R('#2e4250', 106, -52, 6, 3);                                    // бокове вікно кабіни
-    R('#1e2a30', 8, -54, 44, 14); R('#1e2a30', 94, -54, 6, 14); R('#2a3a44', 10, -52, 10, 2);          // тоновані вікна
-    R('#3e6332', 2, -36, 150, 2); R('#2a2a30', 0, -16, 156, 5); R('#3a3a42', 150, -22, 6, 8);          // молдинг, бампер
-    R(lights ? '#ff4030' : '#a02a24', 0, -40, 3, 8); R('#fde98f', 150, -34, 4, 5);                    // стоп і фара
-    R('#f4f4ee', 132, -18, 14, 4); R('#2a5ab0', 132, -18, 3, 4);                                       // номер
-    // бокові двері: зачинені — шов; відчинені — темний проріз
-    if (door) { R('#121418', 56, -56, 36, 42); R('#2a2e34', 58, -54, 32, 2); R('#3e6332', 92, -60, 6, 46); }
-    else { R('#3e6332', 56, -58, 1, 44); R('#3e6332', 91, -58, 1, 44); R('#2a3a2a', 84, -38, 5, 2); }
-    for (const wx of [28, 128]) { R('#141418', wx - 11, -22, 22, 22); R('#2a2a30', wx - 9, -20, 18, 18); R('#8a8a92', wx - 4, -15, 8, 8); R('#5a5a62', wx - 2, -13, 4, 4); }
-  }
-  function street(ctx, u, ox) { // підʼїзд панельки, тротуар, дорога
-    const W = VW(), H = VH(), R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h);
-    R('#c9bfae', 0, 0, W, 178); for (let x = -40 + (ox % 80); x < W; x += 80) R('#b6ac9a', x, 0, 2, 178); R('#b6ac9a', 0, 88, W, 2);
-    for (let row = 0; row < 2; row++) for (let x = ox - 160; x < W; x += 80) {
-      if (x + 30 > ox + 70 && x < ox + 160) continue;
-      const y = 18 + row * 88; R('#8a8072', x + 22, y, 36, 38); R('#9ec8e0', x + 25, y + 3, 30, 32); R('#c4e0ee', x + 25, y + 3, 30, 10); R('#8a8072', x + 39, y + 3, 2, 32); R('#e8e2d4', x + 20, y + 38, 40, 3);
-    }
-    R('#9a9488', ox + 80, 100, 74, 7); R('#7a7468', ox + 80, 107, 74, 2);                                   // козирок
-    R('#3a3036', ox + 96, 112, 42, 66); R('#6a4a36', ox + 100, 116, 34, 62); R('#7a5a44', ox + 102, 118, 30, 2);   // двері
-    R('#2a2a30', ox + 140, 128, 8, 12); R('#7ab0e0', ox + 141, 130, 6, 3);                                    // домофон
-    R('#2a5ab0', ox + 104, 92, 26, 6); u.text(ctx, '2', ox + 117, 92, { size: 7, align: 'center', color: '#fff' });
-    R('#b8b4ac', 0, 178, W, 28); for (let x = (ox % 16); x < W; x += 16) R('#a8a49c', x, 178, 1, 28); R('#a8a49c', 0, 192, W, 1);
-    R('#8a8680', 0, 206, W, 4); R('#4a4a52', 0, 210, W, H - 210); for (let x = (ox % 40); x < W; x += 40) R('#d8d4c8', x, 244, 20, 2);
-  }
-  const CUTS = {
-    grab(ctx, u, t) {
-      const ox = OX(), W = VW(), sk = heroSkin();
-      street(ctx, u, ox);
-      // двері підʼїзду відчиняються
-      if (t < 1.0) RC(ctx, '#1a1418', ox + 100, 116, Math.round(34 * (1 - Math.abs(t - 0.5) * 2)), 62);
-      const vx = ox + 120 + (t < 2.8 ? -(1 - ease(seg(t, 1.1, 2.8))) * (ox + 320) : t > 8.0 ? Math.pow(t - 8.0, 2) * 150 : 0);
-      const doorOpen = t > 3.0 && t < 7.7;
-      const D = ox + 194;                                   // центр бокових дверей буса
-      // герой
-      let hx, hy = 196, hd = 'right', hf = 0, ha = 1, rot = 0;
-      if (t < 2.4) { hx = lerp(ox + 117, ox + 250, seg(t, 0.4, 2.4)); hf = t > 0.4 && t < 2.4 ? walkF(t) : 0; ha = Math.min(1, t / 0.4); }
-      else if (t < 3.2) { hx = ox + 250; hd = t > 2.6 ? 'left' : 'right'; }
-      else if (t < 4.0) { hx = lerp(ox + 250, ox + 300, seg(t, 3.2, 4.0)); hf = walkF(t, 14); }
-      else if (t < 6.4) { hx = ox + 300 + (t > 4.2 ? Math.round(Math.sin(t * 30) * 1.5) : 0); hd = t < 5 ? 'left' : 'right'; hf = t > 6.0 ? 0 : (Math.floor(t * 6) % 2 ? 4 : 0); rot = t > 6.0 ? -0.28 * seg(t, 6.0, 6.2) : 0; }
-      else { const k = ease(seg(t, 6.4, 7.6)); hx = lerp(ox + 300, D, k); hy = lerp(196, 236, k); rot = -0.28; hf = walkF(t); ha = 1 - seg(t, 7.3, 7.6); hd = 'left'; }
-      // ТЦК
-      const tck = (type, side, delay) => {
-        if (t < 3.1 + delay || t > 7.6) return;
-        let x, y = 196, d = side < 0 ? 'right' : 'left', f = 0, a = 1;
-        if (t < 3.6 + delay) { const k = seg(t, 3.1 + delay, 3.6 + delay); x = D; y = lerp(236, 196, k); f = walkF(t, 12); }
-        else if (t < 4.2 + delay) { const k = ease(seg(t, 3.6 + delay, 4.2 + delay)); x = lerp(D, ox + 300 + side * 22, k); y = 196 + (side > 0 ? Math.sin(k * Math.PI) * 8 : 0); f = walkF(t, 14); d = 'right'; }
-        else if (t < 6.4) { x = ox + 300 + side * 22; f = 4; }
-        else { const k = ease(seg(t, 6.4, 7.6)); x = lerp(ox + 300, D, k) + side * 22 * (1 - k); y = lerp(196, 236, k); f = walkF(t); a = 1 - seg(t, 7.3, 7.6); d = 'left'; }
-        spr(ctx, 'tck', { type, dir: d, frame: f }, x, y, 2, a);
-      };
-      // хліб випадає з рук і лишається на тротуарі; голуб прилітає
-      const bx = ox + 292;
-      if (t < 4.4) { if (ha > 0.5 && t < 4.0) { RC(ctx, '#a8682a', hx + (hd === 'right' ? 6 : -16), hy - 30, 10, 5); RC(ctx, '#d89a50', hx + (hd === 'right' ? 7 : -15), hy - 30, 8, 2); } }
-      else { const k = seg(t, 4.4, 4.7), by = lerp(hy - 28, 190, k * k); RC(ctx, '#a8682a', bx, by, 10, 5); RC(ctx, '#d89a50', bx + 1, by, 8, 2); }
-      if (t > 8.2) { const k = seg(t, 8.2, 9.0), px = lerp(W + 10, bx + 16, ease(k)), py = lerp(120, 196, ease(k)); spr(ctx, 'npc', { variant: 'pigeon', dir: 'left', frame: k < 1 ? 2 + (Math.floor(t * 10) % 2) : Math.floor(t * 4) % 2 }, px, py, 2); }
-      tck('rude', -1, 0); tck('polite', 1, 0.15);
-      spr(ctx, 'player', { skin: sk, dir: hd, frame: hf }, hx, hy, 2, ha, rot);
-      if (t > 2.8 && t < 4.0) spr(ctx, 'fx', { variant: 'exclaim', frame: 0 }, hx, hy - 62, 2);
-      if (t > 4.6 && t < 6.4) spr(ctx, 'fx', { variant: 'sweat', frame: 0 }, hx + 12, hy - 50, 2);
-      van(ctx, vx, 262, doorOpen, t > 2.0 && t < 2.9);
-      if (t > 4.4 && t < 5.6) cBubble(ctx, u, ox + 283, 132, 'Документики покажемо?');
-      if (t > 5.0 && t < 6.3) cBubble(ctx, u, ox + 300, 112, 'Я ж за хлібом вийшов!', { bg: '#fde98f' });
-      if (t > 5.9 && t < 7.2) cBubble(ctx, u, ox + 317, 132, 'В бусі розберемось.');
-      caption(ctx, u, 'Четвер, 9:00. Ти просто вийшов за хлібом.', t < 2.6 ? Math.min(1, t * 2) : 3.2 - t);
-      fade(ctx, Math.max(1 - t / 0.35, seg(t, 9.4, 10.2)));
-    },
-    ride(ctx, u, t) {
-      const W = VW(), H = VH();
-      RC(ctx, '#0c0a14', 0, 0, W, H);
-      for (let x = -((t * 260) % 60); x < W; x += 60) RC(ctx, '#3a3848', x, 214, 28, 2);
-      van(ctx, W / 2 - 78 + Math.sin(t * 9) * 1, 238 + Math.round(Math.sin(t * 17)), false, false);
-      ctx.save(); ctx.globalAlpha = Math.min(1, t / 0.5, (2.8 - t) / 0.4);
-      u.text(ctx, 'Через 15 хвилин…', W / 2, 96, { size: 14, align: 'center', color: '#fbf6ea', shadow: true });
-      u.text(ctx, 'Вулиця Військкоматська, 1', W / 2, 118, { size: 8, align: 'center', color: '#8fc7e4' });
-      ctx.restore();
-    },
-    arrive(ctx, u, t) {
-      const ox = OX(), W = VW(), H = VH(), R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h), sk = heroSkin();
-      // будівля ТЦК: штукатурка, ґрати на вікнах, вивіска, прапор
-      R('#d8cbb0', 0, 0, W, 178); R('#c4b698', 0, 86, W, 3); R('#b8aa8c', 0, 170, W, 8);
-      for (let x = ox - 120; x < W; x += 74) {
-        if (x > ox + 200 && x < ox + 330) continue;
-        for (const y of [18, 104]) { R('#8a7a60', x, y, 34, 44); R('#7a98b0', x + 3, y + 3, 28, 38); R('#a8c0d0', x + 3, y + 3, 28, 12); if (y > 90) for (let k = 0; k < 4; k++) R('#3a3a42', x + 5 + k * 8, y + 3, 2, 38); R('#3a3a42', x + 3, y + 22, 28, 2); }
-      }
-      R('#1a3a74', ox + 167, 62, 208, 34); R('#2a5ab0', ox + 169, 64, 204, 30); R('#1f4a94', ox + 169, 92, 204, 2);
-      u.text(ctx, 'ТЦК та СП', ox + 271, 67, { size: 12, align: 'center', color: '#fbf6ea' });
-      u.text(ctx, 'ТЕРИТОРІАЛЬНИЙ ЦЕНТР КОМПЛЕКТУВАННЯ', ox + 271, 83, { size: 6, align: 'center', color: '#fde98f' });
-      R('#8a8478', ox + 236, 172, 70, 6); R('#9a9488', ox + 240, 166, 62, 6);
-      R('#4a3424', ox + 244, 100, 54, 66); R('#6a4a34', ox + 247, 103, 23, 63); R('#6a4a34', ox + 272, 103, 23, 63); R('#c8a040', ox + 266, 132, 3, 6); R('#c8a040', ox + 273, 132, 3, 6);
-      // прапор
-      R('#5a5a62', ox + 26, 6, 3, 172); const wv = (k) => Math.round(Math.sin(t * 4 + k * 0.5) * 2);
-      for (let k = 0; k < 14; k++) { R('#2a64c8', ox + 29 + k * 3, 10 + wv(k), 3, 11); R('#f7d038', ox + 29 + k * 3, 21 + wv(k), 3, 11); }
-      // тротуар і дорога
-      R('#b8b4ac', 0, 178, W, 28); for (let x = (ox % 16); x < W; x += 16) R('#a8a49c', x, 178, 1, 28);
-      R('#8a8680', 0, 206, W, 4); R('#4a4a52', 0, 210, W, H - 210);
-      // черга чоловіків біля стіни, черговий ТЦК біля дверей
-      for (let i = 0; i < 3; i++) spr(ctx, 'npc', { variant: 'man', skin: i, dir: 'right', frame: 0 }, ox + 62 + i * 26, 190, 2);
-      spr(ctx, 'tck', { type: 'tired', dir: 'left', frame: 0 }, ox + 322, 190, 2);
-      const vx = ox + 130 - (t < 2.0 ? (1 - ease(seg(t, 0.2, 2.0))) * (ox + 330) : 0), D = vx + 74, door = t > 2.2 && t < 6.2;
-      const E = ox + 271;
-      const who = (key, opts, delay, side) => {
-        if (t < 2.4 + delay) return;
-        let x, y, a = 1, f = 0, d = 'right';
-        if (t < 3.0 + delay) { const k = seg(t, 2.4 + delay, 3.0 + delay); x = D; y = lerp(236, 196, k); f = walkF(t, 10); }
-        else if (t < 4.4) { x = D; y = 196; d = 'right'; }
-        else { const k = ease(seg(t, 4.4, 6.2)); x = lerp(D + side * 16, E + side * 16, k); y = lerp(196, 180, seg(t, 5.4, 6.2)); f = k < 1 ? walkF(t) : 0; a = 1 - seg(t, 5.8, 6.3); d = k > 0.85 ? 'up' : 'right'; }
-        if (t < 4.4) x += side * 16;
-        spr(ctx, key, Object.assign({ dir: d, frame: f }, opts), x, y, 2, a);
-      };
-      who('tck', { type: 'rude' }, 0, -1); who('player', { skin: sk }, 0.4, 0); who('tck', { type: 'polite' }, 0.8, 1);
-      van(ctx, vx, 262, door, t > 1.4 && t < 2.1);
-      if (t > 0.8 && t < 2.2) cBubble(ctx, u, ox + 114, 124, 'Я тут з сьомої ранку…');
-      if (t > 3.6 && t < 4.9) cBubble(ctx, u, ox + 322, 124, 'Ще один? Заводь.');
-      if (t > 5.0 && t < 6.6) cBubble(ctx, u, E, 120, 'Тільки б не «придатний»…', { bg: '#fde98f' });
-      caption(ctx, u, 'Територіальний центр комплектування', Math.min(1, t * 2, (2.6 - t) * 2));
-      fade(ctx, Math.max(1 - t / 0.4, seg(t, 7.8, 8.4)));
-    },
-    hall(ctx, u, t) {
-      const ox = OX(), W = VW(), H = VH(), R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h), sk = heroSkin();
-      // коридор: зелена фарба знизу, побілка зверху, лінолеум
-      R('#ebe4cc', 0, 0, W, 110); R('#7fa08a', 0, 110, W, 70); R('#5e8068', 0, 108, W, 3); R('#8a6a4a', 0, 180, W, H - 180);
-      for (let x = (ox % 30); x < W; x += 30) R('#7a5c3e', x, 180, 1, H - 180); R('#6a4c32', 0, 180, W, 3);
-      R('#efece0', W / 2 - 50, 0, 100, 4); R('rgba(255,250,220,0.12)', W / 2 - 90, 4, 180, 100);
-      // реєстратура
-      R('#6a5a48', ox + 40, 56, 120, 96); R('#3a3440', ox + 50, 66, 100, 62); R('#a8c8d8', ox + 52, 68, 96, 4);
-      R('#8a7a60', ox + 36, 128, 128, 8); R('#2a5ab0', ox + 50, 40, 100, 14); u.text(ctx, 'РЕЄСТРАТУРА', ox + 100, 43, { size: 8, align: 'center', color: '#fff' });
-      // черговий у вікні (кітель, кашкет)
-      const cx = ox + 100;
-      R('#4a5a3a', cx - 16, 100, 32, 28); R('#3a4a2e', cx - 1, 100, 2, 28); R('#f3c39b', cx - 9, 80, 18, 18); R('#3a4a2e', cx - 11, 74, 22, 7); R('#2a3420', cx - 13, 80, 26, 2);
-      R('#1a0e20', cx - 5, 87, 2, 2); R('#1a0e20', cx + 3, 87, 2, 2); R('#b07a5a', cx - 3, 93, 6, 1);
-      // плакати
-      R('#fbf8f0', ox + 200, 40, 70, 50); u.text(ctx, 'ВЛК →', ox + 235, 46, { size: 9, align: 'center', color: '#d8302a' }); u.text(ctx, '2 поверх', ox + 235, 60, { size: 7, align: 'center', color: '#2a2030' }); u.text(ctx, 'каб. 14–19', ox + 235, 72, { size: 7, align: 'center', color: '#2a2030' });
-      R('#fbf8f0', ox + 290, 46, 46, 56); R('#3a6a3a', ox + 296, 52, 34, 26); u.text(ctx, 'СЛУЖБА', ox + 313, 84, { size: 6, align: 'center', color: '#2a2030' }); u.text(ctx, 'ЗА КОНТРАКТОМ', ox + 313, 92, { size: 5, align: 'center', color: '#2a2030' });
-      // лавка з чоловіками, які чекають
-      R('#5a3c28', ox + 270, 160, 150, 6); R('#4a3020', ox + 276, 166, 6, 14); R('#4a3020', ox + 408, 166, 6, 14);
-      for (let i = 0; i < 4; i++) spr(ctx, 'npc', { variant: 'man', skin: (i + 1) % 4, dir: 'down', frame: 0 }, ox + 290 + i * 34, 176, 2);
-      // герой з ТЦК заходить справа і йде до віконця
-      const k = ease(seg(t, 0.2, 2.2)), hx = lerp(W + 20, ox + 186, k), f = k > 0 && k < 1 ? walkF(t) : 0;
-      spr(ctx, 'tck', { type: 'rude', dir: 'left', frame: f }, hx + 30, 206, 2);
-      spr(ctx, 'player', { skin: sk, dir: 'left', frame: f }, hx, 210, 2);
-      if (t > 4.4) { RC(ctx, '#fbf6ea', hx - 16, 176, 9, 12); RC(ctx, '#9a9488', hx - 15, 179, 7, 1); RC(ctx, '#9a9488', hx - 15, 182, 7, 1); }
-      // діалог унизу
-      const L = [[2.4, 4.0, 'Черговий', 'Прізвище? …Ага, є. У розшуку.'], [4.0, 5.6, 'Черговий', 'Обхідний лист. Шість кабінетів. Бігом.'], [5.6, 7.2, 'Ти', 'Шість?! Я ж за хлібом вийшов…'], [7.2, 8.6, 'ТЦК', 'Хліб у нас теж є. Сухпайок.']];
-      for (const l of L) if (t >= l[0] && t < l[1]) {
-        u.panel(ctx, W / 2 - 170, H - 46, 340, 34, { fill: 'rgba(26,14,32,0.94)', border: l[1] === 7.2 ? '#fde98f' : '#8fc7e4' });
-        u.text(ctx, l[2] + ':', W / 2 - 160, H - 40, { size: 8, color: l[1] === 7.2 ? '#fde98f' : '#8fc7e4' });
-        u.text(ctx, l[3], W / 2 - 160, H - 27, { size: 8, color: '#fbf6ea' });
-      }
-      fade(ctx, Math.max(1 - t / 0.4, seg(t, 8.2, 8.6) * 0.6));
-      if (t > 1) u.text(ctx, (G.touch && G.touch.active) ? 'тап — пропустити' : 'Enter — пропустити', W - 8, H - 10, { size: 6, align: 'right', color: 'rgba(251,246,234,0.5)' });
-    },
-  };
   S.draw = function (ctx) {
     const u = G.ui.gfx;
-    if (MG.game === 'vlk') { if (CUTS[MG.phase]) CUTS[MG.phase](ctx, u, MG.phT); else drawVlk(ctx, u); }
+    if (MG.game === 'vlk') drawVlk(ctx, u);
     else if (MG.game === 'date') drawDate(ctx, u);
   };
 })();
