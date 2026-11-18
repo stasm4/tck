@@ -8393,6 +8393,40 @@
     v.add(sh, out, b, bg, n, nf, ng, c, cf, cg);
     return 2.4;
   };
+  // далекий вибух (збиття ППО): глухий низький удар і довгий гуркіт, без тріску — звук іде здалеку
+  R.distant_boom = (v, t) => {
+    const b = osc('sine', 62, t), bg = gain(0);
+    b.frequency.exponentialRampToValueAtTime(24, t + 1.2);
+    envAD(bg.gain, t, 0.9, 0.02, 1.6);
+    chain(b, bg, v.out);
+    const n = noise(t, 3.4), nf = filt('lowpass', 420, 0.6), ng = gain(0);
+    nf.frequency.setValueAtTime(420, t); nf.frequency.exponentialRampToValueAtTime(70, t + 2.8);
+    envAD(ng.gain, t, 0.8, 0.03, 3.0);
+    chain(n, nf, ng, v.out);
+    // відлуння між будинками
+    const e = noise(t + 0.45, 1.6), ef = filt('lowpass', 260, 0.7), eg = gain(0);
+    envAD(eg.gain, t + 0.45, 0.3, 0.05, 1.4);
+    chain(e, ef, eg, v.out);
+    b.stop(t + 1.8);
+    v.add(b, bg, n, nf, ng, e, ef, eg);
+    return 3.5;
+  };
+  // далека кулеметна черга (мобільна вогнева група): 6–12 глухих пострілів
+  R.distant_gun = (v, t) => {
+    const N = 6 + Math.floor(Math.random() * 7), gap = 0.085 + Math.random() * 0.03;
+    for (let i = 0; i < N; i++) {
+      const tt = t + i * gap + Math.random() * 0.012;
+      const n = noise(tt, 0.12), f = filt('bandpass', 520 + Math.random() * 160, 1.1), g = gain(0);
+      envAD(g.gain, tt, 0.55, 0.002, 0.1);
+      chain(n, f, g, v.out);
+      const lo = osc('sine', 90, tt), lg = gain(0);
+      lo.frequency.exponentialRampToValueAtTime(40, tt + 0.1);
+      envAD(lg.gain, tt, 0.35, 0.002, 0.09);
+      chain(lo, lg, v.out); lo.stop(tt + 0.14);
+      v.add(n, f, g, lo, lg);
+    }
+    return N * gap + 0.3;
+  };
   R.unlock = (v, t) => {
     const seq = ['C5', 'E5', 'G5', 'C6', 'E6', 'G6'];
     seq.forEach((nm, i) => {
@@ -31694,6 +31728,7 @@
     if (G.story && G.story.update) G.story.update(dt); // round 14: рація Майора/Васі (72_cutscenes)
     for (const e of S.ents) if (e.alive) e.update(dt);
     updateEvents(dt);
+    raidFxUpdate(dt);
     updateCheckpoints();
     updatePriest(dt);
     updateSides(dt);
@@ -32104,75 +32139,92 @@
   // • 3 прожектори з-за обрію повільно шукають ціль, іноді схрещуються; біля основи — ореол
   // • ППО: черги трасерів (світні «кульки» з хвостами), що йдуть дугою вгору й гаснуть
   // • збиття: спалах + повільна хмарка диму; далекі зарева на обрії
+  // ── тривога: робота ППО епізодами (не постійно) — спалахи збиття, черги трасерів, далекі вибухи й постріли ──
+  // S.rfx = {next, list:[{kind:'boom'|'mg', t, x, y, dir}]}; x/y — частки екрана. Звук приходить із затримкою (далеко).
+  function raidFxUpdate(dt) {
+    const e = S.ev.air_raid;
+    if (!e) { S.rfx = null; return; }
+    if (!S.rfx) S.rfx = { next: 3.5 + Math.random() * 3, list: [] };
+    const R = S.rfx;
+    for (const f of R.list) f.t += dt;
+    R.list = R.list.filter((f) => f.t < (f.kind === 'mg' ? 2.6 : 3.2));
+    if (e.t < R.next || e.dur - e.t < 3) return;
+    R.next = e.t + 6 + Math.random() * 10;             // пауза 6–16 с: тиша → епізод
+    const A = G.audio, snd = (name, ms, vol) => { if (A && A.sfx) G.after(ms, () => { if (S && S.ev.air_raid) A.sfx(name, { vol }); }, {}); };
+    const roll = Math.random();
+    if (roll < 0.45) {                                 // збиття: спалах, потім глухий вибух
+      const n = Math.random() < 0.3 ? 2 : 1;
+      for (let i = 0; i < n; i++) {
+        R.list.push({ kind: 'boom', t: -i * 0.7, x: 0.12 + Math.random() * 0.76, y: 0.06 + Math.random() * 0.3 });
+        snd('distant_boom', 500 + i * 700 + Math.random() * 700, 0.55 + Math.random() * 0.3);
+      }
+    } else if (roll < 0.8) {                           // кулемет мобільної групи: черга трасерів і постріли
+      R.list.push({ kind: 'mg', t: 0, x: 0.1 + Math.random() * 0.8, y: 0.7 + Math.random() * 0.25, dir: (Math.random() - 0.5) * 0.8 });
+      snd('distant_gun', 250 + Math.random() * 300, 0.5 + Math.random() * 0.3);
+    } else {                                           // усе разом: черга, а за нею — збиття
+      R.list.push({ kind: 'mg', t: 0, x: 0.1 + Math.random() * 0.8, y: 0.7 + Math.random() * 0.25, dir: (Math.random() - 0.5) * 0.8 });
+      R.list.push({ kind: 'boom', t: -1.3, x: 0.15 + Math.random() * 0.7, y: 0.08 + Math.random() * 0.25 });
+      snd('distant_gun', 300, 0.6); snd('distant_boom', 2100 + Math.random() * 500, 0.8);
+    }
+  }
   function drawRaidSky(ctx, k, night) {
     const VW = G.cfg.VIEW_W, VH = G.cfg.VIEW_H, t = G.realTime, A = k * night;
-    if (A <= 0.01) return;
+    const AE = k * Math.max(0.4, night);               // епізоди видно і вдень (слабше)
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    // легкий холодний серпанок угорі (небо)
-    const sky = ctx.createLinearGradient(0, 0, 0, VH * 0.6);
-    sky.addColorStop(0, 'rgba(40,30,70,' + (0.22 * A).toFixed(3) + ')'); sky.addColorStop(1, 'rgba(40,30,70,0)');
-    ctx.fillStyle = sky; ctx.fillRect(0, 0, VW, VH * 0.6);
-    ctx.globalCompositeOperation = 'lighter';
-    // прожектори
     const bc = beam(), gl = softGlow();
-    const B = [[0.1, 0.3, 0.19], [0.52, 1.9, 0.15], [0.9, 3.4, 0.21]];
-    for (const b of B) {
-      const sway = Math.sin(t * b[2] + b[1]) * 0.55 + Math.sin(t * b[2] * 2.3 + b[1] * 1.7) * 0.12;
-      const bx = VW * b[0], by = VH + 30;
-      ctx.save();
-      ctx.translate(bx, by); ctx.rotate(sway);
-      ctx.globalAlpha = 0.55 * A;
-      ctx.drawImage(bc, -bc.width / 2, -bc.height);
-      ctx.restore();
-      ctx.globalAlpha = 0.25 * A; ctx.drawImage(gl, bx - 36, VH - 30, 72, 60); // ореол біля основи
-    }
-    // ППО: 2–3 черги трасерів одночасно
-    const GUNS = 5;
-    for (let i = 0; i < GUNS; i++) {
-      const per = 2.0 + hash1(i * 13) * 1.4, cyc = Math.floor((t + i * 0.9) / per), ph = ((t + i * 0.9) % per) / per;
-      if (hash1(cyc * 7 + i) < 0.15 || ph > 0.6) continue; // пауза між чергами
-      const gx = VW * (0.08 + 0.84 * hash1(cyc * 3 + i * 17)), gy = VH * (0.62 + 0.3 * hash1(cyc + i));
-      const dir = (hash1(cyc * 5 + i) - 0.5) * 0.9;            // нахил черги
-      const N = 7;
-      for (let n = 0; n < N; n++) {
-        const life = ph / 0.6 * 1.7 - n * 0.11;                 // кожна куля вилітає трохи пізніше
-        if (life <= 0 || life > 1) continue;
-        const dist = life * VH * 0.75;
-        const x = gx + dir * dist + Math.sin(life * 2) * 6, y = gy - dist + life * life * 30; // легка дуга
-        const fade = (1 - life) * A;
-        // хвіст
-        const tx = x - dir * 14, ty = y + 14;
-        const tg = ctx.createLinearGradient(x, y, tx, ty);
-        tg.addColorStop(0, 'rgba(255,236,170,' + Math.min(1, 1.2 * fade).toFixed(3) + ')'); tg.addColorStop(0.5, 'rgba(255,120,50,' + (0.6 * fade).toFixed(3) + ')'); tg.addColorStop(1, 'rgba(255,60,30,0)');
-        ctx.globalAlpha = 1; ctx.strokeStyle = tg; ctx.lineWidth = 2; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();
-        // світна голівка
-        ctx.globalAlpha = Math.min(1, 0.9 * fade); ctx.drawImage(gl, x - 7, y - 7, 14, 14);
+    if (A > 0.01) {
+      // легкий холодний серпанок угорі (небо)
+      const sky = ctx.createLinearGradient(0, 0, 0, VH * 0.6);
+      sky.addColorStop(0, 'rgba(40,30,70,' + (0.22 * A).toFixed(3) + ')'); sky.addColorStop(1, 'rgba(40,30,70,0)');
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, VW, VH * 0.6);
+      ctx.globalCompositeOperation = 'lighter';
+      // прожектори (постійно, вночі)
+      const B = [[0.1, 0.3, 0.19], [0.52, 1.9, 0.15], [0.9, 3.4, 0.21]];
+      for (const b of B) {
+        const sway = Math.sin(t * b[2] + b[1]) * 0.55 + Math.sin(t * b[2] * 2.3 + b[1] * 1.7) * 0.12;
+        const bx = VW * b[0], by = VH + 30;
+        ctx.save(); ctx.translate(bx, by); ctx.rotate(sway); ctx.globalAlpha = 0.55 * A; ctx.drawImage(bc, -bc.width / 2, -bc.height); ctx.restore();
+        ctx.globalAlpha = 0.25 * A; ctx.drawImage(gl, bx - 36, VH - 30, 72, 60);
       }
     }
-    // збиття: спалах і хмарка диму (кожні ~5 с, у верхній половині)
-    const P = 5.2, slot = Math.floor(t / P), ph = (t % P) / P;
-    if (hash1(slot * 11) > 0.25) {
-      const ex = VW * (0.15 + 0.7 * hash1(slot)), ey = VH * (0.1 + 0.3 * hash1(slot * 2));
-      if (ph < 0.12) { // спалах
-        const f = 1 - ph / 0.12, r = 14 + (1 - f) * 22;
-        ctx.globalAlpha = f * A; ctx.drawImage(gl, ex - r, ey - r, r * 2, r * 2);
-        ctx.globalAlpha = f * 0.5 * A; ctx.drawImage(gl, ex - r * 2.2, ey - r * 2.2, r * 4.4, r * 4.4);
+    ctx.globalCompositeOperation = 'lighter';
+    const list = (S.rfx && S.rfx.list) || [];
+    for (const f of list) {
+      if (f.t < 0) continue;
+      if (f.kind === 'mg') {
+        // черга трасерів знизу вгору (~1.8 с), куля за кулею
+        const gx = VW * f.x, gy = VH * f.y, N = 12;
+        for (let n = 0; n < N; n++) {
+          const life = (f.t - n * 0.12) / 0.9;
+          if (life <= 0 || life > 1) continue;
+          const dist = life * VH * 0.75, x = gx + f.dir * dist + Math.sin(life * 2 + n) * 4, y = gy - dist + life * life * 30;
+          const fade = (1 - life) * AE, tx = x - f.dir * 14, ty = y + 14;
+          const tg = ctx.createLinearGradient(x, y, tx, ty);
+          tg.addColorStop(0, 'rgba(255,236,170,' + Math.min(1, 1.2 * fade).toFixed(3) + ')'); tg.addColorStop(0.5, 'rgba(255,120,50,' + (0.6 * fade).toFixed(3) + ')'); tg.addColorStop(1, 'rgba(255,60,30,0)');
+          ctx.globalAlpha = 1; ctx.strokeStyle = tg; ctx.lineWidth = 2; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();
+          ctx.globalAlpha = Math.min(1, 0.9 * fade); ctx.drawImage(gl, x - 7, y - 7, 14, 14);
+        }
+        if (f.t < 1.6 && night > 0.2) { ctx.globalAlpha = (0.25 + 0.2 * Math.sin(f.t * 40)) * A; ctx.drawImage(gl, gx - 20, gy - 10, 40, 30); } // спалахи біля землі
+      } else {
+        // збиття: яскравий спалах, світло на все місто, хмарка диму
+        const ex = VW * f.x, ey = VH * f.y, ph = f.t;
+        if (ph < 0.45) {
+          const fl = 1 - ph / 0.45, r = 14 + (1 - fl) * 26;
+          ctx.globalAlpha = fl * AE; ctx.drawImage(gl, ex - r, ey - r, r * 2, r * 2);
+          ctx.globalAlpha = fl * 0.55 * AE; ctx.drawImage(gl, ex - r * 2.4, ey - r * 2.4, r * 4.8, r * 4.8);
+          ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(255,190,130,' + (fl * fl * (0.1 + 0.16 * night) * k).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH);
+        }
+        if (ph < 3) {
+          ctx.globalCompositeOperation = 'source-over';
+          const fs = Math.min(1, ph / 0.3) * (1 - ph / 3), r = 7 + ph * 10;
+          ctx.globalAlpha = (0.32 + 0.3 * (1 - night)) * fs * k; ctx.fillStyle = night > 0.4 ? '#6a6470' : '#5a5660';
+          for (let j = 0; j < 4; j++) { ctx.beginPath(); ctx.arc(ex + Math.cos(j * 1.7) * r * 0.5, ey + Math.sin(j * 2.3) * r * 0.35 - ph * 3, r * (0.55 + 0.1 * j), 0, Math.PI * 2); ctx.fill(); }
+          ctx.globalCompositeOperation = 'lighter';
+        }
+        if (ph < 0.9 && night > 0.2) { ctx.globalAlpha = (1 - ph / 0.9) * 0.3 * A; ctx.drawImage(gl, ex - 60, VH - 40, 120, 80); } // зарево на обрії
       }
-      if (ph < 0.8) { // дим — звичайне змішування, повільно розпливається
-        ctx.globalCompositeOperation = 'source-over';
-        const f = Math.min(1, ph / 0.1) * (1 - ph / 0.8), r = 6 + ph * 22;
-        ctx.globalAlpha = 0.28 * f * A; ctx.fillStyle = '#6a6470';
-        for (let j = 0; j < 4; j++) { ctx.beginPath(); ctx.arc(ex + Math.cos(j * 1.7) * r * 0.5, ey + Math.sin(j * 2.3) * r * 0.35 - ph * 6, r * (0.55 + 0.1 * j), 0, Math.PI * 2); ctx.fill(); }
-        ctx.globalCompositeOperation = 'lighter';
-      }
-    }
-    // далекі зарева на обрії (низ екрана, дуже мʼякі)
-    const P2 = 3.7, s2 = Math.floor(t / P2), p2 = (t % P2) / P2;
-    if (p2 < 0.25) {
-      const x = VW * (0.1 + 0.8 * hash1(s2 * 5)), a = (1 - p2 / 0.25) * 0.3 * A;
-      ctx.globalAlpha = a; ctx.drawImage(gl, x - 60, VH - 40, 120, 80);
     }
     ctx.restore();
   }
@@ -32268,7 +32320,7 @@
     if (S.ev.air_raid) {
       const e = S.ev.air_raid, k = Math.min(1, e.t / 1.5, Math.max(0, e.dur - e.t) / 2);
       const pulse = 0.5 + 0.5 * Math.sin(G.realTime * 4);
-      if (night > 0.2) drawRaidSky(ctx, k, night);
+      drawRaidSky(ctx, k, night);
       ctx.save();
       ctx.fillStyle = 'rgba(220,40,40,' + ((0.1 + 0.2 * pulse) * k).toFixed(3) + ')';
       ctx.fillRect(0, 0, VW, 3); ctx.fillRect(0, VH - 3, VW, 3); ctx.fillRect(0, 0, 3, VH); ctx.fillRect(VW - 3, 0, 3, VH);
@@ -35217,13 +35269,132 @@
       if (Math.floor(G.realTime * 2) % 2) u.text(ctx, (G.touch && G.touch.active) ? 'тапни, щоб почати' : 'Enter — почати', W / 2, 186, { size: 8, align: 'center', color: '#93c25b' });
     }
   }
+  // ── фон побачення: вечірній сквер у Києві (статичний шар кешується, поверх — анімація) ──
+  let dbgCache = null;
+  function dateBgStatic(W, H, ox) {
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const c = cv.getContext('2d'), R = (col, x, y, w, h) => { c.fillStyle = col; c.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+    let sd = 7; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+    // небо: смуги з піксельним дизерингом (захід сонця)
+    const SKY = ['#161430', '#1f1a3e', '#2b2250', '#3d2b5e', '#553668', '#74426c', '#9a526c', '#c0666a', '#e0866a', '#f0a874'];
+    const HZ = 116, band = HZ / SKY.length;
+    for (let i = 0; i < SKY.length; i++) {
+      const y0 = Math.floor(i * band); R(SKY[i], 0, y0, W, Math.ceil(band) + 1);
+      if (i + 1 < SKY.length) for (let x = (i % 2); x < W; x += 2) R(SKY[i + 1], x, Math.floor((i + 1) * band) - 1, 1, 1);
+    }
+    // місяць
+    const mx = ox + 300, my = 40;
+    for (let r = 16; r > 9; r -= 2) { c.fillStyle = 'rgba(255,236,190,' + (0.035 * (17 - r) / 2).toFixed(3) + ')'; c.beginPath(); c.arc(mx, my, r, 0, 7); c.fill(); }
+    for (let dy = -7; dy <= 7; dy++) { const w = Math.round(Math.sqrt(49 - dy * dy)); R('#f6ead0', mx - w, my + dy, w * 2, 1); }
+    R('#ddd0b4', mx - 3, my - 3, 3, 2); R('#ddd0b4', mx + 2, my + 2, 2, 2); R('#ddd0b4', mx - 1, my + 4, 2, 1);
+    // силует міста: будинки з вікнами + собор із золотими банями
+    let x = -4;
+    while (x < W) {
+      const bw = 18 + Math.floor(rnd() * 26), bh = 22 + Math.floor(rnd() * 34), by = HZ - bh;
+      R('#2a2148', x, by, bw, bh); R('#33295a', x, by, bw, 2);
+      if (rnd() < 0.3) R('#2a2148', x + bw / 2 - 1, by - 6, 2, 6);
+      for (let wy = by + 5; wy < HZ - 4; wy += 6) for (let wx = x + 3; wx < x + bw - 4; wx += 5) if (rnd() < 0.32) R(rnd() < 0.7 ? '#f2c66a' : '#e8955a', wx, wy, 2, 3);
+      x += bw + 1;
+    }
+    const cx = ox + 196; // собор
+    R('#2d2350', cx, 62, 46, 54); R('#2d2350', cx + 14, 46, 18, 16);
+    const dome = (dx, dy, r, col) => { for (let k = -r; k <= r; k++) { const w = Math.round(Math.sqrt(r * r - k * k * 1.6)); if (w > 0 && k <= 0) R(col, dx - w, dy + k, w * 2, 1); } };
+    dome(cx + 23, 46, 9, '#d8a83c'); R('#f4d27a', cx + 18, 40, 3, 3); R('#d8a83c', cx + 22, 30, 2, 8); R('#d8a83c', cx + 20, 32, 6, 1);
+    dome(cx + 6, 62, 5, '#c8962e'); dome(cx + 40, 62, 5, '#c8962e'); R('#c8962e', cx + 5, 53, 2, 5); R('#c8962e', cx + 39, 53, 2, 5);
+    for (let k = 0; k < 4; k++) R('#f2c66a', cx + 8 + k * 9, 76, 3, 7);
+    // туманна дымка над обрієм
+    for (let i = 0; i < 4; i++) { c.fillStyle = 'rgba(240,160,120,' + (0.05 + i * 0.03).toFixed(2) + ')'; c.fillRect(0, HZ - 10 + i * 3, W, 3); }
+    // газон і кущі
+    R('#1e3324', 0, HZ, W, 12); R('#26402a', 0, HZ, W, 2);
+    for (let gx = 0; gx < W; gx += 3) if (rnd() < 0.6) R(rnd() < 0.5 ? '#2c4a30' : '#18291c', gx, HZ + 2 + Math.floor(rnd() * 8), 1, 2);
+    // бруківка (площа)
+    const PY = HZ + 12;
+    R('#4a3f52', 0, PY, W, H - PY);
+    for (let row = 0, y = PY; y < H; row++) {
+      const th = 6 + Math.floor(row * 0.8); const off = row % 2 ? 0 : 7;
+      for (let tx = -off; tx < W; tx += 14) {
+        const v = rnd(); R(v < 0.33 ? '#564a5e' : v < 0.66 ? '#51465a' : '#5c5064', tx + 1, y + 1, 12, th - 1);
+        R('rgba(255,255,255,0.05)', tx + 1, y + 1, 12, 1);
+      }
+      y += th;
+    }
+    // клумби внизу з квітами
+    const FL = ['#ff6a8a', '#fde98f', '#f2f2ff', '#e87a3a', '#c88ae8'];
+    for (let bx = -6; bx < W; bx += 46) {
+      const yy = H - 14; R('#3a2c34', bx, yy, 40, 14); R('#24402a', bx + 2, yy - 6, 36, 10);
+      for (let k = 0; k < 9; k++) { const fx = bx + 4 + Math.floor(rnd() * 32), fy = yy - 6 + Math.floor(rnd() * 7); R(FL[Math.floor(rnd() * FL.length)], fx, fy, 2, 2); }
+    }
+    return cv;
+  }
+  function tree(ctx, x, y, s) { // крона з об'ємом, підсвічена теплим світлом знизу
+    const R = (col, a, b, w, h) => RC(ctx, col, x + a * s, y + b * s, w * s, h * s);
+    R('#2a1c1a', -2, 0, 4, 34); R('#3a2824', -2, 0, 1, 34);
+    const blob = (bx, by, r, col) => { for (let k = -r; k <= r; k++) { const w = Math.round(Math.sqrt(r * r - k * k)); R(col, bx - w, by + k, w * 2, 1); } };
+    blob(0, -8, 17, '#16301e'); blob(-9, 0, 12, '#1a3a22'); blob(10, -1, 12, '#1a3a22'); blob(0, -12, 13, '#21482a'); blob(-5, -16, 8, '#2a5a32'); blob(6, 4, 7, '#3a5a2a');
+  }
+  function dateBg(ctx, W, H, ox, t) {
+    if (!dbgCache || dbgCache.W !== W || dbgCache.H !== H) dbgCache = { W, H, cv: dateBgStatic(W, H, ox) };
+    ctx.imageSmoothingEnabled = false; ctx.drawImage(dbgCache.cv, 0, 0);
+    const R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h);
+    // зорі мерехтять
+    for (let i = 0; i < 40; i++) {
+      const sx = (i * 97 + 13) % W, sy = (i * 53 + 7) % 64, a = 0.35 + 0.65 * Math.abs(Math.sin(t * (0.8 + (i % 5) * 0.3) + i));
+      if (Math.abs(sx - ox - 300) < 18 && Math.abs(sy - 40) < 18) continue;
+      R('rgba(255,248,220,' + a.toFixed(2) + ')', sx, sy, 1, 1);
+    }
+    // дерева по боках (між портретами)
+    tree(ctx, ox + 152, 84, 1); tree(ctx, ox + 330, 86, 1);
+    for (let k = 1; ox - k * 90 + 20 > -40; k++) tree(ctx, ox + 20 - k * 90, 86, 1);
+    for (let k = 0; ox + 470 + k * 90 < W + 40; k++) tree(ctx, ox + 470 + k * 90, 86, 1);
+    // гірлянда між деревами
+    const lights = (x1, x2, y, sag, n) => {
+      for (let i = 0; i <= n; i++) {
+        const u = i / n, lx = x1 + (x2 - x1) * u, ly = y + Math.sin(u * Math.PI) * sag;
+        R('#1a1424', lx, ly, 1, 1);
+        if (i % 3 === 1) {
+          const cols = ['#ff7a8a', '#fde98f', '#8fe0ff', '#b4ff8a'], col = cols[(i / 3 | 0) % 4];
+          const on = 0.55 + 0.45 * Math.sin(t * 3 + i);
+          ctx.fillStyle = col; ctx.globalAlpha = 0.18 * on; ctx.fillRect(Math.round(lx) - 3, Math.round(ly) - 1, 7, 7); ctx.globalAlpha = 1;
+          R(col, lx - 1, ly + 1, 2, 3);
+        }
+      }
+    };
+    lights(ox + 152, ox + 330, 70, 14, 60);
+    lights(ox + 20, ox + 152, 72, 9, 40); lights(ox + 330, ox + 470, 72, 9, 40);
+    // ліхтарі з теплою плямою світла
+    const lamp = (lx) => {
+      const g = ctx.createRadialGradient(lx, 64, 2, lx, 64, 46); g.addColorStop(0, 'rgba(255,214,130,0.32)'); g.addColorStop(1, 'rgba(255,214,130,0)');
+      ctx.fillStyle = g; ctx.fillRect(lx - 46, 18, 92, 92);
+      const g2 = ctx.createRadialGradient(lx, 132, 2, lx, 132, 40); g2.addColorStop(0, 'rgba(255,200,120,0.22)'); g2.addColorStop(1, 'rgba(255,200,120,0)');
+      ctx.fillStyle = g2; ctx.fillRect(lx - 40, 116, 80, 32);
+      R('#1c1622', lx - 1, 66, 3, 64); R('#1c1622', lx - 3, 128, 7, 3); R('#1c1622', lx - 5, 60, 11, 2); R('#1c1622', lx - 4, 56, 9, 2);
+      R('#ffe6a0', lx - 3, 62, 7, 4); R('#fff6d8', lx - 1, 63, 3, 2);
+    };
+    lamp(ox + 136); lamp(ox + 346);
+    // фонтан: чаша, струмені, бризки, відблиски
+    const fx = ox + 240;
+    R('#3a3446', fx - 46, 108, 92, 8); R('#6a6274', fx - 48, 104, 96, 5); R('#857c8e', fx - 48, 104, 96, 1);
+    R('#4c8ab8', fx - 44, 106, 88, 3);
+    for (let i = 0; i < 6; i++) { const wx = fx - 40 + ((i * 17 + Math.floor(t * 20)) % 80); R('#a8dcf0', wx, 106 + (i % 2), 4, 1); }
+    R('#6a6274', fx - 5, 90, 10, 15); R('#857c8e', fx - 14, 88, 28, 3); R('#4c8ab8', fx - 12, 88, 24, 1);
+    for (let i = -2; i <= 2; i++) {
+      const h = 14 + (2 - Math.abs(i)) * 6 + Math.round(Math.sin(t * 8 + i) * 1.5);
+      for (let k = 0; k < h; k++) { const px = fx + i * (k / h) * 6 * (k / h); R(k < 3 ? '#e8f8ff' : 'rgba(176,226,246,0.85)', px, 88 - h + k + (Math.abs(i) * k * k) / (h * 3.2), 1, 1); }
+    }
+    for (let i = 0; i < 10; i++) { const ph = (t * 1.6 + i * 0.37) % 1, dx = (i % 2 ? 1 : -1) * (6 + (i * 7) % 18) * ph, dy = -20 * ph + 32 * ph * ph; R('rgba(220,244,255,' + (1 - ph).toFixed(2) + ')', fx + dx, 80 + dy, 1, 1); }
+    // світлячки
+    for (let i = 0; i < 12; i++) {
+      const bx = (i * 131 + 40) % W + Math.sin(t * 0.7 + i) * 10, by = 140 + (i * 37) % (H - 160) + Math.cos(t * 0.9 + i * 2) * 6, a = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + i));
+      ctx.fillStyle = 'rgba(220,255,140,' + (0.18 * a).toFixed(2) + ')'; ctx.fillRect(Math.round(bx) - 1, Math.round(by) - 1, 3, 3);
+      R('rgba(240,255,170,' + a.toFixed(2) + ')', bx, by, 1, 1);
+    }
+    // віньєтка — щоб текст читався
+    const v = ctx.createRadialGradient(W / 2, H * 0.45, H * 0.35, W / 2, H * 0.5, W * 0.75); v.addColorStop(0, 'rgba(10,6,20,0)'); v.addColorStop(1, 'rgba(10,6,20,0.55)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }
   function drawDate(ctx, u) {
     const W = VW(), H = VH(), ox = OX(), I = MG, R = (c, x, y, w, h) => RC(ctx, c, x, y, w, h), t = G.realTime;
-    // вечірній сквер: небо, дерева, ліхтар, фонтан
-    R('#3c2f5c', 0, 0, W, 60); R('#6a4a74', 0, 60, W, 40); R('#c8786a', 0, 100, W, 18); R('#2e3a2c', 0, 118, W, H - 118);
-    for (let k = 0; k < 6; k++) { const x = ox + 20 + k * 86; R('#1f2a1e', x + 10, 70, 6, 50); R('#2c4a2a', x - 4, 46, 34, 30); R('#365a32', x, 40, 26, 14); }
-    R('#9aa0a8', ox + 430, 40, 4, 80); R('#fde98f', ox + 424, 34, 16, 8); R('rgba(253,233,143,0.12)', ox + 380, 42, 110, 80);
-    R('#8a8478', ox + 200, 108, 80, 10); R('#6fb0dc', ox + 206, 104, 68, 6); R('#bfe6f0', ox + 238, 90 + Math.round(Math.sin(t * 6) * 2), 4, 16);
+    dateBg(ctx, W, H, ox, t);
     // портрети: Катя ліворуч, герой праворуч
     const port = (v, x, y) => { let img = null; try { img = v === 'hero' ? G.sprites.portrait('player', (P() && P().skin) || 'office') : G.sprites.portrait('npc', v); } catch (e) { img = null; } if (img) { ctx.imageSmoothingEnabled = false; ctx.drawImage(img, Math.round(x), Math.round(y), img.width * 2, img.height * 2); } };
     const kv = I.phase === 'res' ? (I.heart > 0 || I.msg === DATE[Math.min(I.round, 2)].good ? 'katya_happy' : 'katya_worried') : I.phase === 'end' ? (I.hits < 2 ? 'katya_happy' : 'katya') : 'katya';
@@ -36166,14 +36337,16 @@
   let st = { id: '', name: '', best: 0, sent: 0 };
   try { const raw = localStorage.getItem(LS); if (raw) st = Object.assign(st, JSON.parse(raw)); } catch (e) {}
   if (!st.id) st.id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+  if (!st.v2) { st.v2 = 1; st.sent = 0; st.pend = null; } // таблицю очищено перед релізом — рахуємо відправлене з нуля
   const persist = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {} };
   persist();
 
-  const BAD = /(хуй|хуе|хує|пизд|єба|еба|ебл|йоб|бля|сук[аи]|підор|пидор|залуп|fuck|shit|cunt|nigg|bitch|dick)/i;
+  // той самий список, що й на сервері (esc_name_ok у online/supabase.sql)
+  const BAD = /(хуй|хуе|хує|хуї|хуя|хуи|пизд|пізд|ебан|ебат|ебал|ебл|уеб|заеб|ёб|йоб|їб|бля|сука|суки|сучк|підор|пидор|педик|залуп|гандон|шлюх|курв|дроч|мудак|мудил|fuck|shit|cunt|nigg|bitch|dick|pussy|hui|huy|xui|xyi|pizd|blya|blyat|suka|pidor|eban|ebat|zalup)/i;
   function cleanName(n) {
     n = String(n || '').replace(/[^A-Za-zА-Яа-яІіЇїЄєҐґ'0-9 _\-.]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
     if (n.length < 2) return null;
-    if (BAD.test(n.replace(/[ _\-.0-9]/g, ''))) return null;
+    if (BAD.test(n.toLowerCase().replace(/[^a-zа-яіїєґё]/g, ''))) return null;
     return n;
   }
 
@@ -36182,38 +36355,64 @@
     const h = { apikey: SUPA_KEY, 'Content-Type': 'application/json' };
     if (!/^sb_/.test(SUPA_KEY)) h.Authorization = 'Bearer ' + SUPA_KEY; // старий JWT-ключ «anon public»; новий sb_publishable_ — лише apikey
     Object.assign(h, extra || {});
+    if (typeof fetch !== 'function') return Promise.reject(new Error('offline'));
     return fetch(SUPA_URL.replace(/\/$/, '') + path, { method: body ? 'POST' : 'GET', headers: h, body: body ? JSON.stringify(body) : undefined })
       .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.status === 204 ? null : r.json(); });
   }
   function refresh() {
     if (!enabled) return Promise.resolve();
     L.status = 'load';
-    const pTop = api('/rest/v1/esc_scores?select=name,score,waves,device&order=score.desc,updated_at.asc&limit=50');
+    // колонку device сервер не віддає (щоб ніхто не підробив чужий пристрій) — «це я» визначаємо за своїм місцем
+    const pTop = api('/rest/v1/esc_scores?select=name,score,waves&order=score.desc,updated_at.asc&limit=50');
     const pMe = api('/rest/v1/rpc/my_rank', { p_device: st.id });
     return Promise.all([pTop, pMe]).then(([top, me]) => {
-      L.top = (top || []).map((r) => ({ name: r.name, score: r.score, waves: r.waves, me: r.device === st.id }));
       const m = Array.isArray(me) ? me[0] : me;
       L.me = m && m.rank ? { rank: m.rank, score: m.score, total: m.total } : null;
+      L.top = (top || []).map((r, i) => ({ name: r.name, score: r.score, waves: r.waves, me: !!(L.me && L.me.rank === i + 1) }));
       L.status = 'ok'; L.at = Date.now();
     }).catch((e) => { L.status = 'err'; L.err = String(e && e.message || e); });
   }
-  let pending = null;
-  function submit(score, waves, sec) {
+  // Захист від накруток: на старті кожного забігу ВТЕЧІ сервер видає номер забігу (start_run) і сам запам'ятовує час.
+  // Рекорд приймається тільки з номером свого забігу, один раз, і час гри не може бути більшим за реальний.
+  // Рекорд, поставлений ще без ніку, чекає в st.pend (з номером забігу) і відправляється, щойно гравець обере нік.
+  let runTok = null, runSeq = 0, legacy = false;
+  function startRun() {
+    runTok = null;
+    if (!enabled) return;
+    const my = ++runSeq;
+    // поки на сервері старий SQL (немає start_run → HTTP 404) — працюємо по-старому через submit_score
+    api('/rest/v1/rpc/start_run', { p_device: st.id }).then((id) => { legacy = false; if (my === runSeq && typeof id === 'string') runTok = id; })
+      .catch((e) => { if (/404/.test(String(e && e.message))) { legacy = true; if (my === runSeq) runTok = 'legacy'; } });
+  }
+  function submitPend() {
+    const p = st.pend;
+    if (!enabled || !p || !st.name) return refresh();
+    if (p.score <= st.sent) { st.pend = null; persist(); return refresh(); }
+    L.status = 'load';
+    const req = p.run === 'legacy'
+      ? api('/rest/v1/rpc/submit_score', { p_device: st.id, p_name: st.name, p_score: p.score, p_waves: p.waves, p_sec: p.sec }).then(() => true)
+      : api('/rest/v1/rpc/submit_run', { p_device: st.id, p_name: st.name, p_score: p.score, p_waves: p.waves, p_sec: p.sec, p_run: p.run });
+    return req
+      .then((ok) => { if (ok) st.sent = Math.max(st.sent, p.score); if (st.pend === p) st.pend = null; persist(); return refresh(); })
+      .catch((e) => { if (p.run === 'legacy' && /404/.test(String(e && e.message)) && st.pend === p) { st.pend = null; persist(); } L.status = 'err'; L.err = String(e && e.message || e); });
+  }
+  function submit(score, waves, sec) { // рекорд поточного забігу
     score = Math.floor(score || 0);
-    if (!enabled || !st.name || score <= 0) return Promise.resolve(null);
-    if (score <= st.sent) return refresh();
-    pending = { score, waves: Math.max(1, waves | 0), sec: Math.max(0, sec | 0) };
-    return api('/rest/v1/rpc/submit_score', { p_device: st.id, p_name: st.name, p_score: score, p_waves: pending.waves, p_sec: pending.sec })
-      .then(() => { st.sent = Math.max(st.sent, score); persist(); pending = null; return refresh(); })
-      .catch((e) => { L.status = 'err'; L.err = String(e && e.message || e); });
+    if (!enabled || score <= 0 || !runTok || score <= st.sent) return refresh();
+    if (st.pend && st.pend.score >= score) { runTok = null; return submitPend(); } // ще не відправлений кращий рекорд
+    st.pend = { run: runTok, score, waves: Math.max(1, waves | 0), sec: Math.max(0, sec | 0) };
+    runTok = null; persist();
+    return submitPend();
   }
   function setName(n) {
     const c = cleanName(n);
     if (!c) return false;
-    st.name = c; st.sent = 0; persist();
-    // одразу відправити наявний рекорд під новим ніком
-    const r = G.progress && G.progress.escRecord;
-    if (enabled && r && r.best) submit(r.best, r.bestWave || 1, r.bestSec || 0); else refresh();
+    const had = !!st.name;
+    st.name = c; persist();
+    if (!enabled) return true;
+    if (st.pend) submitPend();
+    else if (had) api('/rest/v1/rpc/set_name', { p_device: st.id, p_name: c }).then(refresh).catch(() => refresh());
+    else refresh();
     return true;
   }
 
@@ -36250,18 +36449,21 @@
     get data() { return L; }, cfg: enabled ? { url: SUPA_URL, key: SUPA_KEY } : null, setName, submit, refresh, askName, cleanName,
   };
 
-  // ── після забігу ВТЕЧІ: відправити рекорд ──
+  // ── старт забігу ВТЕЧІ: взяти номер забігу на сервері ──
+  G.events.on('run:start', () => {
+    const m = G.run && G.run.mission;
+    if (m && m.mode === 'escape' && !m.practice) startRun(); else { runTok = null; runSeq++; }
+  });
+  // ── після забігу ВТЕЧІ: відправити, якщо цей забіг кращий за вже прийнятий сервером ──
   G.events.on('state:change', (d) => {
     if (!d) return;
     L.onResult = false;
     if (d.to !== 'result') return;
     const s = d.data || {};
-    if (s.mode !== 'escape' || s.practice) return;
+    if (s.mode !== 'escape' || s.practice) { runTok = null; return; }
     L.onResult = true;
-    const r = G.progress && G.progress.escRecord;
-    const best = (r && r.best) || 0;
-    if (!enabled || !st.name || !best) return;
-    submit(best, (r && r.bestWave) || s.waves || 1, (r && r.bestSec) || s.sec || 0);
+    if (!enabled) return;
+    if (s.score > st.sent) submit(s.score, s.waves || 1, s.sec || 0); else { runTok = null; refresh(); }
   });
 
   // ═══════════════════════════ Сцена ЛІДЕРИ ═══════════════════════════
@@ -36287,10 +36489,8 @@
       if (G.ui) G.ui.reset();
       if (!enabled) return;
       if (!st.name) askName(() => {});
-      if (Date.now() - L.at > 15000 || L.status !== 'ok') {
-        const r = G.progress && G.progress.escRecord;
-        if (st.name && r && r.best > st.sent) submit(r.best, r.bestWave || 1, r.bestSec || 0); else refresh();
-      }
+      if (st.name && st.pend) submitPend();
+      else if (Date.now() - L.at > 15000 || L.status !== 'ok') refresh();
     },
     exit() {},
     update(dt, realDt) {
