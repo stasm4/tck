@@ -32672,17 +32672,48 @@
     R.list.push(f);
     if (G.audio && G.audio.sfx) G.audio.sfx('shahed', { vol: 0.9, dur: f.downAt ? f.downAt + 0.2 : lead + SPAN + 2, peak: f.downAt ? 0.92 : (lead + SPAN * 0.5) / (lead + SPAN + 2), pan: dirR ? -0.8 : 0.8 });
   }
-  // силует шахеда згори: дельта-крило з кілями на кінцях, гвинт позаду (dir 1 — летить праворуч)
-  const SHAHED_PX = ['#.............', '##............', '.###..........', '..#####.......', '..########....', '..###########.', '..########....', '..#####.......', '.###..........', '##............', '#.............'];
-  function drawShahed(ctx, x, y, dir, night, A) {
-    const col = night > 0.5 ? '#5a556c' : '#2c2a32', S2 = 2; // ×2 — щоб було видно на телефоні
-    const px = (o, c2) => { ctx.fillStyle = c2; for (let r = 0; r < SHAHED_PX.length; r++) for (let c = 0; c < SHAHED_PX[r].length; c++) if (SHAHED_PX[r][c] === '#') ctx.fillRect(Math.round(x + dir * (c - 7) * S2 - (dir < 0 ? S2 - 1 : 0)) - o, Math.round(y + (r - 5) * S2) - o, S2 + o * 2, S2 + o * 2); };
-    px(1, '#141218'); // контур
-    px(0, col);
-    ctx.fillStyle = '#7a7488'; ctx.fillRect(Math.round(x + dir * 2 * S2), Math.round(y), S2 * 2, 1); // відблиск на фюзеляжі
-    ctx.fillStyle = col;
-    // гвинт (розмита смужка позаду)
-    ctx.globalAlpha = 0.5 * A; ctx.fillRect(Math.round(x - dir * 7 * S2), Math.round(y - 5), 1, 10);
+  // шахед знизу (як на фото): бежеве дельта-крило з рисками, циліндричний світлий ніс, кілі на кінцях крил,
+  // мотор із гвинтом позаду. Спрайт 30×21 (ніс праворуч), кеш денної та нічної палітри; dir −1 — дзеркально.
+  const SHD = { c: {} };
+  function shahedSprite(nightPal) {
+    const key = nightPal ? 'n' : 'd';
+    if (SHD.c[key]) return SHD.c[key];
+    const W = 30, H = 27, cy = 13, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d'), m = new Array(W * H).fill(0); // 0 — порожньо, далі індекс кольору
+    const P = nightPal ? ['', '#2a2620', '#6e6656', '#5a5446', '#7c7462', '#8a8270', '#4a4438', '#3a3630', '#9a9282']
+      : ['', '#3a3226', '#cfc09e', '#b4a482', '#dcd0b4', '#ece4d2', '#8e8068', '#55504a', '#f6f0e2'];
+    // 1 контур · 2 крило світле · 3 крило в тіні · 4 ніс · 5 ніс-блік · 6 риски/кілі · 7 мотор · 8 блік на носі
+    const set = (x, y, v) => { if (x >= 0 && y >= 0 && x < W && y < H) m[y * W + x] = v; };
+    for (let y = 0; y < H; y++) {
+      const le = Math.round(5 + (1 - Math.abs(y - cy) / 13) * 16); // передня кромка (широка дельта)
+      for (let x = 5; x <= le; x++) set(x, y, y > cy ? 3 : 2);
+    }
+    for (let y = 2; y < H - 2; y += 4) set(Math.round(5 + (1 - Math.abs(y - cy) / 13) * 8), y, 6); // риски на крилі
+    for (let x = 3; x <= 8; x++) { set(x, 0, 6); set(x, 1, 6); set(x, H - 1, 6); set(x, H - 2, 6); } // кілі на кінцях (виступають назад)
+    for (let y = cy - 2; y <= cy + 2; y++) for (let x = 12; x <= 27; x++) set(x, y, 4); // фюзеляж-циліндр
+    for (let x = 13; x <= 27; x++) { set(x, cy - 1, 5); set(x, cy + 2, 3); }
+    set(28, cy - 1, 4); set(28, cy, 4); set(28, cy + 1, 4); set(29, cy, 4); set(26, cy - 1, 8); set(27, cy - 1, 8); // заокруглений ніс
+    for (let y = cy - 1; y <= cy + 1; y++) for (let x = 1; x <= 5; x++) set(x, y, 7); // мотор
+    // контур по краю фігури
+    const out = m.slice();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (m[y * W + x]) continue;
+      if ((x > 0 && m[y * W + x - 1]) || (x < W - 1 && m[y * W + x + 1]) || (y > 0 && m[(y - 1) * W + x]) || (y < H - 1 && m[(y + 1) * W + x])) out[y * W + x] = 1;
+    }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const v = out[y * W + x]; if (v) { g.fillStyle = P[v]; g.fillRect(x, y, 1, 1); } }
+    return (SHD.c[key] = cv);
+  }
+  function drawShahed(ctx, x, y, dir, night, A, t) {
+    const img = shahedSprite(night > 0.5);
+    ctx.save();
+    ctx.translate(Math.round(x), Math.round(y));
+    if (dir < 0) ctx.scale(-1, 1);
+    ctx.drawImage(img, -15, -13);
+    // гвинт, що крутиться (мигтить смужка позаду мотора)
+    ctx.globalAlpha = 0.55 * A; ctx.fillStyle = night > 0.5 ? '#8a8270' : '#55504a';
+    const ph = Math.floor((t || 0) * 30) % 2;
+    ctx.fillRect(-16, ph ? -4 : -5, 1, ph ? 9 : 11);
+    ctx.restore();
   }
   function drawRaidSky(ctx, k, night) {
     const VW = G.cfg.VIEW_W, VH = G.cfg.VIEW_H, t = G.realTime, A = k * night;
@@ -32718,10 +32749,10 @@
         const vis = 0.95;
         // тінь на землі далеко внизу (вдень) — ледь помітна
         if (night < 0.5) { ctx.globalAlpha = 0.12 * k; ctx.fillStyle = '#000'; ctx.fillRect(Math.round(sx - 5), Math.round(sy + 60), 10, 4); }
-        ctx.globalAlpha = Math.min(1, vis * k);
-        drawShahed(ctx, sx, sy, f.dir, night, Math.min(1, vis * k));
+        ctx.globalAlpha = vis;
+        drawShahed(ctx, sx, sy, f.dir, night, vis, t);
         // вночі: жар вихлопу і відблиск прожектора
-        if (night > 0.3) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.35 + 0.15 * Math.sin(t * 30)) * A; ctx.drawImage(gl, sx - f.dir * 14 - 5, sy - 5, 10, 10); }
+        if (night > 0.3) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.35 + 0.15 * Math.sin(t * 30)) * A; ctx.drawImage(gl, sx - f.dir * 13 - 5, sy - 5, 10, 10); }
         ctx.restore();
         continue;
       }
