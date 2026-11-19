@@ -8427,43 +8427,58 @@
     }
     return N * gap + 0.3;
   };
-  // шахед: двотактний поршневий мотор (як старий мопед / бензокоса) — гуде, наближається, проходить над головою
-  // і віддаляється. Основний тон ~95–115 Гц з жорсткими гармоніками, «рване» дирчання (нерівні такти),
-  // ефект Доплера (тон трохи вищий на підльоті, нижчий після прольоту), далеко — глухо (lowpass), поруч — дзвінко.
-  // o: {dur (с), pan: -1 → 1 напрям прольоту, peak: 0..1 частка часу, коли найближче, near: 0..1 гучність у піку}
+  // шахед (Shahed-136 / «Герань-2»): 4-циліндровий двотакт (копія Limbach L550) ~7000 об/хв без глушника + дволопатевий
+  // штовхаючий гвинт. Модель: хвиля одного оберту (~117 Гц) = 4 нерівні вихлопні імпульси (частота спалахів ~467 Гц —
+  // «дирчання» мопеда), тон гвинта ~233 Гц з биттям, шум вихлопу; відбиття від землі (коротка змінна затримка → «шурхіт»
+  // фазування при прольоті), Доплер, далеко глухо — близько дзвінко, легке «плавання» обертів.
+  // o: {dur, pan: -1 → 1, peak: 0..1 (коли найближче), near: гучність у піку}
+  function shahedWave() {
+    if (waves.shahed !== undefined) return waves.shahed;
+    const N = 1024, H = 96, x = new Float32Array(N), amp = [1, 0.82, 0.93, 0.76], off = [0, 0.262, 0.5, 0.741];
+    for (let i = 0; i < N; i++) {
+      const ph = i / N; let v = 0;
+      for (let k = 0; k < 4; k++) { let d = ph - off[k]; if (d < 0) d += 1; const tt = d * 4; v += amp[k] * (tt < 0.03 ? tt / 0.03 : Math.exp(-(tt - 0.03) * 9) * Math.cos((tt - 0.03) * 26)); }
+      x[i] = v;
+    }
+    const re = new Float32Array(H), im = new Float32Array(H);
+    for (let n = 1; n < H; n++) { let c = 0, sn = 0; for (let i = 0; i < N; i++) { const a = 2 * Math.PI * n * i / N; c += x[i] * Math.cos(a); sn += x[i] * Math.sin(a); } re[n] = c / N; im[n] = sn / N; }
+    let w = null; try { w = ac.createPeriodicWave(re, im); } catch (e) { w = null; }
+    return (waves.shahed = w);
+  }
   R.shahed = (v, t, o) => {
     o = o || {};
-    const D = o.dur || 13, pk = o.peak == null ? 0.55 : o.peak, near = o.near == null ? 1 : o.near, f0 = 98 + Math.random() * 16;
-    const tp = t + D * pk, te = t + D;
-    const mix = gain(0), lp = filt('lowpass', 420, 0.8), pan = ac.createStereoPanner ? ac.createStereoPanner() : null;
-    // гучність: здалеку тихо → пік над головою → тихне
-    mix.gain.setValueAtTime(0.0001, t);
-    mix.gain.exponentialRampToValueAtTime(0.05 * near, t + D * pk * 0.5);
-    mix.gain.exponentialRampToValueAtTime(0.42 * near, tp);
-    mix.gain.exponentialRampToValueAtTime(0.06 * near, tp + (te - tp) * 0.6);
-    mix.gain.exponentialRampToValueAtTime(0.0001, te);
-    // яскравість: далеко глухо, близько дзвінко
-    lp.frequency.setValueAtTime(380, t); lp.frequency.exponentialRampToValueAtTime(2600, tp); lp.frequency.exponentialRampToValueAtTime(320, te);
+    const D = o.dur || 13, pk = o.peak == null ? 0.55 : o.peak, near = o.near == null ? 1 : o.near;
+    const tp = t + D * pk, te = t + D, f0 = 112 + Math.random() * 10;   // оберти, Гц
+    const mix = gain(1), env = gain(0), lp = filt('lowpass', 500, 0.7), hp = filt('highpass', 70, 0.7), pan = ac.createStereoPanner ? ac.createStereoPanner() : null;
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(0.04 * near, t + D * pk * 0.45);
+    env.gain.exponentialRampToValueAtTime(0.5 * near, tp);
+    env.gain.exponentialRampToValueAtTime(0.05 * near, tp + (te - tp) * 0.65);
+    env.gain.exponentialRampToValueAtTime(0.0001, te);
+    lp.frequency.setValueAtTime(450, t); lp.frequency.exponentialRampToValueAtTime(5200, tp); lp.frequency.exponentialRampToValueAtTime(380, te);
     if (pan) { const p0 = o.pan == null ? -0.8 : o.pan; pan.pan.setValueAtTime(p0, t); pan.pan.linearRampToValueAtTime(-p0, te); }
-    // мотор: дві пилки з розстроєм + квадрат на октаву вище, Доплер
-    const parts = [['sawtooth', 1, 0.5], ['sawtooth', 1.012, 0.35], ['square', 2.003, 0.12], ['sawtooth', 3.01, 0.08]];
-    for (const [w, m, a] of parts) {
-      const x = osc(w, f0 * m * 1.05, t), g = gain(a);
-      x.frequency.setValueAtTime(f0 * m * 1.05, t);
-      x.frequency.linearRampToValueAtTime(f0 * m * 1.03, tp - 0.6);
-      x.frequency.linearRampToValueAtTime(f0 * m * 0.93, tp + 0.9);
-      x.frequency.linearRampToValueAtTime(f0 * m * 0.92, te);
-      chain(x, g, mix); x.stop(te + 0.05); v.add(x, g);
-    }
-    // «дирчання»: амплітудна модуляція нерівними тактами (~f0/4) — характерна шорсткість двотакту
-    const am = gain(0.6), lfo = osc('square', f0 / 4.1, t), lfoG = gain(0.32), lfo2 = osc('sine', 7.3, t), lfo2G = gain(0.12);
-    chain(lfo, lfoG, am.gain); chain(lfo2, lfo2G, am.gain); lfo.stop(te + 0.05); lfo2.stop(te + 0.05);
-    // свист пропелера / повітря
-    const n = noise(t, D + 0.05), nb = filt('bandpass', 1400, 0.9), ng = gain(0.18);
-    chain(n, nb, ng, mix);
-    chain(mix, am, lp);
-    if (pan) chain(lp, pan, v.out); else chain(lp, v.out);
-    v.add(mix, am, lp, lfo, lfoG, lfo2, lfo2G, n, nb, ng); if (pan) v.add(pan);
+    // частота з Доплером (+4% на підльоті → −5% після) і «плаванням» обертів
+    const fq = (base, x) => { x.frequency.setValueAtTime(base * 1.04, t); x.frequency.linearRampToValueAtTime(base * 1.035, tp - 0.7); x.frequency.linearRampToValueAtTime(base * 0.955, tp + 1.0); x.frequency.linearRampToValueAtTime(base * 0.95, te); };
+    const wob = osc('sine', 0.35 + Math.random() * 0.2, t), wobG = gain(f0 * 0.012);
+    // мотор
+    const eng = ac.createOscillator(), w = shahedWave();
+    if (w) eng.setPeriodicWave(w); else eng.type = 'sawtooth';
+    fq(f0, eng); eng.start(t); chain(wob, wobG, eng.frequency);
+    const engG = gain(0.55); chain(eng, engG, mix);
+    // гвинт: тон лопатей (2×оберти) з биттям від нерівного обертання
+    const prop = osc('triangle', f0 * 2, t); fq(f0 * 2, prop);
+    const propG = gain(0.16), pam = gain(0.7), pl = osc('sine', f0 * 0.5, t), plG = gain(0.3);
+    chain(pl, plG, pam.gain); chain(prop, propG, pam, mix);
+    // шум вихлопу/повітря
+    const n = noise(t, D + 0.05), nb = filt('bandpass', 1800, 0.6), ng = gain(0.1); chain(n, nb, ng, mix);
+    // відбиття від землі: друга копія з короткою затримкою, що зменшується до прольоту і росте після (гребінчастий фільтр → «шурхіт»)
+    const dl = ac.createDelay(0.05), dg = gain(0.55);
+    dl.delayTime.setValueAtTime(0.022, t); dl.delayTime.linearRampToValueAtTime(0.0025, tp); dl.delayTime.linearRampToValueAtTime(0.024, te);
+    mix.connect(dl); chain(dl, dg, hp); mix.connect(hp);
+    chain(hp, lp, env);
+    if (pan) chain(env, pan, v.out); else chain(env, v.out);
+    for (const x of [eng, prop, pl, wob]) x.stop(te + 0.05);
+    v.add(mix, env, lp, hp, eng, engG, prop, propG, pam, pl, plG, wob, wobG, n, nb, ng, dl, dg); if (pan) v.add(pan);
     return D + 0.1;
   };
   R.unlock = (v, t) => {
@@ -32639,10 +32654,10 @@
     if (!S.rfx) S.rfx = { next: 1.5 + Math.random() * 1.5, list: [] };
     const R = S.rfx;
     for (const f of R.list) f.t += dt;
-    R.list = R.list.filter((f) => f.t < (f.kind === 'mg' ? 2.6 : f.kind === 'shahed' ? f.life : 3.2));
+    R.list = R.list.filter((f) => f.t < (f.kind === 'mg' ? 2.8 : f.kind === 'shahed' ? f.life : 3.6));
     for (const f of R.list) if (f.kind === 'shahed' && f.downAt && !f.down && f.t >= f.downAt) { // збили
       f.down = true;
-      R.list.push({ kind: 'boom', t: 0, x: f.x0 + f.vx * f.t, y: f.y });
+      R.list.push({ kind: 'boom', t: 0, x: f.x0 + f.vx * f.t, y: f.y, seed: Math.random() * 1000, big: true });
       if (G.audio && G.audio.stopSfx) G.audio.stopSfx('shahed', 0.15);
       G.after(450 + Math.random() * 400, () => { if (S && S.ev.air_raid && G.audio) G.audio.sfx('distant_boom', { vol: 0.9 }); }, {});
     }
@@ -32651,20 +32666,30 @@
     const A = G.audio, snd = (name, ms, vol) => { if (A && A.sfx) G.after(ms, () => { if (S && S.ev.air_raid) A.sfx(name, { vol }); }, {}); };
     const roll = Math.random();
     if (roll < 0.3 && !R.list.some((q) => q.kind === 'shahed' && !q.down)) { shahedEpisode(R, snd); return; } // шахед: гул мопеда, силует у небі, ППО — іноді збиває
-    if (roll < 0.62) {                                 // збиття: спалах, потім глухий вибух
+    if (roll < 0.6) {                                  // збиття: спалах, іскри, дим, потім глухий вибух
       const n = Math.random() < 0.3 ? 2 : 1;
       for (let i = 0; i < n; i++) {
-        R.list.push({ kind: 'boom', t: -i * 0.7, x: 0.12 + Math.random() * 0.76, y: 0.06 + Math.random() * 0.3 });
+        R.list.push({ kind: 'boom', t: -i * 0.7, x: 0.12 + Math.random() * 0.76, y: 0.06 + Math.random() * 0.3, seed: Math.random() * 1000 });
         snd('distant_boom', 500 + i * 700 + Math.random() * 700, 0.55 + Math.random() * 0.3);
       }
-    } else if (roll < 0.86) {                          // кулемет мобільної групи: черга трасерів і постріли
-      R.list.push({ kind: 'mg', t: 0, x: 0.1 + Math.random() * 0.8, y: 0.7 + Math.random() * 0.25, dir: (Math.random() - 0.5) * 0.8 });
+    } else if (roll < 0.86) {                          // ППО мобільної групи: черга трасерів з-за краю екрана в небо
+      R.list.push(mgShot(0.1 + Math.random() * 0.8, 0.05 + Math.random() * 0.25, 0));
       snd('distant_gun', 250 + Math.random() * 300, 0.5 + Math.random() * 0.3);
-    } else {                                           // усе разом: черга, а за нею — збиття
-      R.list.push({ kind: 'mg', t: 0, x: 0.1 + Math.random() * 0.8, y: 0.7 + Math.random() * 0.25, dir: (Math.random() - 0.5) * 0.8 });
-      R.list.push({ kind: 'boom', t: -1.3, x: 0.15 + Math.random() * 0.7, y: 0.08 + Math.random() * 0.25 });
-      snd('distant_gun', 300, 0.6); snd('distant_boom', 2100 + Math.random() * 500, 0.8);
+    } else {                                           // черга — і влучання в небі
+      const tx = 0.15 + Math.random() * 0.7, ty = 0.08 + Math.random() * 0.22;
+      R.list.push(mgShot(tx, ty, 0));
+      R.list.push({ kind: 'boom', t: -1.2, x: tx, y: ty, seed: Math.random() * 1000 });
+      snd('distant_gun', 300, 0.6); snd('distant_boom', 2000 + Math.random() * 500, 0.8);
     }
+  }
+  // черга трасерів: старт за межами екрана (знизу або збоку — стріляють з іншого кварталу), ціль — точка в небі
+  function mgShot(tx, ty, t0) {
+    const side = Math.random();
+    let sx, sy;
+    if (side < 0.6) { sx = Math.min(1.05, Math.max(-0.05, tx + (Math.random() - 0.5) * 0.9)); sy = 1.08; }
+    else if (side < 0.8) { sx = -0.08; sy = 0.55 + Math.random() * 0.4; }
+    else { sx = 1.08; sy = 0.55 + Math.random() * 0.4; }
+    return { kind: 'mg', t: t0 || 0, sx, sy, tx, ty, wob: Math.random() * 6 };
   }
   // шахед летить через небо (екранні частки): звук починається раніше, ніж його видно; 50% — мобільна група
   // відкриває вогонь трасерами в його бік і збиває (спалах, вибух), інакше пролітає і гул стихає
@@ -32675,10 +32700,8 @@
     const f = { kind: 'shahed', t: 0, x0, y, vx, life: lead + SPAN, dir: dirR ? 1 : -1 };
     if (Math.random() < 0.5) {
       f.downAt = lead + SPAN * (0.35 + Math.random() * 0.3);
-      const xs = x0 + vx * f.downAt, gx = Math.min(0.9, Math.max(0.1, xs + (Math.random() - 0.5) * 0.4)), gy = 0.78 + Math.random() * 0.15;
-      const H = G.cfg.VIEW_H, W = G.cfg.VIEW_W;
-      const dir = ((xs - gx) * W) / Math.max(40, (gy - y) * H);
-      R.list.push({ kind: 'mg', t: -(f.downAt - 1.7), x: gx, y: gy, dir });
+      const xs = x0 + vx * f.downAt;
+      R.list.push(mgShot(xs, y, -(f.downAt - 1.7)));
       snd('distant_gun', (f.downAt - 1.5) * 1000, 0.6);
       snd('distant_gun', (f.downAt - 0.6) * 1000, 0.55);
     }
@@ -32694,30 +32717,55 @@
     return '#' + [f(r, 0), f(g, 2), f(b, 14)].map((v) => v.toString(16).padStart(2, '0')).join('');
   }
   function shahedSprite(nightPal) {
-    // маленький, як справжній високо в небі: довжина 22 × розмах 17 (пропорції Shahed-136 ≈ 3.5 м × 2.5 м),
-    // приглушені кольори, мʼякий контур; ніс праворуч
+    // Shahed-136 знизу, ніс праворуч, 30×21 (довжина 3.5 м : розмах 2.5 м). Обрізана дельта: прямі передні кромки від
+    // кінців крил до носа, пряма задня кромка з елевонами, кілі-шайби на кінцях крил, тонкий фюзеляж-циліндр з носовим
+    // конусом попереду крила, мотор і штовхаючий гвинт позаду. Світло зверху-ліворуч, теплий пісочний колір, мʼякий контур.
     const key = nightPal ? 'n' : 'd';
     if (SHD.c[key]) return SHD.c[key];
-    const W = 23, H = 17, cy = 8, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const W = 30, H = 21, cy = 10, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const g = cv.getContext('2d'), m = new Array(W * H).fill(null);
-    const C = { ol: '#3a342c', wl: '#a99d84', we: '#bcb198', wd: '#8f8370', fl: '#9a8e76', f0: '#8a7e68', f1: '#b0a68e', f2: '#ccc3ae', fin: '#6e6452', eng: '#45403a', ex: '#2c2824' };
+    const C = { ol: '#3b3328', le: '#e0d6bc', w1: '#cfc2a2', w2: '#c0b291', w3: '#ad9e7e', w4: '#988a6c', el: '#b2a383', elD: '#9c8e70', seam: '#85785e',
+      fh: '#f0eadc', f1: '#dcd3bd', f2: '#c5baa1', f3: '#a69a80', tip: '#f7f3ea', band: '#7a6f5b', fin: '#8a7c63', finH: '#a69879', eng: '#4b463f', engH: '#6e685e', sp: '#2f2b26' };
     const set = (x, y, c) => { if (x >= 0 && y >= 0 && x < W && y < H) m[y * W + x] = c; };
-    for (let y = 0; y < H; y++) {
-      const d = Math.abs(y - cy), a = 5, z = Math.round(5 + (1 - d / 8.5) * 11);
-      for (let x = a; x <= z; x++) set(x, y, x === z ? C.we : (y < cy ? C.wl : C.wd));
-      if (d > 2 && d < 7) set(a, y, C.fl); // закрилки
+    const LE = (dy) => 22 - Math.round(dy * 13 / 9);           // передня кромка: корінь x=22, кінці крил x=9
+    for (let y = 1; y <= 19; y++) {
+      const dy = Math.abs(y - cy), z = LE(dy);
+      for (let x = 5; x <= z; x++) {
+        // плавний перехід тону: верхня консоль світліша, нижня — в тіні; до задньої кромки темніше
+        const u = y < cy ? 0 : y === cy ? 1 : 2, back = x < 9;
+        let c = [C.w1, C.w2, C.w3][u]; if (back && u === 2) c = C.w4; else if (back) c = u === 0 ? C.w2 : C.w3;
+        if (x === z) c = C.le;                                   // світла передня кромка
+        set(x, y, c);
+      }
+      if (dy >= 2 && dy <= 7) { set(5, y, y < cy ? C.el : C.elD); set(6, y, y < cy ? C.el : C.elD); set(7, y, C.seam); } // елевони і шов
     }
-    for (let x = 3; x <= 6; x++) { set(x, 0, C.fin); set(x, H - 1, C.fin); } // кілі на кінцях крил
-    for (let x = 9; x <= 20; x++) { set(x, cy - 1, C.f2); set(x, cy, C.f1); set(x, cy + 1, C.f0); } // фюзеляж
-    set(21, cy, C.f1); set(21, cy - 1, C.f1); // заокруглений ніс
-    for (let y = cy - 1; y <= cy + 1; y++) for (let x = 1; x <= 4; x++) set(x, y, C.eng); // мотор
-    set(1, cy, C.ex);
+    // лінія лонжерона і лючки
+    for (let dy = 3; dy <= 7; dy += 2) { set(LE(dy) - 3, cy - dy, C.w3); set(LE(dy) - 3, cy + dy, C.w4); }
+    set(13, cy - 4, C.seam); set(13, cy + 4, C.seam); set(16, cy - 2, C.w3); set(16, cy + 2, C.w4);
+    // кілі-шайби на кінцях крил (видно ребром) з бліком
+    for (let x = 4; x <= 10; x++) { set(x, 0, x === 10 ? C.finH : C.fin); set(x, 20, C.fin); }
+    set(5, 1, C.fin); set(5, 19, C.fin);
+    // фюзеляж-циліндр: блік зверху, тінь знизу; шов носового конуса; заокруглений світлий ніс
+    for (let x = 8; x <= 26; x++) { set(x, cy - 1, x > 10 ? C.fh : C.f1); set(x, cy, C.f1); set(x, cy + 1, C.f3); }
+    for (let x = 12; x <= 25; x += 1) set(x, cy, x % 2 ? C.f1 : C.f2);
+    set(23, cy - 1, C.band); set(23, cy, C.band); set(23, cy + 1, C.band);
+    set(27, cy - 1, C.f1); set(27, cy, C.tip); set(27, cy + 1, C.f2); set(28, cy, C.tip); set(26, cy - 1, C.tip);
+    // мотор, вихлоп, кок гвинта
+    for (let x = 2; x <= 7; x++) { set(x, cy - 1, C.engH); set(x, cy, C.eng); set(x, cy + 1, C.eng); }
+    set(4, cy - 2, C.eng); set(4, cy + 2, C.eng); set(1, cy, C.sp);
+    // мʼякий контур: лише зовнішній, діагональні сходинки — без контуру (згладжено)
     const out = m.slice();
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       if (m[y * W + x]) continue;
-      if ((x > 0 && m[y * W + x - 1]) || (x < W - 1 && m[y * W + x + 1]) || (y > 0 && m[(y - 1) * W + x]) || (y < H - 1 && m[(y + 1) * W + x])) out[y * W + x] = C.ol;
+      const nb = (xx, yy) => xx >= 0 && yy >= 0 && xx < W && yy < H && m[yy * W + xx];
+      if (nb(x - 1, y) || nb(x + 1, y) || nb(x, y - 1) || nb(x, y + 1)) out[y * W + x] = C.ol;
     }
-    for (let i = 0; i < W * H; i++) if (out[i]) { g.fillStyle = nightPal ? shDark(out[i], 0.45) : out[i]; g.fillRect(i % W, Math.floor(i / W), 1, 1); }
+    for (let i = 0; i < W * H; i++) {
+      if (!out[i]) continue;
+      const isOl = out[i] === C.ol && !m[i];
+      g.globalAlpha = isOl ? 0.7 : 1;
+      g.fillStyle = nightPal ? shDark(out[i], 0.42) : out[i]; g.fillRect(i % W, Math.floor(i / W), 1, 1);
+    }
     return (SHD.c[key] = cv);
   }
   function drawShahed(ctx, x, y, dir, night, A, t) {
@@ -32725,13 +32773,20 @@
     ctx.save();
     ctx.translate(Math.round(x), Math.round(y));
     if (dir < 0) ctx.scale(-1, 1);
-    ctx.drawImage(img, -11, -8);
-    // гвинт: напівпрозорий диск, що мерехтить
-    const nc = night > 0.5;
-    ctx.globalAlpha = (0.3 + 0.25 * (Math.floor((t || 0) * 20) % 2)) * A; ctx.fillStyle = nc ? '#3a362e' : '#5a544a';
-    ctx.fillRect(-12, -3, 1, 7);
+    ctx.drawImage(img, -15, -10);
+    // гвинт: мерехтливий напівпрозорий диск позаду мотора
+    const nc = night > 0.5, ph = Math.floor((t || 0) * 22) % 3;
+    ctx.globalAlpha = 0.28 * A; ctx.fillStyle = nc ? '#3a362e' : '#6a6458'; ctx.fillRect(-15, -5, 1, 11);
+    ctx.globalAlpha = 0.7 * A; ctx.fillStyle = nc ? '#24211c' : '#3e3a33';
+    if (ph === 0) ctx.fillRect(-15, -4, 1, 9); else if (ph === 1) { ctx.fillRect(-15, -2, 1, 2); ctx.fillRect(-15, 1, 1, 2); }
     ctx.restore();
   }
+  // піксельне коло (рядками) — для вогню і диму в стилі гри
+  function pxDisc(ctx, cx, cy, r) {
+    cx = Math.round(cx); cy = Math.round(cy); r = Math.max(1, Math.round(r));
+    for (let dy = -r; dy <= r; dy++) { const w = Math.floor(Math.sqrt(r * r - dy * dy)); ctx.fillRect(cx - w, cy + dy, w * 2 + 1, 1); }
+  }
+  function hash01(a, b) { const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return x - Math.floor(x); }
   function drawRaidSky(ctx, k, night) {
     const VW = G.cfg.VIEW_W, VH = G.cfg.VIEW_H, t = G.realTime, A = k * night;
     const AE = k * Math.max(0.4, night);               // епізоди видно і вдень (слабше)
@@ -32769,42 +32824,68 @@
         ctx.globalAlpha = vis;
         drawShahed(ctx, sx, sy, f.dir, night, vis, t);
         // вночі: жар вихлопу і відблиск прожектора
-        if (night > 0.3) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.35 + 0.15 * Math.sin(t * 30)) * A; ctx.drawImage(gl, sx - f.dir * 11 - 4, sy - 4, 8, 8); }
+        if (night > 0.3) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.35 + 0.15 * Math.sin(t * 30)) * A; ctx.drawImage(gl, sx - f.dir * 15 - 4, sy - 4, 8, 8); }
         ctx.restore();
         continue;
       }
       if (f.kind === 'mg') {
-        // черга трасерів знизу вгору (~1.8 с), куля за кулею
-        const gx = VW * f.x, gy = VH * f.y, N = 12;
-        for (let n = 0; n < N; n++) {
-          const life = (f.t - n * 0.12) / 0.9;
+        // черга трасерів: летять з-за краю екрана до цілі в небі й далі; куля — яскрава голова + помаранчевий хвіст
+        const x0 = VW * f.sx, y0 = VH * f.sy, x1 = VW * f.tx, y1 = VH * f.ty;
+        const dx = (x1 - x0) * 1.25, dy = (y1 - y0) * 1.25, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+        for (let n = 0; n < 14; n++) {
+          const life = (f.t - n * 0.1) / 0.85;
           if (life <= 0 || life > 1) continue;
-          const dist = life * VH * 0.75, x = gx + f.dir * dist + Math.sin(life * 2 + n) * 4, y = gy - dist + life * life * 30;
-          const fade = (1 - life) * AE, tx = x - f.dir * 14, ty = y + 14;
-          const tg = ctx.createLinearGradient(x, y, tx, ty);
-          tg.addColorStop(0, 'rgba(255,236,170,' + Math.min(1, 1.2 * fade).toFixed(3) + ')'); tg.addColorStop(0.5, 'rgba(255,120,50,' + (0.6 * fade).toFixed(3) + ')'); tg.addColorStop(1, 'rgba(255,60,30,0)');
-          ctx.globalAlpha = 1; ctx.strokeStyle = tg; ctx.lineWidth = 2; ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();
-          ctx.globalAlpha = Math.min(1, 0.9 * fade); ctx.drawImage(gl, x - 7, y - 7, 14, 14);
-        }
-        if (f.t < 1.6 && night > 0.2) { ctx.globalAlpha = (0.25 + 0.2 * Math.sin(f.t * 40)) * A; ctx.drawImage(gl, gx - 20, gy - 10, 40, 30); } // спалахи біля землі
-      } else {
-        // збиття: яскравий спалах, світло на все місто, хмарка диму
-        const ex = VW * f.x, ey = VH * f.y, ph = f.t;
-        if (ph < 0.45) {
-          const fl = 1 - ph / 0.45, r = 14 + (1 - fl) * 26;
-          ctx.globalAlpha = fl * AE; ctx.drawImage(gl, ex - r, ey - r, r * 2, r * 2);
-          ctx.globalAlpha = fl * 0.55 * AE; ctx.drawImage(gl, ex - r * 2.4, ey - r * 2.4, r * 4.8, r * 4.8);
-          ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(255,190,130,' + (fl * fl * (0.1 + 0.16 * night) * k).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH);
-        }
-        if (ph < 3) {
-          ctx.globalCompositeOperation = 'source-over';
-          const fs = Math.min(1, ph / 0.3) * (1 - ph / 3), r = 7 + ph * 10;
-          ctx.globalAlpha = (0.32 + 0.3 * (1 - night)) * fs * k; ctx.fillStyle = night > 0.4 ? '#6a6470' : '#5a5660';
-          for (let j = 0; j < 4; j++) { ctx.beginPath(); ctx.arc(ex + Math.cos(j * 1.7) * r * 0.5, ey + Math.sin(j * 2.3) * r * 0.35 - ph * 3, r * (0.55 + 0.1 * j), 0, Math.PI * 2); ctx.fill(); }
+          const sp = (Math.sin(n * 1.7 + f.wob) * 6) * life;         // легкий розкид черги
+          const x = Math.round(x0 + dx * life - uy * sp), y = Math.round(y0 + dy * life + ux * sp);
+          const fade = Math.min(1, (1 - life) * 1.6) * Math.max(0.55, AE + 0.2);
           ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = 0.7 * fade; ctx.drawImage(gl, x - 6, y - 6, 12, 12);
+          ctx.globalCompositeOperation = 'source-over';
+          for (let k2 = 1; k2 <= 9; k2++) { ctx.globalAlpha = fade * (1 - k2 / 10); ctx.fillStyle = k2 < 4 ? '#ffc35a' : '#ff6a30'; ctx.fillRect(Math.round(x - ux * k2 * 1.5), Math.round(y - uy * k2 * 1.5), k2 < 4 ? 2 : 1, k2 < 4 ? 2 : 1); }
+          ctx.globalAlpha = fade; ctx.fillStyle = '#fffbe0'; ctx.fillRect(x, y, 2, 2);
         }
-        if (ph < 0.9 && night > 0.2) { ctx.globalAlpha = (1 - ph / 0.9) * 0.3 * A; ctx.drawImage(gl, ex - 60, VH - 40, 120, 80); } // зарево на обрії
+        ctx.globalCompositeOperation = 'lighter';
+      } else if (f.kind === 'boom') {
+        // вибух у небі (піксель-арт): спалах → вогняна куля (ядро/полумʼя/край) → іскри з гравітацією → світлий дим, що розходиться
+        const ex = VW * f.x, ey = VH * f.y, ph = f.t, sd = f.seed || 1, R0 = f.big ? 1.3 : 1;
+        if (ph < 0.5) {                                          // світло: ореол і легке підсвічування неба
+          const fl = 1 - ph / 0.5;
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = fl * Math.max(0.6, AE); ctx.drawImage(gl, ex - 34 * R0, ey - 34 * R0, 68 * R0, 68 * R0);
+          ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(255,190,130,' + (fl * fl * (0.06 + 0.14 * night) * k).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH);
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        // дим: 6 клубів, світло-сірий (вдень) / сизий (вночі), розходиться і тане
+        if (ph > 0.15 && ph < 3.5) {
+          const sk = Math.min(1, (ph - 0.15) / 0.4) * (1 - (ph - 0.15) / 3.35);
+          for (let j = 0; j < 6; j++) {
+            const an = hash01(sd, j) * Math.PI * 2, dd = (3 + hash01(sd, j + 9) * 7) * R0 * Math.min(1, ph * 1.5);
+            const r = (2.5 + ph * 2.6 + hash01(sd, j + 3) * 2) * R0;
+            const cx = ex + Math.cos(an) * dd, cy = ey + Math.sin(an) * dd * 0.7 - ph * 2.5;
+            ctx.globalAlpha = 0.5 * sk; ctx.fillStyle = night > 0.5 ? '#5e5a6a' : '#a9a4ad'; pxDisc(ctx, cx, cy + 1, r);
+            ctx.globalAlpha = 0.45 * sk; ctx.fillStyle = night > 0.5 ? '#77728a' : '#cdc8cf'; pxDisc(ctx, cx - 1, cy - 1, r * 0.7);
+          }
+        }
+        // вогняна куля
+        if (ph < 0.6) {
+          const q = ph / 0.6, r = (3 + q * 8) * R0;
+          ctx.globalAlpha = 1 - q * q;
+          ctx.fillStyle = '#d8462a'; pxDisc(ctx, ex, ey, r);
+          ctx.fillStyle = '#ff9a3c'; pxDisc(ctx, ex, ey - 1, r * 0.72);
+          if (q < 0.7) { ctx.fillStyle = '#ffe08a'; pxDisc(ctx, ex, ey - 1, r * 0.42); }
+          if (q < 0.3) { ctx.fillStyle = '#fffbe8'; pxDisc(ctx, ex, ey - 1, r * 0.2); }
+        }
+        // іскри й уламки
+        if (ph < 1.6) {
+          for (let j = 0; j < 16; j++) {
+            const an = hash01(sd, j + 20) * Math.PI * 2, v = (18 + hash01(sd, j + 40) * 30) * R0;
+            const px = ex + Math.cos(an) * v * ph, py = ey + Math.sin(an) * v * ph * 0.8 + 22 * ph * ph;
+            ctx.globalAlpha = Math.max(0, 1 - ph / 1.6); ctx.fillStyle = j % 3 ? '#ffc65a' : '#ff7a3a';
+            ctx.fillRect(Math.round(px), Math.round(py), 1, 1);
+          }
+        }
+        ctx.globalCompositeOperation = 'lighter';
+        if (ph < 0.9 && night > 0.2) { ctx.globalAlpha = (1 - ph / 0.9) * 0.25 * A; ctx.drawImage(gl, ex - 60, VH - 40, 120, 80); } // зарево на обрії
       }
     }
     ctx.restore();
