@@ -8769,7 +8769,9 @@
     if (sirenRec && sirenRec !== 'loading') {
       const src = ac.createBufferSource(), g = gain(0);
       src.buffer = sirenRec;
-      const len = Math.min(D, sirenRec.duration);
+      // запис крутиться по колу всю тривогу (до відбою — stopSfx), без провалу посередині
+      const len = D;
+      if (D > sirenRec.duration) { src.loop = true; src.loopStart = Math.min(4, sirenRec.duration * 0.2); src.loopEnd = Math.max(src.loopStart + 1, sirenRec.duration - 2); }
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(SIREN_VOL, t + 0.4);
       g.gain.setValueAtTime(SIREN_VOL, t + Math.max(0.5, len - 3.5));
@@ -9052,9 +9054,9 @@
           else if (wanted === 'chase' || wanted === 'panic') this.music('calm');
         });
         // сирена не грає після кінця забігу / виходу в меню
-        G.events.on('run:end', () => this.stopSfx('siren', 0.8));
+        G.events.on('run:end', () => { this.stopSfx('siren', 0.8); this.stopSfx('shahed', 0.8); });
         G.events.on('state:change', (d) => {
-          if (d && (d.to === 'menu' || d.to === 'result' || d.to === 'missions')) this.stopSfx('siren', 0.8);
+          if (d && (d.to === 'menu' || d.to === 'result' || d.to === 'missions')) { this.stopSfx('siren', 0.8); this.stopSfx('shahed', 0.8); }
           const nd = d && d.to === 'paused' ? 0.35 : 1;
           if (nd !== duck) { duck = nd; if (ac) applyVolumes(now()); }
         });
@@ -32026,7 +32028,7 @@
     if (type === 'air_raid') {
       S.ev[type] = e;
       if (G.ui) { G.ui.banner('ПОВІТРЯНА ТРИВОГА! Пройдіть в укриття. Навіть ТЦК пішли.', 4500); }
-      sfx('siren', { dur: e.dur + 2 });
+      sfx('siren', { dur: Math.max(e.dur + 2, 900) }); // грає до відбою (endEvent зупиняє)
       sfx('vibrate');
       S.phone = { t0: G.realTime, text: 'Тривога! Київ', sub: 'Прямуйте в укриття!' };
       placeShelterSigns();
@@ -32069,7 +32071,7 @@
       if (m && e.maxBuses != null) m.maxBuses = e.maxBuses;
       S.raidSurvived = true;
       if (G.ui) G.ui.banner('Відбій тривоги. ТЦК виходять з укриття. Злі.', 3500);
-      if (G.audio && G.audio.stopSfx) G.audio.stopSfx('siren', 1.2);
+      if (G.audio && G.audio.stopSfx) { G.audio.stopSfx('siren', 1.2); G.audio.stopSfx('shahed', 2); }
       sfx('all_clear');
       S.allClear = G.realTime;
       clearEnts('shelterSign');
@@ -32634,7 +32636,7 @@
   function raidFxUpdate(dt) {
     const e = S.ev.air_raid;
     if (!e) { S.rfx = null; return; }
-    if (!S.rfx) S.rfx = { next: 3.5 + Math.random() * 3, list: [] };
+    if (!S.rfx) S.rfx = { next: 1.5 + Math.random() * 1.5, list: [] };
     const R = S.rfx;
     for (const f of R.list) f.t += dt;
     R.list = R.list.filter((f) => f.t < (f.kind === 'mg' ? 2.6 : f.kind === 'shahed' ? f.life : 3.2));
@@ -32645,10 +32647,10 @@
       G.after(450 + Math.random() * 400, () => { if (S && S.ev.air_raid && G.audio) G.audio.sfx('distant_boom', { vol: 0.9 }); }, {});
     }
     if (e.t < R.next || e.dur - e.t < 3) return;
-    R.next = e.t + 6 + Math.random() * 10;             // пауза 6–16 с: тиша → епізод
+    R.next = e.t + 2.5 + Math.random() * 3.5;          // пауза 2.5–6 с: вибухи й постріли чути весь час тривоги
     const A = G.audio, snd = (name, ms, vol) => { if (A && A.sfx) G.after(ms, () => { if (S && S.ev.air_raid) A.sfx(name, { vol }); }, {}); };
     const roll = Math.random();
-    if (roll < 0.35) { shahedEpisode(R, snd); return; } // шахед: гул мопеда, силует у небі, ППО — іноді збиває
+    if (roll < 0.3 && !R.list.some((q) => q.kind === 'shahed' && !q.down)) { shahedEpisode(R, snd); return; } // шахед: гул мопеда, силует у небі, ППО — іноді збиває
     if (roll < 0.62) {                                 // збиття: спалах, потім глухий вибух
       const n = Math.random() < 0.3 ? 2 : 1;
       for (let i = 0; i < n; i++) {
@@ -32692,54 +32694,30 @@
     return '#' + [f(r, 0), f(g, 2), f(b, 14)].map((v) => v.toString(16).padStart(2, '0')).join('');
   }
   function shahedSprite(nightPal) {
+    // маленький, як справжній високо в небі: довжина 22 × розмах 17 (пропорції Shahed-136 ≈ 3.5 м × 2.5 м),
+    // приглушені кольори, мʼякий контур; ніс праворуч
     const key = nightPal ? 'n' : 'd';
     if (SHD.c[key]) return SHD.c[key];
-    const W = 44, H = 34, cy = 17, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const W = 23, H = 17, cy = 8, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const g = cv.getContext('2d'), m = new Array(W * H).fill(null);
-    const C = { ol: '#2e281e', wl: '#d8caa8', wh: '#e8dfc6', wd: '#b9a886', wdd: '#a29070', fl: '#c4b492', seam: '#8a7a5e', riv: '#9c8c6e',
-      f0: '#8e8068', f1: '#bcae92', f2: '#dcd2bc', f3: '#efe8d8', f4: '#fbf7ee', band: '#6c6250', fin: '#7c6e58', finH: '#a49478', pod: '#9a9890', podD: '#5e5c58',
-      eng: '#3e3a36', engH: '#6a6560', ex: '#2a2622', sens: '#58524a' };
+    const C = { ol: '#3a342c', wl: '#a99d84', we: '#bcb198', wd: '#8f8370', fl: '#9a8e76', f0: '#8a7e68', f1: '#b0a68e', f2: '#ccc3ae', fin: '#6e6452', eng: '#45403a', ex: '#2c2824' };
     const set = (x, y, c) => { if (x >= 0 && y >= 0 && x < W && y < H) m[y * W + x] = c; };
-    const te = (y) => 8 + Math.round(Math.abs(y - cy) * 0.12);                  // задня кромка (злегка стрілоподібна)
-    const le = (y) => Math.round(9 + (1 - Math.abs(y - cy) / 16.5) * 21);       // передня кромка → корінь біля x≈30
-    for (let y = 1; y < H - 1; y++) {
-      const a = te(y), z = le(y), up = y < cy;
-      for (let x = a; x <= z; x++) {
-        let c = up ? C.wl : C.wd;
-        if (!up && y > cy + 9) c = C.wdd;                                     // нижня консоль у тіні
-        if (x >= z - 1) c = up ? C.wh : C.wl;                                 // світла передня кромка
-        if (x <= a + 3 && Math.abs(y - cy) > 4 && Math.abs(y - cy) < 15) c = up ? C.fl : C.wdd; // закрилки-елевони
-        set(x, y, c);
-      }
-      if (Math.abs(y - cy) > 4 && Math.abs(y - cy) < 15) set(a + 4, y, C.seam); // шов закрилка
+    for (let y = 0; y < H; y++) {
+      const d = Math.abs(y - cy), a = 5, z = Math.round(5 + (1 - d / 8.5) * 11);
+      for (let x = a; x <= z; x++) set(x, y, x === z ? C.we : (y < cy ? C.wl : C.wd));
+      if (d > 2 && d < 7) set(a, y, C.fl); // закрилки
     }
-    for (let y = 3; y < H - 3; y++) { const d = Math.abs(y - cy); if (d > 5 && d % 3 === 0) set(le(y) - 4, y, C.seam); } // лінія лонжерона
-    [[14, 9], [18, 7], [22, 11], [14, 25], [19, 27], [23, 23], [12, 13], [12, 21]].forEach(([x, y]) => set(x, y, C.riv)); // заклепки/лючки
-    set(20, cy - 5, C.sens); set(21, cy - 5, C.sens); set(20, cy + 5, C.sens); // датчики
-    // фюзеляж-циліндр з обʼємом (світло зверху), шов носового конуса, заокруглений ніс
-    const FR = [C.f0, C.f2, C.f4, C.f3, C.f2, C.f1, C.f0];
-    for (let i = 0; i < 7; i++) for (let x = 15; x <= 39; x++) set(x, cy - 3 + i, FR[i]);
-    for (let i = 1; i < 6; i++) set(33, cy - 3 + i, C.band);
-    [[40, 1, 5], [41, 2, 4], [42, 3, 3]].forEach(([x, i0, i1]) => { for (let i = i0; i <= i1; i++) set(x, cy - 3 + i, FR[i]); });
-    set(36, cy - 2, C.f4); set(37, cy - 2, C.f4); set(38, cy - 1, C.f4);
-    // кілі (вертикальні шайби) на кінцях крил, з контейнерами
-    for (const sg of [-1, 1]) {
-      const y0 = sg < 0 ? 0 : H - 3;
-      for (let x = 4; x <= 12; x++) for (let k = 0; k < 3; k++) set(x, y0 + k, k === (sg < 0 ? 0 : 2) ? C.finH : C.fin);
-      for (let x = 1; x <= 5; x++) set(x, sg < 0 ? 1 : H - 2, x === 1 ? C.podD : C.pod);
-      set(2, sg < 0 ? 2 : H - 3, C.podD);
-    }
-    // мотор і вихлоп позаду
-    for (let y = cy - 2; y <= cy + 2; y++) for (let x = 2; x <= 9; x++) set(x, y, y === cy - 1 ? C.engH : C.eng);
-    set(1, cy - 1, C.ex); set(1, cy, C.ex); set(1, cy + 1, C.ex);
-    for (let y = cy - 2; y <= cy + 2; y++) set(6, y, C.ex);
-    // контур
+    for (let x = 3; x <= 6; x++) { set(x, 0, C.fin); set(x, H - 1, C.fin); } // кілі на кінцях крил
+    for (let x = 9; x <= 20; x++) { set(x, cy - 1, C.f2); set(x, cy, C.f1); set(x, cy + 1, C.f0); } // фюзеляж
+    set(21, cy, C.f1); set(21, cy - 1, C.f1); // заокруглений ніс
+    for (let y = cy - 1; y <= cy + 1; y++) for (let x = 1; x <= 4; x++) set(x, y, C.eng); // мотор
+    set(1, cy, C.ex);
     const out = m.slice();
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       if (m[y * W + x]) continue;
       if ((x > 0 && m[y * W + x - 1]) || (x < W - 1 && m[y * W + x + 1]) || (y > 0 && m[(y - 1) * W + x]) || (y < H - 1 && m[(y + 1) * W + x])) out[y * W + x] = C.ol;
     }
-    for (let i = 0; i < W * H; i++) if (out[i]) { g.fillStyle = nightPal ? shDark(out[i], 0.5) : out[i]; g.fillRect(i % W, Math.floor(i / W), 1, 1); }
+    for (let i = 0; i < W * H; i++) if (out[i]) { g.fillStyle = nightPal ? shDark(out[i], 0.45) : out[i]; g.fillRect(i % W, Math.floor(i / W), 1, 1); }
     return (SHD.c[key] = cv);
   }
   function drawShahed(ctx, x, y, dir, night, A, t) {
@@ -32747,13 +32725,11 @@
     ctx.save();
     ctx.translate(Math.round(x), Math.round(y));
     if (dir < 0) ctx.scale(-1, 1);
-    ctx.drawImage(img, -22, -17);
-    // дволопатевий гвинт: лопаті змінюють положення + розмитий диск
-    const ph = Math.floor((t || 0) * 24) % 3, nc = night > 0.5;
-    ctx.globalAlpha = 0.35 * A; ctx.fillStyle = nc ? '#6a6458' : '#8a8478';
-    ctx.fillRect(-23, -9, 1, 18);
-    ctx.globalAlpha = 0.85 * A; ctx.fillStyle = nc ? '#2a2620' : '#3a352e';
-    if (ph === 0) ctx.fillRect(-23, -8, 1, 16); else if (ph === 1) { ctx.fillRect(-23, -5, 1, 4); ctx.fillRect(-23, 1, 1, 4); } else ctx.fillRect(-24, -1, 3, 2);
+    ctx.drawImage(img, -11, -8);
+    // гвинт: напівпрозорий диск, що мерехтить
+    const nc = night > 0.5;
+    ctx.globalAlpha = (0.3 + 0.25 * (Math.floor((t || 0) * 20) % 2)) * A; ctx.fillStyle = nc ? '#3a362e' : '#5a544a';
+    ctx.fillRect(-12, -3, 1, 7);
     ctx.restore();
   }
   function drawRaidSky(ctx, k, night) {
@@ -32787,13 +32763,13 @@
         if (sx < -30 || sx > VW + 30) continue;
         ctx.save();
         ctx.globalCompositeOperation = 'source-over'; ctx.imageSmoothingEnabled = false;
-        const vis = 0.95;
+        const vis = night > 0.5 ? 0.95 : 0.88; // трохи «повітря» між ним і землею
         // тінь на землі далеко внизу (вдень) — ледь помітна
         if (night < 0.5) { ctx.globalAlpha = 0.12 * k; ctx.fillStyle = '#000'; ctx.fillRect(Math.round(sx - 5), Math.round(sy + 60), 10, 4); }
         ctx.globalAlpha = vis;
         drawShahed(ctx, sx, sy, f.dir, night, vis, t);
         // вночі: жар вихлопу і відблиск прожектора
-        if (night > 0.3) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.35 + 0.15 * Math.sin(t * 30)) * A; ctx.drawImage(gl, sx - f.dir * 22 - 5, sy - 5, 10, 10); }
+        if (night > 0.3) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.35 + 0.15 * Math.sin(t * 30)) * A; ctx.drawImage(gl, sx - f.dir * 11 - 4, sy - 4, 8, 8); }
         ctx.restore();
         continue;
       }
