@@ -7808,7 +7808,7 @@
 
   const LOOKAHEAD = 0.2;   // сек: наскільки наперед плануємо ноти
   const FADE = 1.0;        // сек: кросфейд треків
-  const SFX_MAX = { siren: 1, all_clear: 1, vibrate: 1, step: 2, type: 2, brakes: 2, horn: 2, hit: 2, shout: 2, pickup: 2, whistle_fab: 1, unlock: 1, explosion: 2 };
+  const SFX_MAX = { shahed: 2, siren: 1, all_clear: 1, vibrate: 1, step: 2, type: 2, brakes: 2, horn: 2, hit: 2, shout: 2, pickup: 2, whistle_fab: 1, unlock: 1, explosion: 2 };
   const SFX_MAX_DEFAULT = 3;
 
   let ac = null;           // AudioContext
@@ -8426,6 +8426,45 @@
       v.add(n, f, g, lo, lg);
     }
     return N * gap + 0.3;
+  };
+  // шахед: двотактний поршневий мотор (як старий мопед / бензокоса) — гуде, наближається, проходить над головою
+  // і віддаляється. Основний тон ~95–115 Гц з жорсткими гармоніками, «рване» дирчання (нерівні такти),
+  // ефект Доплера (тон трохи вищий на підльоті, нижчий після прольоту), далеко — глухо (lowpass), поруч — дзвінко.
+  // o: {dur (с), pan: -1 → 1 напрям прольоту, peak: 0..1 частка часу, коли найближче, near: 0..1 гучність у піку}
+  R.shahed = (v, t, o) => {
+    o = o || {};
+    const D = o.dur || 13, pk = o.peak == null ? 0.55 : o.peak, near = o.near == null ? 1 : o.near, f0 = 98 + Math.random() * 16;
+    const tp = t + D * pk, te = t + D;
+    const mix = gain(0), lp = filt('lowpass', 420, 0.8), pan = ac.createStereoPanner ? ac.createStereoPanner() : null;
+    // гучність: здалеку тихо → пік над головою → тихне
+    mix.gain.setValueAtTime(0.0001, t);
+    mix.gain.exponentialRampToValueAtTime(0.05 * near, t + D * pk * 0.5);
+    mix.gain.exponentialRampToValueAtTime(0.42 * near, tp);
+    mix.gain.exponentialRampToValueAtTime(0.06 * near, tp + (te - tp) * 0.6);
+    mix.gain.exponentialRampToValueAtTime(0.0001, te);
+    // яскравість: далеко глухо, близько дзвінко
+    lp.frequency.setValueAtTime(380, t); lp.frequency.exponentialRampToValueAtTime(2600, tp); lp.frequency.exponentialRampToValueAtTime(320, te);
+    if (pan) { const p0 = o.pan == null ? -0.8 : o.pan; pan.pan.setValueAtTime(p0, t); pan.pan.linearRampToValueAtTime(-p0, te); }
+    // мотор: дві пилки з розстроєм + квадрат на октаву вище, Доплер
+    const parts = [['sawtooth', 1, 0.5], ['sawtooth', 1.012, 0.35], ['square', 2.003, 0.12], ['sawtooth', 3.01, 0.08]];
+    for (const [w, m, a] of parts) {
+      const x = osc(w, f0 * m * 1.05, t), g = gain(a);
+      x.frequency.setValueAtTime(f0 * m * 1.05, t);
+      x.frequency.linearRampToValueAtTime(f0 * m * 1.03, tp - 0.6);
+      x.frequency.linearRampToValueAtTime(f0 * m * 0.93, tp + 0.9);
+      x.frequency.linearRampToValueAtTime(f0 * m * 0.92, te);
+      chain(x, g, mix); x.stop(te + 0.05); v.add(x, g);
+    }
+    // «дирчання»: амплітудна модуляція нерівними тактами (~f0/4) — характерна шорсткість двотакту
+    const am = gain(0.6), lfo = osc('square', f0 / 4.1, t), lfoG = gain(0.32), lfo2 = osc('sine', 7.3, t), lfo2G = gain(0.12);
+    chain(lfo, lfoG, am.gain); chain(lfo2, lfo2G, am.gain); lfo.stop(te + 0.05); lfo2.stop(te + 0.05);
+    // свист пропелера / повітря
+    const n = noise(t, D + 0.05), nb = filt('bandpass', 1400, 0.9), ng = gain(0.18);
+    chain(n, nb, ng, mix);
+    chain(mix, am, lp);
+    if (pan) chain(lp, pan, v.out); else chain(lp, v.out);
+    v.add(mix, am, lp, lfo, lfoG, lfo2, lfo2G, n, nb, ng); if (pan) v.add(pan);
+    return D + 0.1;
   };
   R.unlock = (v, t) => {
     const seq = ['C5', 'E5', 'G5', 'C6', 'E6', 'G6'];
@@ -32587,18 +32626,25 @@
     if (!S.rfx) S.rfx = { next: 3.5 + Math.random() * 3, list: [] };
     const R = S.rfx;
     for (const f of R.list) f.t += dt;
-    R.list = R.list.filter((f) => f.t < (f.kind === 'mg' ? 2.6 : 3.2));
+    R.list = R.list.filter((f) => f.t < (f.kind === 'mg' ? 2.6 : f.kind === 'shahed' ? f.life : 3.2));
+    for (const f of R.list) if (f.kind === 'shahed' && f.downAt && !f.down && f.t >= f.downAt) { // збили
+      f.down = true;
+      R.list.push({ kind: 'boom', t: 0, x: f.x0 + f.vx * f.t, y: f.y });
+      if (G.audio && G.audio.stopSfx) G.audio.stopSfx('shahed', 0.15);
+      G.after(450 + Math.random() * 400, () => { if (S && S.ev.air_raid && G.audio) G.audio.sfx('distant_boom', { vol: 0.9 }); }, {});
+    }
     if (e.t < R.next || e.dur - e.t < 3) return;
     R.next = e.t + 6 + Math.random() * 10;             // пауза 6–16 с: тиша → епізод
     const A = G.audio, snd = (name, ms, vol) => { if (A && A.sfx) G.after(ms, () => { if (S && S.ev.air_raid) A.sfx(name, { vol }); }, {}); };
     const roll = Math.random();
-    if (roll < 0.45) {                                 // збиття: спалах, потім глухий вибух
+    if (roll < 0.35) { shahedEpisode(R, snd); return; } // шахед: гул мопеда, силует у небі, ППО — іноді збиває
+    if (roll < 0.62) {                                 // збиття: спалах, потім глухий вибух
       const n = Math.random() < 0.3 ? 2 : 1;
       for (let i = 0; i < n; i++) {
         R.list.push({ kind: 'boom', t: -i * 0.7, x: 0.12 + Math.random() * 0.76, y: 0.06 + Math.random() * 0.3 });
         snd('distant_boom', 500 + i * 700 + Math.random() * 700, 0.55 + Math.random() * 0.3);
       }
-    } else if (roll < 0.8) {                           // кулемет мобільної групи: черга трасерів і постріли
+    } else if (roll < 0.86) {                          // кулемет мобільної групи: черга трасерів і постріли
       R.list.push({ kind: 'mg', t: 0, x: 0.1 + Math.random() * 0.8, y: 0.7 + Math.random() * 0.25, dir: (Math.random() - 0.5) * 0.8 });
       snd('distant_gun', 250 + Math.random() * 300, 0.5 + Math.random() * 0.3);
     } else {                                           // усе разом: черга, а за нею — збиття
@@ -32606,6 +32652,37 @@
       R.list.push({ kind: 'boom', t: -1.3, x: 0.15 + Math.random() * 0.7, y: 0.08 + Math.random() * 0.25 });
       snd('distant_gun', 300, 0.6); snd('distant_boom', 2100 + Math.random() * 500, 0.8);
     }
+  }
+  // шахед летить через небо (екранні частки): звук починається раніше, ніж його видно; 50% — мобільна група
+  // відкриває вогонь трасерами в його бік і збиває (спалах, вибух), інакше пролітає і гул стихає
+  function shahedEpisode(R, snd) {
+    const dirR = Math.random() < 0.5, SPAN = 9 + Math.random() * 3, lead = 3.2;
+    const y = 0.1 + Math.random() * 0.28, vx = (dirR ? 1 : -1) * 1.25 / SPAN;
+    const x0 = (dirR ? -0.12 : 1.12) - vx * lead;
+    const f = { kind: 'shahed', t: 0, x0, y, vx, life: lead + SPAN, dir: dirR ? 1 : -1 };
+    if (Math.random() < 0.5) {
+      f.downAt = lead + SPAN * (0.35 + Math.random() * 0.3);
+      const xs = x0 + vx * f.downAt, gx = Math.min(0.9, Math.max(0.1, xs + (Math.random() - 0.5) * 0.4)), gy = 0.78 + Math.random() * 0.15;
+      const H = G.cfg.VIEW_H, W = G.cfg.VIEW_W;
+      const dir = ((xs - gx) * W) / Math.max(40, (gy - y) * H);
+      R.list.push({ kind: 'mg', t: -(f.downAt - 1.7), x: gx, y: gy, dir });
+      snd('distant_gun', (f.downAt - 1.5) * 1000, 0.6);
+      snd('distant_gun', (f.downAt - 0.6) * 1000, 0.55);
+    }
+    R.list.push(f);
+    if (G.audio && G.audio.sfx) G.audio.sfx('shahed', { vol: 0.9, dur: f.downAt ? f.downAt + 0.2 : lead + SPAN + 2, peak: f.downAt ? 0.92 : (lead + SPAN * 0.5) / (lead + SPAN + 2), pan: dirR ? -0.8 : 0.8 });
+  }
+  // силует шахеда згори: дельта-крило з кілями на кінцях, гвинт позаду (dir 1 — летить праворуч)
+  const SHAHED_PX = ['#.............', '##............', '.###..........', '..#####.......', '..########....', '..###########.', '..########....', '..#####.......', '.###..........', '##............', '#.............'];
+  function drawShahed(ctx, x, y, dir, night, A) {
+    const col = night > 0.5 ? '#5a556c' : '#2c2a32', S2 = 2; // ×2 — щоб було видно на телефоні
+    const px = (o, c2) => { ctx.fillStyle = c2; for (let r = 0; r < SHAHED_PX.length; r++) for (let c = 0; c < SHAHED_PX[r].length; c++) if (SHAHED_PX[r][c] === '#') ctx.fillRect(Math.round(x + dir * (c - 7) * S2 - (dir < 0 ? S2 - 1 : 0)) - o, Math.round(y + (r - 5) * S2) - o, S2 + o * 2, S2 + o * 2); };
+    px(1, '#141218'); // контур
+    px(0, col);
+    ctx.fillStyle = '#7a7488'; ctx.fillRect(Math.round(x + dir * 2 * S2), Math.round(y), S2 * 2, 1); // відблиск на фюзеляжі
+    ctx.fillStyle = col;
+    // гвинт (розмита смужка позаду)
+    ctx.globalAlpha = 0.5 * A; ctx.fillRect(Math.round(x - dir * 7 * S2), Math.round(y - 5), 1, 10);
   }
   function drawRaidSky(ctx, k, night) {
     const VW = G.cfg.VIEW_W, VH = G.cfg.VIEW_H, t = G.realTime, A = k * night;
@@ -32632,6 +32709,22 @@
     const list = (S.rfx && S.rfx.list) || [];
     for (const f of list) {
       if (f.t < 0) continue;
+      if (f.kind === 'shahed') {
+        if (f.down) continue;
+        const sx = VW * (f.x0 + f.vx * f.t), sy = VH * f.y;
+        if (sx < -20 || sx > VW + 20) continue;
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over'; ctx.imageSmoothingEnabled = false;
+        const vis = 0.95;
+        // тінь на землі далеко внизу (вдень) — ледь помітна
+        if (night < 0.5) { ctx.globalAlpha = 0.12 * k; ctx.fillStyle = '#000'; ctx.fillRect(Math.round(sx - 5), Math.round(sy + 60), 10, 4); }
+        ctx.globalAlpha = Math.min(1, vis * k);
+        drawShahed(ctx, sx, sy, f.dir, night, Math.min(1, vis * k));
+        // вночі: жар вихлопу і відблиск прожектора
+        if (night > 0.3) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.35 + 0.15 * Math.sin(t * 30)) * A; ctx.drawImage(gl, sx - f.dir * 14 - 5, sy - 5, 10, 10); }
+        ctx.restore();
+        continue;
+      }
       if (f.kind === 'mg') {
         // черга трасерів знизу вгору (~1.8 с), куля за кулею
         const gx = VW * f.x, gy = VH * f.y, N = 12;
