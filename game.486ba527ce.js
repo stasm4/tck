@@ -30071,6 +30071,17 @@
     boot() {
       const r = loadData();
       D = r.data;
+      // тест: ?dev=vsi2026 — усі 30 місій сюжету пройдені на 3 зірки (лише на цьому пристрої), параметр прибирається з адреси
+      try {
+        const q = new URLSearchParams(location.search);
+        if (q.get('dev') === 'vsi2026') {
+          D.done = D.done || {}; D.stars = D.stars || {};
+          for (let n = 1; n <= 30; n++) { D.done[n] = 1; D.stars[n] = Math.max(D.stars[n] || 0, 3); }
+          D.maxDay = Math.max(D.maxDay || 1, 30);
+          r.migrated = true;
+          if (history.replaceState) history.replaceState(null, '', location.pathname);
+        }
+      } catch (e) { /* без location (тести) */ }
       clampCampaign();
       refreshMax();
       if (r.migrated) persist();
@@ -32675,32 +32686,60 @@
   // шахед знизу (як на фото): бежеве дельта-крило з рисками, циліндричний світлий ніс, кілі на кінцях крил,
   // мотор із гвинтом позаду. Спрайт 30×21 (ніс праворуч), кеш денної та нічної палітри; dir −1 — дзеркально.
   const SHD = { c: {} };
+  function shDark(hex, k) { // нічна палітра: темніше й холодніше
+    const n = parseInt(hex.slice(1), 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    const f = (v, add) => Math.max(0, Math.min(255, Math.round(v * k + add)));
+    return '#' + [f(r, 0), f(g, 2), f(b, 14)].map((v) => v.toString(16).padStart(2, '0')).join('');
+  }
   function shahedSprite(nightPal) {
     const key = nightPal ? 'n' : 'd';
     if (SHD.c[key]) return SHD.c[key];
-    const W = 30, H = 27, cy = 13, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-    const g = cv.getContext('2d'), m = new Array(W * H).fill(0); // 0 — порожньо, далі індекс кольору
-    const P = nightPal ? ['', '#2a2620', '#6e6656', '#5a5446', '#7c7462', '#8a8270', '#4a4438', '#3a3630', '#9a9282']
-      : ['', '#3a3226', '#cfc09e', '#b4a482', '#dcd0b4', '#ece4d2', '#8e8068', '#55504a', '#f6f0e2'];
-    // 1 контур · 2 крило світле · 3 крило в тіні · 4 ніс · 5 ніс-блік · 6 риски/кілі · 7 мотор · 8 блік на носі
-    const set = (x, y, v) => { if (x >= 0 && y >= 0 && x < W && y < H) m[y * W + x] = v; };
-    for (let y = 0; y < H; y++) {
-      const le = Math.round(5 + (1 - Math.abs(y - cy) / 13) * 16); // передня кромка (широка дельта)
-      for (let x = 5; x <= le; x++) set(x, y, y > cy ? 3 : 2);
+    const W = 44, H = 34, cy = 17, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d'), m = new Array(W * H).fill(null);
+    const C = { ol: '#2e281e', wl: '#d8caa8', wh: '#e8dfc6', wd: '#b9a886', wdd: '#a29070', fl: '#c4b492', seam: '#8a7a5e', riv: '#9c8c6e',
+      f0: '#8e8068', f1: '#bcae92', f2: '#dcd2bc', f3: '#efe8d8', f4: '#fbf7ee', band: '#6c6250', fin: '#7c6e58', finH: '#a49478', pod: '#9a9890', podD: '#5e5c58',
+      eng: '#3e3a36', engH: '#6a6560', ex: '#2a2622', sens: '#58524a' };
+    const set = (x, y, c) => { if (x >= 0 && y >= 0 && x < W && y < H) m[y * W + x] = c; };
+    const te = (y) => 8 + Math.round(Math.abs(y - cy) * 0.12);                  // задня кромка (злегка стрілоподібна)
+    const le = (y) => Math.round(9 + (1 - Math.abs(y - cy) / 16.5) * 21);       // передня кромка → корінь біля x≈30
+    for (let y = 1; y < H - 1; y++) {
+      const a = te(y), z = le(y), up = y < cy;
+      for (let x = a; x <= z; x++) {
+        let c = up ? C.wl : C.wd;
+        if (!up && y > cy + 9) c = C.wdd;                                     // нижня консоль у тіні
+        if (x >= z - 1) c = up ? C.wh : C.wl;                                 // світла передня кромка
+        if (x <= a + 3 && Math.abs(y - cy) > 4 && Math.abs(y - cy) < 15) c = up ? C.fl : C.wdd; // закрилки-елевони
+        set(x, y, c);
+      }
+      if (Math.abs(y - cy) > 4 && Math.abs(y - cy) < 15) set(a + 4, y, C.seam); // шов закрилка
     }
-    for (let y = 2; y < H - 2; y += 4) set(Math.round(5 + (1 - Math.abs(y - cy) / 13) * 8), y, 6); // риски на крилі
-    for (let x = 3; x <= 8; x++) { set(x, 0, 6); set(x, 1, 6); set(x, H - 1, 6); set(x, H - 2, 6); } // кілі на кінцях (виступають назад)
-    for (let y = cy - 2; y <= cy + 2; y++) for (let x = 12; x <= 27; x++) set(x, y, 4); // фюзеляж-циліндр
-    for (let x = 13; x <= 27; x++) { set(x, cy - 1, 5); set(x, cy + 2, 3); }
-    set(28, cy - 1, 4); set(28, cy, 4); set(28, cy + 1, 4); set(29, cy, 4); set(26, cy - 1, 8); set(27, cy - 1, 8); // заокруглений ніс
-    for (let y = cy - 1; y <= cy + 1; y++) for (let x = 1; x <= 5; x++) set(x, y, 7); // мотор
-    // контур по краю фігури
+    for (let y = 3; y < H - 3; y++) { const d = Math.abs(y - cy); if (d > 5 && d % 3 === 0) set(le(y) - 4, y, C.seam); } // лінія лонжерона
+    [[14, 9], [18, 7], [22, 11], [14, 25], [19, 27], [23, 23], [12, 13], [12, 21]].forEach(([x, y]) => set(x, y, C.riv)); // заклепки/лючки
+    set(20, cy - 5, C.sens); set(21, cy - 5, C.sens); set(20, cy + 5, C.sens); // датчики
+    // фюзеляж-циліндр з обʼємом (світло зверху), шов носового конуса, заокруглений ніс
+    const FR = [C.f0, C.f2, C.f4, C.f3, C.f2, C.f1, C.f0];
+    for (let i = 0; i < 7; i++) for (let x = 15; x <= 39; x++) set(x, cy - 3 + i, FR[i]);
+    for (let i = 1; i < 6; i++) set(33, cy - 3 + i, C.band);
+    [[40, 1, 5], [41, 2, 4], [42, 3, 3]].forEach(([x, i0, i1]) => { for (let i = i0; i <= i1; i++) set(x, cy - 3 + i, FR[i]); });
+    set(36, cy - 2, C.f4); set(37, cy - 2, C.f4); set(38, cy - 1, C.f4);
+    // кілі (вертикальні шайби) на кінцях крил, з контейнерами
+    for (const sg of [-1, 1]) {
+      const y0 = sg < 0 ? 0 : H - 3;
+      for (let x = 4; x <= 12; x++) for (let k = 0; k < 3; k++) set(x, y0 + k, k === (sg < 0 ? 0 : 2) ? C.finH : C.fin);
+      for (let x = 1; x <= 5; x++) set(x, sg < 0 ? 1 : H - 2, x === 1 ? C.podD : C.pod);
+      set(2, sg < 0 ? 2 : H - 3, C.podD);
+    }
+    // мотор і вихлоп позаду
+    for (let y = cy - 2; y <= cy + 2; y++) for (let x = 2; x <= 9; x++) set(x, y, y === cy - 1 ? C.engH : C.eng);
+    set(1, cy - 1, C.ex); set(1, cy, C.ex); set(1, cy + 1, C.ex);
+    for (let y = cy - 2; y <= cy + 2; y++) set(6, y, C.ex);
+    // контур
     const out = m.slice();
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       if (m[y * W + x]) continue;
-      if ((x > 0 && m[y * W + x - 1]) || (x < W - 1 && m[y * W + x + 1]) || (y > 0 && m[(y - 1) * W + x]) || (y < H - 1 && m[(y + 1) * W + x])) out[y * W + x] = 1;
+      if ((x > 0 && m[y * W + x - 1]) || (x < W - 1 && m[y * W + x + 1]) || (y > 0 && m[(y - 1) * W + x]) || (y < H - 1 && m[(y + 1) * W + x])) out[y * W + x] = C.ol;
     }
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const v = out[y * W + x]; if (v) { g.fillStyle = P[v]; g.fillRect(x, y, 1, 1); } }
+    for (let i = 0; i < W * H; i++) if (out[i]) { g.fillStyle = nightPal ? shDark(out[i], 0.5) : out[i]; g.fillRect(i % W, Math.floor(i / W), 1, 1); }
     return (SHD.c[key] = cv);
   }
   function drawShahed(ctx, x, y, dir, night, A, t) {
@@ -32708,11 +32747,13 @@
     ctx.save();
     ctx.translate(Math.round(x), Math.round(y));
     if (dir < 0) ctx.scale(-1, 1);
-    ctx.drawImage(img, -15, -13);
-    // гвинт, що крутиться (мигтить смужка позаду мотора)
-    ctx.globalAlpha = 0.55 * A; ctx.fillStyle = night > 0.5 ? '#8a8270' : '#55504a';
-    const ph = Math.floor((t || 0) * 30) % 2;
-    ctx.fillRect(-16, ph ? -4 : -5, 1, ph ? 9 : 11);
+    ctx.drawImage(img, -22, -17);
+    // дволопатевий гвинт: лопаті змінюють положення + розмитий диск
+    const ph = Math.floor((t || 0) * 24) % 3, nc = night > 0.5;
+    ctx.globalAlpha = 0.35 * A; ctx.fillStyle = nc ? '#6a6458' : '#8a8478';
+    ctx.fillRect(-23, -9, 1, 18);
+    ctx.globalAlpha = 0.85 * A; ctx.fillStyle = nc ? '#2a2620' : '#3a352e';
+    if (ph === 0) ctx.fillRect(-23, -8, 1, 16); else if (ph === 1) { ctx.fillRect(-23, -5, 1, 4); ctx.fillRect(-23, 1, 1, 4); } else ctx.fillRect(-24, -1, 3, 2);
     ctx.restore();
   }
   function drawRaidSky(ctx, k, night) {
@@ -32743,7 +32784,7 @@
       if (f.kind === 'shahed') {
         if (f.down) continue;
         const sx = VW * (f.x0 + f.vx * f.t), sy = VH * f.y;
-        if (sx < -20 || sx > VW + 20) continue;
+        if (sx < -30 || sx > VW + 30) continue;
         ctx.save();
         ctx.globalCompositeOperation = 'source-over'; ctx.imageSmoothingEnabled = false;
         const vis = 0.95;
@@ -32752,7 +32793,7 @@
         ctx.globalAlpha = vis;
         drawShahed(ctx, sx, sy, f.dir, night, vis, t);
         // вночі: жар вихлопу і відблиск прожектора
-        if (night > 0.3) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.35 + 0.15 * Math.sin(t * 30)) * A; ctx.drawImage(gl, sx - f.dir * 13 - 5, sy - 5, 10, 10); }
+        if (night > 0.3) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.35 + 0.15 * Math.sin(t * 30)) * A; ctx.drawImage(gl, sx - f.dir * 22 - 5, sy - 5, 10, 10); }
         ctx.restore();
         continue;
       }
