@@ -3267,6 +3267,20 @@
       if (down) { b.rect(x0 + 3, fy, Wd - 6, 2, P.white); b.hl(x0 + 4, fy + 1, 2, P.ink); b.hl(x0 + 7, fy, 2, P.ink); b.hl(x0 + 7, fy + 1, 1, P.ink); }
     },
   });
+  // автозак поліції: білий мікроавтобус, синя смуга з жовтою облямівкою, ґрати на задньому вікні, маячки на даху
+  const POLVAN = Object.assign(VAN('#eef0f4', '#f8f9fb'), {
+    extraH(b, c) {
+      const { x0, y0, sy, L, D, S, frame } = c;
+      b.hl(x0 + 1, sy + S - 4, L - 2, '#f0c814'); b.hl(x0 + 1, sy + S - 3, L - 2, '#2a5cc8'); b.hl(x0 + 1, sy + S - 2, L - 2, '#2a5cc8');
+      for (let x = x0 + 4; x < x0 + 12; x += 2) b.vl(x, sy + 1, S - 6, '#3a3e48'); // ґрати на вікні
+      const on = (frame | 0) % 2;
+      b.rect(x0 + 20, y0 + 2, 3, 2, on ? '#ff3a3a' : '#7a2020'); b.rect(x0 + 23, y0 + 2, 3, 2, on ? '#3a6aff' : '#20307a'); // маячки
+    },
+    extraV(b, c) {
+      const { x0, Y, Wd, frame } = c, y = Y(14), on = (frame | 0) % 2;
+      b.rect(x0 + 3, y, Math.max(2, (Wd - 6) >> 1), 2, on ? '#ff3a3a' : '#7a2020'); b.rect(x0 + 3 + ((Wd - 6) >> 1), y, Math.max(2, (Wd - 6) >> 1), 2, on ? '#3a6aff' : '#20307a');
+    },
+  });
   const TROLLEY = Object.assign({ L: 58, D: 13, S: 9, body: '#3c78c8', roofC: '#e8e4dc', wheels: [10, 44], rear: [0, 1], roof: [2, 51], wind: [52, 55], sideWin: [3, 52], pillars: [10, 18, 26, 34, 42] }, {
     extraH(b, c) {
       const { x0, y0, sy, L, D, S } = c;
@@ -7469,7 +7483,7 @@
   // ═══════════════════════════════ РЕЄСТР І КЕШ ═══════════════════════════════
   const GEN = {
     player: genPlayer, tck: genTck, npc: genNpc,
-    bus: (o) => vehicle(BUS, o), car: genCar, taxi: (o) => vehicle(TAXI, o), marshrutka: (o) => vehicle(MARSH, o), trolley: (o) => vehicle(TROLLEY, o),
+    bus: (o) => vehicle(BUS, o), car: genCar, taxi: (o) => vehicle(TAXI, o), marshrutka: (o) => vehicle(MARSH, o), police_van: (o) => vehicle(POLVAN, o), trolley: (o) => vehicle(TROLLEY, o),
     item: genItem, icon: genIcon, fx: genFx, tile: genTile, prop: genProp, portrait: genPortrait, bg: genBg, title: genTitle, cs: genCs,
     firetruck: (o) => genFiretruck(o), police: (o) => genPolice(o), police_car: (o) => genPolice(o),
     firefighter: (o) => ffPose(o, o.variant || 'stand'), rescuer: (o) => rescuerOf(o, o.variant), medic: (o) => rescuerOf(o, 'medic'),
@@ -7764,6 +7778,12 @@
     P,
     has,
     get(key, opts) {
+      const e = buf(key, opts);
+      if (!e.c) e.c = e.b.toCanvas();
+      return e.c;
+    },
+    // той самий спрайт без обгорток (зимові шапки/куртки, гардероб) — для фінального мульта (весільний одяг)
+    rawGet(key, opts) {
       const e = buf(key, opts);
       if (!e.c) e.c = e.b.toCanvas();
       return e.c;
@@ -28733,15 +28753,64 @@
   for (const id in COMICS) SCENES[id] = comicScene(id);
 
   // ═══════════════ ФІНАЛЬНИЙ МУЛЬТ (після місії 30): справжнє місто, справжні спрайти, без пропуску ═══════════════
-  // 1) Ранок, сквер біля фонтану: новина «Війна закінчилась», люди радіють, конфеті, Андрій і Катя.
-  // 2) «Через місяць»: на вулиці біля скверу поліція затримує ТЦК за викрадення людей — ТЦК саджають у їхній же бус,
-  //    поліцейська машина з мигалками веде його в тюрму.  3) «Субота»: весілля в сквері, «Гірко!».  4) Титри (теж без пропуску).
+  // 1) Ранок, сквер: «Війна закінчилась», люди радіють.  2) «Через місяць»: поліція з автозаком затримує ТЦК біля їхнього
+  // буса, ТЦК — в автозак, колона обʼїжджає бус і їде.  3) СІЗО: автозак біля воріт, ТЦК заводять за ґрати.
+  // 4) «Субота»: весілля біля церкви — Катя в білій сукні з фатою, Андрій у смокінгу, гості, пелюстки, «Гірко!».
+  // 5) Титри (їх — і тільки їх — можна пропустити).
+  const WED = {};
+  function isSkinPx(r, g, b) { return r > 150 && g > 95 && b > 60 && r > g && g >= b - 4 && r - b > 30 && r - b < 140; }
+  // весільний одяг поверх справжнього спрайта: смокінг (чорний піджак, біла сорочка, метелик) / біла сукня до землі з фатою
+  function weddingImg(who, dir, fr) {
+    const k = who + dir + fr;
+    if (WED[k]) return WED[k];
+    let src = null;
+    try { src = who === 'bride' ? G.sprites.rawGet('npc', { variant: 'woman', skin: 2, dir, frame: Math.min(3, fr) }) : G.sprites.rawGet('player', { skin: 'office', dir, frame: fr }); } catch (e) { src = null; }
+    if (!src) return null;
+    const P = 3, W = src.width + P * 2, H = src.height, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d'); g.drawImage(src, P, 0);
+    const id = g.getImageData(0, 0, W, H), d = id.data, A = (x, y) => d[(y * W + x) * 4 + 3] > 40;
+    let top = H, bot = 0, xl = W, xr = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (A(x, y)) { top = Math.min(top, y); bot = Math.max(bot, y); xl = Math.min(xl, x); xr = Math.max(xr, x); }
+    const hgt = bot - top + 1, neck = top + Math.round(hgt * 0.5), waist = neck + Math.round(hgt * 0.24), cx = (xl + xr) / 2;
+    const put = (x, y, r, gg, b, a) => { if (x < 0 || y < 0 || x >= W || y >= H) return; const i = (y * W + x) * 4; d[i] = r; d[i + 1] = gg; d[i + 2] = b; d[i + 3] = a == null ? 255 : a; };
+    for (let y = neck; y <= bot; y++) for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4; if (d[i + 3] < 40) continue;
+      const r = d[i], gg = d[i + 1], b = d[i + 2], lum = r * 0.3 + gg * 0.59 + b * 0.11;
+      if (isSkinPx(r, gg, b) || lum < 34) continue;                              // руки й контур лишаються
+      if (who === 'bride') { const v = Math.round(214 + lum / 255 * 38); put(x, y, v, v - 3, v + 2); }
+      else { const v = Math.round(26 + lum / 255 * 30); put(x, y, v, v, v + 6); }
+    }
+    if (who === 'bride') {
+      // сукня до землі: дзвін від талії вниз
+      for (let y = waist; y <= bot; y++) {
+        const hw = Math.round(3 + (y - waist) * 0.55);
+        for (let x = Math.round(cx - hw); x <= Math.round(cx + hw); x++) {
+          const edge = x === Math.round(cx - hw) || x === Math.round(cx + hw) || y === bot;
+          if (edge) put(x, y, 150, 144, 162); else put(x, y, 246 - (y - waist), 243 - (y - waist), 248 - (y - waist));
+        }
+      }
+      // фата: прозорий білий край з боків і ззаду голови, віночок
+      for (let y = top + 1; y <= neck + 4; y++) { put(Math.round(xl) - 1, y, 252, 252, 255, 150); put(Math.round(xr) + 1, y, 252, 252, 255, 150); }
+      if (dir === 'up') for (let y = top + 1; y <= neck; y++) for (let x = Math.round(xl); x <= Math.round(xr); x++) if (A(x, y)) { const i = (y * W + x) * 4; d[i] = Math.round(d[i] * 0.3 + 250 * 0.7); d[i + 1] = Math.round(d[i + 1] * 0.3 + 250 * 0.7); d[i + 2] = Math.round(d[i + 2] * 0.3 + 255 * 0.7); }
+      for (let x = Math.round(cx) - 3; x <= Math.round(cx) + 3; x += 2) put(x, top, 255, 255, 255);
+      put(Math.round(cx) - 2, top, 255, 180, 200); put(Math.round(cx) + 2, top, 255, 180, 200);
+    } else if (dir === 'down') {
+      // біла сорочка і метелик по центру
+      const c0 = Math.round(cx) - 1;
+      for (let y = neck; y <= neck + 4; y++) { put(c0, y, 244, 242, 238); put(c0 + 1, y, 244, 242, 238); }
+      put(c0 - 1, neck + 1, 16, 14, 22); put(c0, neck + 1, 16, 14, 22); put(c0 + 1, neck + 1, 16, 14, 22); put(c0 + 2, neck + 1, 16, 14, 22);
+      put(c0 - 2, neck + 3, 230, 80, 100); // квітка-бутоньєрка
+    }
+    g.putImageData(id, 0, 0);
+    return (WED[k] = cv);
+  }
   function FilmActor(o) { Object.assign(this, { alive: true, kind: 'decor', x: 0, y: 0, w: 10, h: 12, dir: 'down', spd: 30, anim: 0, fr: 0, jump: 0, hidden: false }, o); }
   FilmActor.prototype.draw = function (ctx) {
     let img = null;
     const fr = this.moving ? [1, 2, 3, 2][Math.floor(this.anim) % 4] : this.fr;
     try {
-      if (this.spr === 'player') img = G.sprites.get('player', { skin: this.skin, dir: this.dir, frame: fr });
+      if (this.wed) img = weddingImg(this.wed, this.dir, fr);
+      else if (this.spr === 'player') img = G.sprites.get('player', { skin: this.skin, dir: this.dir, frame: fr });
       else if (this.spr === 'tck') img = G.sprites.get('tck', { type: this.type, dir: this.dir, frame: fr });
       else img = G.sprites.get('npc', { variant: this.variant, dir: this.dir, frame: Math.min(3, fr), skin: this.skin || 0 });
     } catch (e) { img = null; }
@@ -28750,14 +28819,45 @@
     G.drawShadow(ctx, Math.round(this.x), this.y + this.h / 2 - 1, 9, 0.28);
     ctx.drawImage(img, Math.round(this.x - img.width / 2), Math.round(this.y + this.h / 2 - img.height - j));
   };
-  function FilmCar(o) { Object.assign(this, { alive: true, kind: 'decor', x: 0, y: 0, dir: 'left', v: 0, vmax: 90, door: false, flash: false, hidden: false }, o);
+  function FilmCar(o) { Object.assign(this, { alive: true, kind: 'decor', x: 0, y: 0, dir: 'left', v: 0, vmax: 80, door: false, flash: false, hidden: false }, o);
     let img = null; try { img = G.sprites.get(this.key, { dir: this.dir }); } catch (e) { img = null; }
     this.w = img ? img.width : 60; this.h = img ? img.height : 24; }
   FilmCar.prototype.draw = function (ctx) {
     G.drawShadow(ctx, Math.round(this.x), this.y + this.h / 2 - 1, this.w * 0.75, 0.3);
-    const o = this.key === 'bus' ? { variant: this.door ? 'open' : 'closed', frame: this.v < 5 ? 1 : 0 } : { frame: this.flash ? Math.floor(G.realTime * 6) % 4 : 0 };
+    const fl = Math.floor(G.realTime * 6) % 4;
+    const o = this.key === 'bus' ? { variant: this.door ? 'open' : 'closed', frame: this.v < 5 ? 1 : 0 } : { frame: this.flash ? fl : 0 };
     if (G.traffic && G.traffic.drawVehicle) G.traffic.drawVehicle(ctx, this, this.key, o);
+    if (this.flash) { // відблиск мигалок
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35;
+      ctx.fillStyle = fl % 2 ? '#ff4040' : '#4060ff'; ctx.fillRect(Math.round(this.x - 6), Math.round(this.y - this.h / 2 - 3), 12, 3);
+      ctx.restore();
+    }
   };
+  function FilmDecor(o) { Object.assign(this, { alive: true, kind: 'decor', x: 0, y: 0, w: 2, h: 2, hidden: false }, o); }
+  FilmDecor.prototype.draw = function (ctx) { this.fn(ctx, this); };
+  // ворота СІЗО: бетонна стіна з колючим дротом, ґратчасті ворота (відʼїжджають убік), табличка, ліхтар
+  function drawPrison(ctx, D) {
+    const x0 = Math.round(D.x - D.half), x1 = Math.round(D.x + D.half), yb = Math.round(D.y), yt = yb - 30, gw = 30, gx0 = Math.round(D.x - gw / 2);
+    ctx.fillStyle = '#7e7a76'; ctx.fillRect(x0, yt, x1 - x0, yb - yt);
+    ctx.fillStyle = '#8e8a85'; ctx.fillRect(x0, yt, x1 - x0, 12);
+    ctx.fillStyle = '#a6a29c'; ctx.fillRect(x0, yt - 2, x1 - x0, 2);                           // козирок
+    ctx.fillStyle = '#5e5a56'; for (let x = x0 + 16; x < x1; x += 18) ctx.fillRect(x, yt, 1, yb - yt); // шви панелей
+    ctx.fillStyle = '#4a4744'; ctx.fillRect(x0, yb - 2, x1 - x0, 2);
+    ctx.fillStyle = '#4e4b48'; for (let x = x0; x < x1; x += 5) { ctx.fillRect(x, yt - 6, 3, 1); ctx.fillRect(x, yt - 3, 1, 2); ctx.fillRect(x + 3, yt - 5, 1, 2); ctx.fillRect(x + 1, yt - 2, 3, 1); } // колючий дріт
+    // проріз воріт і ворота
+    ctx.fillStyle = '#26242a'; ctx.fillRect(gx0, yt + 4, gw, yb - yt - 4);
+    const off = Math.round((D.open || 0) * (gw - 2));
+    ctx.fillStyle = '#4a4a54'; ctx.fillRect(gx0 + off, yt + 4, gw, 2); ctx.fillRect(gx0 + off, yb - 3, gw, 2);
+    ctx.fillStyle = '#6a6a76'; for (let x = gx0 + off + 1; x < gx0 + off + gw; x += 3) ctx.fillRect(x, yt + 4, 1, yb - yt - 5);
+    ctx.fillStyle = '#7e7a76'; ctx.fillRect(gx0 + gw, yt + 4, gw, yb - yt - 4); // стіна, за яку відʼїжджають ворота
+    ctx.fillStyle = '#5e5a56'; ctx.fillRect(gx0 - 2, yt + 2, 2, yb - yt - 2); ctx.fillRect(gx0 + gw, yt + 2, 2, yb - yt - 2);
+    // табличка
+    const sx = gx0 - 52, sy = yt + 8;
+    ctx.fillStyle = '#2a2a32'; ctx.fillRect(sx - 1, sy - 1, 44, 13); ctx.fillStyle = '#e8e6e0'; ctx.fillRect(sx, sy, 42, 11);
+    if (G.text) G.text(ctx, 'СІЗО №1', sx + 21, sy + 1, { size: 8, align: 'center', color: '#1a1820' });
+    // ліхтар над воротами
+    ctx.fillStyle = '#3a3a40'; ctx.fillRect(Math.round(D.x) - 1, yt - 1, 3, 2); ctx.fillStyle = '#ffe9a0'; ctx.fillRect(Math.round(D.x), yt + 1, 1, 1);
+  }
 
   SCENES.victory_film = {
     skippable: false, locked: true, camera: true,
@@ -28765,13 +28865,13 @@
     build(c) {
       const Wd = G.world, MS = G.missions, T = G.cfg.TILE;
       const F = (MS && MS.poi && MS.poi('fountain_sq')) || (G.player ? { x: G.player.x, y: G.player.y } : { x: 400, y: 400 });
-      c.actors = []; c.conf = []; c.confOn = false; c.hearts = [];
-      // світ завмирає: ховаємо всіх живих (люди, ТЦК, машини, гравець) — у кадрі тільки актори мульта
+      c.actors = []; c.conf = []; c.confOn = false; c.petals = false; c.hearts = [];
       c.hid = [];
       for (const e of G.entities) if (e.alive && !e.hidden && e.kind !== 'decor') { e.hidden = true; c.hid.push(e); }
       if (G.ui && G.ui.reset) { try { G.ui.reset(); } catch (e) { /* */ } }
+      const tile = (x, y) => (Wd && Wd.tileAt ? Wd.tileAt(Math.floor(x / T), Math.floor(y / T)) : null) || {};
       const walk = (x, y) => !Wd || !Wd.isWalkable || Wd.isWalkable(Math.floor(x / T), Math.floor(y / T));
-      const add = (o) => { const a = new (o.key ? FilmCar : FilmActor)(o); c.actors.push(a); G.entities.push(a); return a; };
+      const add = (o) => { const a = new (o.fn ? FilmDecor : o.key ? FilmCar : FilmActor)(o); c.actors.push(a); G.entities.push(a); return a; };
       const skin = (G.player && G.player.skin) || 'office';
       // ── 1: сквер ──
       const hero = add({ spr: 'player', skin, x: F.x - 7, y: F.y, dir: 'right' });
@@ -28783,32 +28883,60 @@
         if (!walk(x, y) || Math.hypot(x - F.x, y - F.y) < 26) continue;
         crowd.push(add({ spr: 'npc', variant: CROWD[i][0], skin: CROWD[i][1], x, y, dir: x < F.x ? 'right' : 'left', jumpT: i * 0.37 })); i++;
       }
-      // ── 2: вулиця біля скверу (найближча горизонтальна смуга під/над сквером) ──
+      // ── смуги: вулиця біля скверу (арешт) і віддалена вулиця з тротуаром згори (СІЗО) ──
+      const lanes = [];
+      if (Wd && Wd.roads) for (const e of Wd.roads.edges) for (const ln of e.lanes) if (Math.abs(ln.y1 - ln.y0) <= 2) lanes.push({ y: ln.y0, a: Math.min(ln.x0, ln.x1), b: Math.max(ln.x0, ln.x1), dir: ln.x1 < ln.x0 ? 'left' : 'right' });
       let lane = null;
-      if (Wd && Wd.roads) for (const e of Wd.roads.edges) for (const ln of e.lanes) {
-        if (Math.abs(ln.y1 - ln.y0) > 2 || Math.min(ln.x0, ln.x1) > F.x - 200 || Math.max(ln.x0, ln.x1) < F.x + 200) continue;
-        const d = Math.abs(ln.y0 - F.y);
-        if (d < 400 && (!lane || d < lane.d)) lane = { y: ln.y0, dir: ln.x1 < ln.x0 ? 'left' : 'right', d };
-      }
-      if (!lane) lane = { y: F.y + 200, dir: 'left' };
-      const L = lane.dir === 'left' ? -1 : 1, X0 = F.x, LY = lane.y;
-      const side = LY > F.y ? -1 : 1; // тротуар — з боку скверу
+      for (const l of lanes) { if (l.a > F.x - 200 || l.b < F.x + 200) continue; const d = Math.abs(l.y - F.y); if (d < 400 && (!lane || d < lane.d)) lane = Object.assign({ d }, l); }
+      if (!lane) lane = { y: F.y + 200, dir: 'left', a: F.x - 400, b: F.x + 400 };
+      const L = lane.dir === 'left' ? -1 : 1, X0 = F.x, LY = lane.y, side = LY > F.y ? -1 : 1;
+      let LY2 = LY - side * 32; for (const l of lanes) if (l !== lane && l.dir !== lane.dir && Math.abs(l.y - LY) < 60 && l.a < X0 && l.b > X0) LY2 = l.y; // зустрічна смуга — для обгону
       const bus = add({ key: 'bus', dir: lane.dir, x: X0, y: LY, hidden: true });
-      const pol = add({ key: 'police', dir: lane.dir, x: X0 - L * 380, y: LY, hidden: true, flash: true });
-      const door = { x: bus.x + L * 4, y: LY + side * (bus.h / 2 + 7) };
+      const pol = add({ key: 'police', dir: lane.dir, x: X0 - L * 420, y: LY, hidden: true, flash: true });
+      const van = add({ key: 'police_van', dir: lane.dir, x: X0 - L * 500, y: LY, hidden: true, flash: true });
+      const busDoor = { x: bus.x + L * 4, y: LY + side * (bus.h / 2 + 7) };
+      const vanDoor = () => ({ x: van.x - L * 4, y: van.y + side * (van.h / 2 + 6) });
       const cops = [add({ spr: 'npc', variant: 'policeman', x: 0, y: 0, hidden: true }), add({ spr: 'npc', variant: 'policeman', x: 0, y: 0, hidden: true })];
-      const tcks = ['rude', 'polite', 'tired'].map((t) => add({ spr: 'tck', type: t, x: door.x, y: door.y, hidden: true }));
-      const watchers = [add({ spr: 'npc', variant: 'citizen', skin: 0, x: X0 - 60, y: door.y + side * 22, dir: 'right', hidden: true }),
-        add({ spr: 'npc', variant: 'granny', skin: 1, x: X0 + 70, y: door.y + side * 26, dir: 'left', hidden: true })];
+      const tcks = ['rude', 'polite', 'tired'].map((t) => add({ spr: 'tck', type: t, x: busDoor.x, y: busDoor.y, hidden: true }));
+      const watchers = [add({ spr: 'npc', variant: 'citizen', skin: 0, x: X0 - 70, y: busDoor.y + side * 22, dir: 'right', hidden: true }),
+        add({ spr: 'npc', variant: 'granny', skin: 1, x: X0 + 60, y: busDoor.y + side * 26, dir: 'left', hidden: true })];
+      // СІЗО: горизонтальна смуга далеко від скверу, з тротуаром згори (стіна стоїть на його верхньому краї, обличчям до камери)
+      let PR = null;
+      for (const l of lanes) {
+        if (l.b - l.a < 300) continue;
+        const mx = (l.a + l.b) / 2; if (Math.hypot(mx - F.x, l.y - F.y) < 700) continue;
+        let y = l.y - 8, sw = 0, top = null;
+        while (y > l.y - 90) { const ty = tile(mx, y).type; if (ty === 'sidewalk') { sw++; top = y; } else if (sw > 0) break; y -= 4; }
+        if (sw >= 4 && (!PR || Math.abs(l.y - F.y) > Math.abs(PR.y - F.y))) PR = { x: mx, y: l.y, dir: l.dir, wallY: top - 2 };
+      }
+      if (!PR) PR = { x: X0, y: LY, dir: lane.dir, wallY: LY - 40 };
+      const PL = PR.dir === 'left' ? -1 : 1;
+      const prison = add({ fn: drawPrison, x: PR.x, y: PR.wallY, half: 120, open: 0, hidden: true });
+      const guard = add({ spr: 'npc', variant: 'policeman', x: PR.x + 24, y: PR.wallY + 6, dir: 'down', hidden: true });
+      // ── 4: церква ──
+      const CH = (MS && MS.poi && (MS.poi('church_front') || MS.poi('church'))) || { x: F.x, y: F.y };
+      const arch = add({ fn: (ctx, D) => { // весільна арка з квітами
+        const x = Math.round(D.x), y = Math.round(D.y);
+        ctx.fillStyle = '#e8e2d6'; ctx.fillRect(x - 15, y - 26, 2, 26); ctx.fillRect(x + 13, y - 26, 2, 26);
+        for (let a = 0; a <= 20; a++) { const t = Math.PI * a / 20, px = Math.round(x - Math.cos(t) * 14), py = Math.round(y - 26 - Math.sin(t) * 10);
+          ctx.fillStyle = a % 3 === 0 ? '#ff9ab8' : a % 3 === 1 ? '#ffffff' : '#7ab86a'; ctx.fillRect(px - 1, py - 1, 3, 3); }
+        for (let k = 0; k < 6; k++) { ctx.fillStyle = k % 2 ? '#ffffff' : '#ff9ab8'; ctx.fillRect(x - 16, y - 22 + k * 4, 3, 2); ctx.fillRect(x + 13, y - 20 + k * 4, 3, 2); }
+      }, x: CH.x, y: CH.y - 2, hidden: true });
+      const groom = add({ wed: 'groom', x: CH.x - 6, y: CH.y, dir: 'down', hidden: true });
+      const bride = add({ wed: 'bride', x: CH.x + 6, y: CH.y, dir: 'down', hidden: true });
+      const GUEST = [['man', 2], ['woman', 1], ['granny', 0], ['man', 0], ['woman', 3], ['kid', 1], ['man', 1], ['citizen', 2]];
+      const guests = GUEST.map((gd, i) => add({ spr: 'npc', variant: gd[0], skin: gd[1], x: CH.x + (i % 2 ? 26 : -26) + (i % 4 > 1 ? (i % 2 ? 12 : -12) : 0), y: CH.y + 26 + Math.floor(i / 2) * 14, dir: i % 2 ? 'left' : 'right', hidden: true, jumpT: i * 0.4 }));
+
       c.F = F; c.cam = { x: F.x, y: F.y - 4 };
       G.camera.follow(c.cam, true); G.camera.setZoom(2.4, true); G.camera.update(0);
       const base = () => G.camera.base || 1;
       const camTo = (x, y, z, d) => ({ d, start: (c) => { c._c0 = { x: c.cam.x, y: c.cam.y, z: G.camera.zoom / base() }; },
         tick: (c, k) => { const e = easeInOut(k); c.cam.x = G.util.lerp(c._c0.x, x, e); c.cam.y = G.util.lerp(c._c0.y, y, e); if (z) G.camera.zoom = G.camera.targetZoom = G.util.lerp(c._c0.z, z, e) * base(); } });
+      const camSet = (x, y, z) => K.call((c) => { c.cam.x = x; c.cam.y = y; G.camera.setZoom(z, true); G.camera.update(0); });
       const say = (a, t, ms, st) => K.call(() => { if (G.ui && G.ui.bubble) G.ui.bubble(a, t, ms || 2200, { style: st || 'say' }); });
       const go = (a, x, y, spd) => K.call(() => { a.tx = x; a.ty = y; if (spd) a.spd = spd; });
-      const show = (list, on) => K.call(() => { for (const a of list) a.hidden = !on; });
       const sfx = (n, o) => K.sfx(n, o);
+      const hideAll = () => { for (const a of c.actors) a.hidden = true; c.confOn = false; c.petals = false; c.conf.length = 0; };
       return [
         K.overlay(1, '#000'), K.music(null, { fade: 0.6 }),
         K.wait(0.6),
@@ -28829,76 +28957,104 @@
         say(crowd[4] || hero, 'Я можу йти на роботу пішки!', 2800), K.wait(1.2),
         say(crowd[3] || hero, 'Тато їде додому!', 2600), K.wait(1.0),
         camTo(F.x, F.y - 2, 2.2, 2.4),
-        K.call(() => { hero.dir = 'right'; katya.dir = 'left'; }),
         say(hero, 'Я більше не тікаю. Ніколи.', 2600), K.wait(2.4),
         say(katya, 'Тоді йди повільно. Поруч зі мною.', 2600), K.wait(2.6),
         K.fade(1, 0.9),
-        // ── 2 ──
-        K.call((c) => { c.confOn = false; c.conf.length = 0; for (const a of crowd) { a.jump = 0; a.hidden = true; } hero.hidden = katya.hidden = true;
-          bus.hidden = false; pol.hidden = false; for (const w of watchers) w.hidden = false;
-          c.cam.x = X0 - L * 30; c.cam.y = LY + side * 14; G.camera.setZoom(2, true); G.camera.update(0); }),
+        // ── 2: арешт ──
+        K.call(() => { hideAll(); bus.hidden = pol.hidden = van.hidden = false; for (const w of watchers) w.hidden = false; }),
+        camSet(X0 - L * 50, LY + side * 12, 2),
         K.say('Через місяць.', { size: 10, cps: 22 }), K.wait(1.0),
         K.say('Слідство: ТЦК хапали людей просто на вулицях.', { size: 8, cps: 30, y: VH() / 2 + 12 }), K.wait(1.4), K.clear(0.4),
         K.fade(0, 0.9),
-        sfx('siren', { vol: 0.35, dur: 3 }),
-        K.call(() => { pol.tx = X0 - L * 72; }),
-        camTo(X0 - L * 36, LY + side * 12, 2, 3.0),
-        { d: 0, until: () => pol.tx == null },
+        sfx('siren', { vol: 0.3, dur: 4 }),
+        K.call(() => { pol.tx = X0 - L * 72; van.tx = X0 - L * 132; }),
+        { d: 0, until: () => pol.tx == null && van.tx == null },
+        K.call(() => { if (G.audio && G.audio.stopSfx) G.audio.stopSfx('siren', 1); }),
         sfx('brakes', { vol: 0.6 }), K.wait(0.4),
         K.call(() => { const sx = pol.x, sy = LY + side * (pol.h / 2 + 6); cops.forEach((p, i) => { p.x = sx + (i ? 8 : -8); p.y = sy; p.hidden = false; p.dir = lane.dir; }); }),
         sfx('door', { vol: 0.6 }),
-        go(cops[0], door.x - 12, door.y + side * 6), go(cops[1], door.x + 12, door.y + side * 6), K.wait(1.6),
+        go(cops[0], busDoor.x - 12, busDoor.y + side * 6), go(cops[1], busDoor.x + 12, busDoor.y + side * 6), K.wait(1.6),
         K.call(() => { for (const p of cops) p.dir = side < 0 ? 'down' : 'up'; }),
-        say(cops[0], 'Поліція! Відчиняйте.', 2000, 'shout'), K.wait(1.8),
+        say(cops[0], 'Поліція! Виходимо з буса.', 2000, 'shout'), K.wait(1.8),
         K.call(() => { bus.door = true; }), sfx('slide_door'), K.wait(0.4),
-        K.call(() => { tcks.forEach((t, i) => G.after(i * 450, () => { t.hidden = false; t.x = door.x; t.y = door.y; t.tx = door.x + (i - 1) * 14; t.ty = door.y + side * 18; t.spd = 22; }, {})); }),
+        K.call(() => { tcks.forEach((t, i) => G.after(i * 450, () => { t.hidden = false; t.x = busDoor.x; t.y = busDoor.y; t.tx = busDoor.x + (i - 1) * 14; t.ty = busDoor.y + side * 18; t.spd = 22; }, {})); }),
         K.wait(1.8),
-        K.call(() => { for (const t of tcks) t.dir = side < 0 ? 'down' : 'up'; for (const p of cops) p.dir = p.x < door.x ? 'right' : 'left'; }),
+        K.call(() => { for (const t of tcks) t.dir = side < 0 ? 'down' : 'up'; for (const p of cops) p.dir = p.x < busDoor.x ? 'right' : 'left'; }),
         say(cops[0], 'Ви затримані. Викрадення людей.', 2600), K.wait(2.6),
         say(tcks[0], 'Та ми ж план виконували!', 2400, 'shout'), K.wait(2.2),
         say(cops[1], 'У тюрмі й виконаєте.', 2200), K.wait(2.0),
-        say(tcks[2], 'А можна я просто піду?..', 2400), K.wait(2.2),
         say(watchers[1], 'Ото й люди так просили!', 2400, 'shout'), K.wait(1.0),
-        say(watchers[0], 'Знімаю! Хай усі бачать.', 2200), K.wait(1.8),
-        K.call(() => { tcks.forEach((t, i) => { t.tx = door.x; t.ty = door.y; t.spd = 20; t.into = true; }); cops[0].tx = door.x - 6; cops[0].ty = door.y + side * 4; }),
-        { d: 0, until: () => tcks.every((t) => t.hidden), tick: () => { for (const t of tcks) if (t.into && !t.hidden && Math.hypot(t.x - door.x, t.y - door.y) < 3) t.hidden = true; } },
-        K.call(() => { cops[0].tx = door.x; cops[0].ty = door.y; }), K.wait(0.6), K.call(() => { cops[0].hidden = true; }),
-        K.call(() => { bus.door = false; }), sfx('slide_door', { pitch: 0.9 }), K.wait(0.4), sfx('door_slam'),
-        say(bus, 'Вася: Пристебніться, панове. Наступна зупинка — тюрма.', 3000), K.wait(2.6),
-        go(cops[1], pol.x, LY + side * (pol.h / 2 + 6)), K.wait(1.4), K.call(() => { cops[1].hidden = true; }), sfx('door', { vol: 0.5 }),
-        K.call(() => { pol.tx = X0 + L * 600; bus.tx = X0 + L * 560; bus.vmax = 70; }),
-        camTo(X0 + L * 160, LY + side * 10, 1.6, 3.2),
-        K.say('Людей на вулицях більше ніхто не пакує.', { size: 10, cps: 26, y: VH() - 40, box: true }), K.wait(1.8),
+        say(watchers[0], 'Знімаю! Хай усі бачать.', 2200), K.wait(1.6),
+        // в автозак (не в свій бус)
+        K.call(() => { const vd = vanDoor(); van.door = true; tcks.forEach((t, i) => G.after(i * 500, () => { t.tx = vd.x; t.ty = vd.y; t.spd = 20; t.into = vd; }, {})); cops[0].tx = vd.x + 12; cops[0].ty = vd.y + side * 6; }),
+        sfx('slide_door'),
+        { d: 0, until: () => tcks.every((t) => t.hidden), tick: () => { for (const t of tcks) if (t.into && !t.hidden && Math.hypot(t.x - t.into.x, t.y - t.into.y) < 3) t.hidden = true; } },
+        K.call(() => { van.door = false; }), sfx('door_slam'), K.wait(0.6),
+        say(bus, 'Вася: А мене? Я ж тільки водій!', 2400), K.wait(2.2),
+        say(cops[1], 'Ти — свідок. Додому.', 2200), K.wait(2.0),
+        K.call(() => { const sy = LY + side * (pol.h / 2 + 6); cops[0].tx = pol.x - 6; cops[0].ty = sy; cops[1].tx = pol.x + 6; cops[1].ty = sy; }), K.wait(1.6),
+        K.call(() => { cops[0].hidden = cops[1].hidden = true; }), sfx('door', { vol: 0.5 }), K.wait(0.4),
+        // колона обʼїжджає бус по зустрічній смузі і їде
+        K.call(() => { pol.ty = LY2; pol.tx = X0 + L * 640; van.ty = LY2; van.tx = X0 + L * 600; G.after(500, () => { van.go = true; }, {}); }),
+        sfx('siren', { vol: 0.25, dur: 4 }),
+        camTo(X0 + L * 120, LY + side * 8, 1.6, 3.0),
+        K.say('Людей на вулицях більше ніхто не пакує.', { size: 10, cps: 26, y: VH() - 40, box: true }), K.wait(1.4),
+        K.fade(1, 0.8), K.clear(0.2),
+        K.call(() => { if (G.audio && G.audio.stopSfx) G.audio.stopSfx('siren', 0.5); }),
+        // ── 3: СІЗО ──
+        K.call(() => { hideAll(); prison.hidden = false; guard.hidden = false; van.hidden = false; van.dir = PR.dir; van.x = PR.x - PL * 340; van.y = PR.y; van.ty = null; van.v = 0; van.flash = true; van.go = false; }),
+        camSet(PR.x, PR.wallY + 4, 2),
+        K.say('Того ж дня.', { size: 10, cps: 22 }), K.wait(0.8), K.clear(0.3),
+        K.fade(0, 0.8),
+        K.call(() => { van.tx = PR.x + PL * 4; }),
+        { d: 0, until: () => van.tx == null },
+        sfx('brakes', { vol: 0.5 }), K.wait(0.3),
+        K.call(() => { van.door = true; const vd = vanDoor(); tcks.forEach((t, i) => G.after(i * 500, () => { t.hidden = false; t.into = null; t.x = vd.x; t.y = vd.y; t.tx = PR.x + (i - 1) * 9; t.ty = PR.wallY + 10; t.spd = 18; }, {})); }),
+        sfx('slide_door'), K.wait(2.4),
+        say(guard, 'Вирок суду: викрадення людей. Заходимо.', 2600), K.wait(1.2),
+        K.call(() => { prison.opening = 1; }), sfx('slide_door', { pitch: 0.6 }), K.wait(1.4),
+        say(tcks[0], 'А передачі можна?', 2000), K.wait(1.6),
+        say(guard, 'Раз на місяць.', 1800), K.wait(1.0),
+        K.call(() => { tcks.forEach((t, i) => G.after(i * 400, () => { t.tx = PR.x + (i - 1) * 4; t.ty = PR.wallY - 2; t.spd = 16; t.into = { x: t.tx, y: t.ty }; }, {})); }),
+        { d: 0, until: () => tcks.every((t) => t.hidden), tick: () => { for (const t of tcks) if (t.into && !t.hidden && Math.abs(t.y - t.into.y) < 2) t.hidden = true; } },
+        K.call(() => { prison.opening = -1; }), K.wait(1.0), sfx('door_slam', { pitch: 0.7 }), K.shake(2, 250),
+        K.say('ЛЯЗГ.', { size: 18, cps: 30, color: '#e8e2d6', outline: '#1a0e20', y: VH() / 2 - 40 }), K.wait(0.8), K.clear(0.3),
+        K.say('Вирок: реальні строки. Для всіх, хто пакував людей.', { size: 8, cps: 30, y: VH() - 36, box: true }), K.wait(2.2),
         K.fade(1, 0.9), K.clear(0.2),
-        // ── 3: весілля ──
-        K.call((c) => { bus.hidden = pol.hidden = true; for (const w of watchers) w.hidden = true;
-          hero.hidden = katya.hidden = false; hero.x = F.x - 7; katya.x = F.x + 7; hero.y = katya.y = F.y - 10; hero.dir = katya.dir = 'down';
-          crowd.forEach((a) => { a.hidden = false; a.jump = 0; a.dir = a.x < F.x ? 'right' : 'left'; });
-          c.cam.x = F.x; c.cam.y = F.y + 8; G.camera.setZoom(2.2, true); G.camera.update(0); }),
-        K.say('Субота. Сквер. Весілля.', { size: 10, cps: 22 }), K.wait(1.2), K.clear(0.4),
+        // ── 4: весілля біля церкви ──
+        K.call(() => { hideAll(); arch.hidden = false; groom.hidden = bride.hidden = false; for (const gst of guests) { gst.hidden = false; gst.jump = 0; }
+          groom.x = CH.x - 6; bride.x = CH.x + 6; groom.y = bride.y = CH.y; groom.dir = bride.dir = 'down'; }),
+        camSet(CH.x, CH.y + 14, 2.2),
+        K.music('morning', { fade: 1 }),
+        K.say('Субота. Весілля.', { size: 10, cps: 22 }), K.wait(1.2), K.clear(0.4),
         K.fade(0, 1.0),
-        go(hero, F.x - 7, F.y + 20, 16), go(katya, F.x + 7, F.y + 20, 16), K.wait(2.6),
-        K.call(() => { hero.dir = 'right'; katya.dir = 'left'; }),
-        say(crowd[1] || hero, 'Гірко!', 2000, 'shout'), K.wait(0.5),
-        K.call((c) => { for (const a of crowd) a.jump = 1; c.confOn = true; }),
-        say(crowd[0] || hero, 'ГІРКО!', 2000, 'shout'), K.wait(0.8),
-        K.call((c) => { c.hearts.push({ x: F.x, y: F.y + 6, t: 0 }); sfx('goal', { pitch: 1.3 }); }), K.wait(1.6),
-        say(hero, 'Тепер я бігаю тільки зранку. Для здоровʼя.', 2800), K.wait(3.0),
-        camTo(F.x, F.y - 30, 1.2, 3.4),
+        K.call((c) => { c.petals = true; }),
+        go(groom, CH.x - 6, CH.y + 44, 14), go(bride, CH.x + 6, CH.y + 44, 14),
+        camTo(CH.x, CH.y + 34, 2.4, 3.2),
+        K.call(() => { groom.dir = 'right'; bride.dir = 'left'; }),
+        say(guests[2] || groom, 'Гірко!', 2000, 'shout'), K.wait(0.5),
+        K.call(() => { for (const gst of guests) gst.jump = 1; }),
+        say(guests[0] || groom, 'ГІРКО!', 2000, 'shout'), K.wait(0.8),
+        K.call((c) => { c.hearts.push({ x: CH.x, y: CH.y + 50, t: 0 }); sfx('goal', { pitch: 1.3 }); }), K.wait(1.6),
+        say(bride, 'Тепер ти точно нікуди не втечеш.', 2600), K.wait(2.6),
+        say(groom, 'І не хочу.', 2200), K.wait(2.2),
+        camTo(CH.x, CH.y - 10, 1.3, 3.4),
         K.say('КІНЕЦЬ', { size: 27, cps: 8, color: '#f7c948', outline: '#1a0e20', y: VH() / 2 - 30 }),
         K.say('тепер — точно', { size: 10, cps: 16, y: VH() / 2 + 2 }), K.wait(2.2),
-        K.fade(1, 1.4), K.clear(0.3),
+        K.fade(1, 1.2), K.clear(0.3),
       ];
     },
     update(c, dt) {
       for (const a of c.actors || []) {
         if (a.jump) a.jumpT = (a.jumpT || 0) + dt;
-        if (a.key) { // машина: розгін/гальмування до a.tx
+        if (a.fn) { if (a.opening) { a.open = Math.max(0, Math.min(1, (a.open || 0) + a.opening * dt * 0.9)); if (a.open === 0 || a.open === 1) a.opening = 0; } continue; }
+        if (a.key) { // машина: розгін/гальмування до a.tx; зміна смуги до a.ty — лише в русі
           if (a.tx == null) { a.v = 0; continue; }
           const d = a.tx - a.x, ad = Math.abs(d);
           if (ad < 1) { a.x = a.tx; a.tx = null; a.v = 0; continue; }
-          a.v = Math.min(a.vmax, a.v + 70 * dt, ad * 1.6 + 4);
+          a.v = Math.min(a.vmax, a.v + 60 * dt, ad * 1.6 + 4);
           a.x += Math.sign(d) * Math.min(ad, a.v * dt);
+          if (a.ty != null && a.v > 8) { const dy = a.ty - a.y; a.y += Math.sign(dy) * Math.min(Math.abs(dy), 28 * dt); }
           continue;
         }
         if (a.tx == null) { a.moving = false; continue; }
@@ -28909,13 +29065,15 @@
         a.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
       }
       if (c.confOn) for (let i = 0; i < 2; i++) c.conf.push({ x: c.cam.x + (Math.random() - 0.5) * 260, y: c.cam.y - 80 - Math.random() * 20, vx: (Math.random() - 0.5) * 14, vy: 18 + Math.random() * 16, f: Math.floor(Math.random() * 8), t: 0, sw: Math.random() * 6 });
+      if (c.petals) for (let i = 0; i < 2; i++) c.conf.push({ x: c.cam.x + (Math.random() - 0.5) * 200, y: c.cam.y - 70 - Math.random() * 20, vx: (Math.random() - 0.5) * 10, vy: 12 + Math.random() * 10, f: -1, col: Math.random() < 0.5 ? '#ffffff' : '#ff9ab8', t: 0, sw: Math.random() * 6 });
       for (const q of c.conf) { q.t += dt; q.x += (q.vx + Math.sin(q.t * 4 + q.sw) * 10) * dt; q.y += q.vy * dt; }
-      if (c.conf.length) c.conf = c.conf.filter((q) => q.t < 6);
+      if (c.conf.length) c.conf = c.conf.filter((q) => q.t < 7);
       for (const h of c.hearts) h.t += dt;
     },
     draw(ctx, c) {
       G.camera.apply(ctx);
       for (const q of c.conf) {
+        if (q.f < 0) { ctx.fillStyle = q.col; ctx.fillRect(Math.round(q.x), Math.round(q.y), 2, 1); continue; } // пелюстки
         let img = null; try { img = G.sprites.get('fx', { variant: 'confetti', frame: q.f }); } catch (e) { img = null; }
         if (img) ctx.drawImage(img, Math.round(q.x), Math.round(q.y)); else { ctx.fillStyle = ['#f7c948', '#3c6fb4', '#e8506a', '#93c25b'][q.f & 3]; ctx.fillRect(Math.round(q.x), Math.round(q.y), 2, 2); }
       }
@@ -28933,16 +29091,22 @@
       for (const e of c.hid || []) e.hidden = false;
       if (G.player) { G.player.hidden = false; G.camera.follow(G.player, true); }
       G.camera.setZoom(1, true);
+      if (G.audio && G.audio.stopSfx) G.audio.stopSfx('siren', 0.3);
     },
   };
+  // титри після мульта: виринають із темряви; пропустити можна (Enter / Esc / клік / тап / «ПРОПУСТИТИ»)
   SCENES.credits_final = {
-    skippable: false, locked: true, wide: true,
+    skippable: true, wide: true,
     build(c) {
-      c.D = { auto: true }; c.cred = 0;
+      c.D = { auto: false }; c.cred = 0;
       if (G.audio && G.audio.music) G.audio.music('morning', { fade: 1.5 });
-      return [{ d: 0, until: (cc) => cc.cred > creditsDur() + 3 }];
+      return [K.fade(0, 1.2), { d: 0, until: (cc) => cc.cred > creditsDur() + 3 || cc.skipNow }];
     },
-    update(c, dt) { c.cred += dt; },
+    update(c, dt) {
+      c.cred += dt;
+      const I = G.input;
+      if (c.cred > 0.8 && (I.pressed('attack') || I.pressed('pause') || I.mouse.clicked)) { I.consume('attack'); I.consume('pause'); I.mouse.clicked = false; c.skipNow = true; }
+    },
     draw(ctx, c) { drawCredits(ctx, c); },
   };
 
@@ -36456,6 +36620,7 @@
   }
 
   const cache = new WeakMap();
+  const NO_WINTER_HAT = { policeman: 1, firefighter: 1, rescuer: 1, medic: 1 };
   const TREEISH = { tree_crown: 1, bush: 1, shrub: 1, tree: 1, flowerbed: 1 };
   const origGet = G.sprites.get.bind(G.sprites);
   G.sprites.get = function (key, opts) {
@@ -36463,7 +36628,7 @@
     if (!img || !WN.on || (opts && opts.layer === 'glow')) return img;
     let kind = null;
     if (key === 'tck') kind = 'hat';
-    else if (key === 'npc' && opts && opts.variant !== 'pigeon') kind = 'npc';
+    else if (key === 'npc' && opts && opts.variant !== 'pigeon' && !NO_WINTER_HAT[opts.variant] && !opts.noWinter) kind = 'npc'; // форма (поліція, рятувальники) і весільне — без вʼязанок
     else if (key === 'bg' && opts && opts.variant === 'menu') kind = 'menu';
     else if (key === 'prop' && opts) {
       if (TREEISH[opts.variant]) kind = 'crown';
