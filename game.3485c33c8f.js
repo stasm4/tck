@@ -8543,6 +8543,25 @@
     v.add(mix, env, lp, hp, eng, engG, prop, propG, pam, pl, plG, wob, wobG, n, nb, ng, dl, dg); if (pan) v.add(pan);
     return D + 0.1;
   };
+  // поліцейська сирена (не тривога!): спершу «вау-вау» (wail ~650↔1450 Гц), далі швидке «yelp»; гучномовець — вузька смуга, легке перевантаження
+  R.police_siren = (v, t, o) => {
+    o = o || {};
+    const D = Math.max(1.5, o.dur || 4), te = t + D;
+    const x = osc('sawtooth', 700, t), x2 = osc('square', 702, t), bp = filt('bandpass', 1100, 0.9), hp = filt('highpass', 450, 0.7), g = gain(0), g2 = gain(0.35);
+    const sh = ac.createWaveShaper(), cv = new Float32Array(256); for (let i = 0; i < 256; i++) { const k = i / 128 - 1; cv[i] = Math.tanh(k * 2.2); } sh.curve = cv;
+    let tt = t, wail = Math.min(D * 0.45, 2.2);
+    while (tt < t + wail) { x.frequency.linearRampToValueAtTime(1450, tt + 0.45); x.frequency.linearRampToValueAtTime(680, tt + 0.9); tt += 0.9; }
+    while (tt < te) { x.frequency.linearRampToValueAtTime(1500, tt + 0.13); x.frequency.linearRampToValueAtTime(700, tt + 0.26); tt += 0.26; }
+    chain(x, g); chain(x2, g2, g);
+    // друга хвиля повторює висоту першої (+2 Гц — легке биття, як у рупора)
+    tt = t; while (tt < t + wail) { x2.frequency.linearRampToValueAtTime(1452, tt + 0.45); x2.frequency.linearRampToValueAtTime(682, tt + 0.9); tt += 0.9; }
+    while (tt < te) { x2.frequency.linearRampToValueAtTime(1503, tt + 0.13); x2.frequency.linearRampToValueAtTime(702, tt + 0.26); tt += 0.26; }
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.22, t + 0.15); g.gain.setValueAtTime(0.22, te - 0.4); g.gain.linearRampToValueAtTime(0, te);
+    chain(g, sh, hp, bp, v.out);
+    x.stop(te + 0.05); x2.stop(te + 0.05);
+    v.add(x, x2, bp, hp, g, g2, sh);
+    return D + 0.1;
+  };
   R.unlock = (v, t) => {
     const seq = ['C5', 'E5', 'G5', 'C6', 'E6', 'G6'];
     seq.forEach((nm, i) => {
@@ -28966,10 +28985,10 @@
         K.say('Через місяць.', { size: 10, cps: 22 }), K.wait(1.0),
         K.say('Слідство: ТЦК хапали людей просто на вулицях.', { size: 8, cps: 30, y: VH() / 2 + 12 }), K.wait(1.4), K.clear(0.4),
         K.fade(0, 0.9),
-        sfx('siren', { vol: 0.3, dur: 4 }),
+        sfx('police_siren', { vol: 0.5, dur: 4.5 }),
         K.call(() => { pol.tx = X0 - L * 72; van.tx = X0 - L * 132; }),
         { d: 0, until: () => pol.tx == null && van.tx == null },
-        K.call(() => { if (G.audio && G.audio.stopSfx) G.audio.stopSfx('siren', 1); }),
+        K.call(() => { if (G.audio && G.audio.stopSfx) G.audio.stopSfx('police_siren', 1); }),
         sfx('brakes', { vol: 0.6 }), K.wait(0.4),
         K.call(() => { const sx = pol.x, sy = LY + side * (pol.h / 2 + 6); cops.forEach((p, i) => { p.x = sx + (i ? 8 : -8); p.y = sy; p.hidden = false; p.dir = lane.dir; }); }),
         sfx('door', { vol: 0.6 }),
@@ -28996,11 +29015,11 @@
         K.call(() => { cops[0].hidden = cops[1].hidden = true; }), sfx('door', { vol: 0.5 }), K.wait(0.4),
         // колона обʼїжджає бус по зустрічній смузі і їде
         K.call(() => { pol.ty = LY2; pol.tx = X0 + L * 640; van.ty = LY2; van.tx = X0 + L * 600; G.after(500, () => { van.go = true; }, {}); }),
-        sfx('siren', { vol: 0.25, dur: 4 }),
+        sfx('police_siren', { vol: 0.4, dur: 5 }),
         camTo(X0 + L * 120, LY + side * 8, 1.6, 3.0),
         K.say('Людей на вулицях більше ніхто не пакує.', { size: 10, cps: 26, y: VH() - 40, box: true }), K.wait(1.4),
         K.fade(1, 0.8), K.clear(0.2),
-        K.call(() => { if (G.audio && G.audio.stopSfx) G.audio.stopSfx('siren', 0.5); }),
+        K.call(() => { if (G.audio && G.audio.stopSfx) G.audio.stopSfx('police_siren', 0.5); }),
         // ── 3: СІЗО ──
         K.call(() => { hideAll(); prison.hidden = false; guard.hidden = false; van.hidden = false; van.dir = PR.dir; van.x = PR.x - PL * 340; van.y = PR.y; van.ty = null; van.v = 0; van.flash = true; van.go = false; }),
         camSet(PR.x, PR.wallY + 4, 2),
@@ -29091,7 +29110,7 @@
       for (const e of c.hid || []) e.hidden = false;
       if (G.player) { G.player.hidden = false; G.camera.follow(G.player, true); }
       G.camera.setZoom(1, true);
-      if (G.audio && G.audio.stopSfx) G.audio.stopSfx('siren', 0.3);
+      if (G.audio && G.audio.stopSfx) G.audio.stopSfx('police_siren', 0.3);
     },
   };
   // титри після мульта: виринають із темряви; пропустити можна (Enter / Esc / клік / тап / «ПРОПУСТИТИ»)
