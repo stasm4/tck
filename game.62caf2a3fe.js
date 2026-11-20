@@ -24966,8 +24966,13 @@
     else if (have) { line = act + ' — одягти'; col = '#fbf6ea'; }
     else if (it.price) { line = 'КУПИТИ за ' + it.price + ' грн · ' + act + (isSkins && it.cond ? '' : ''); col = money >= it.price ? '#f7c948' : '#ef8a3b'; }
     else { line = 'Умова: ' + (it.cond || '?'); col = '#ef8a3b'; }
-    U.text(ctx, line, 22, 218, { size: 8, color: col });
-    if (isSkins && !have && it.cond && it.price) U.text(ctx, it.cond, 296, 218, { size: 7, align: 'right', color: '#8c8494' });
+    const two = isSkins && !have && it.cond && it.price; // умова — окремим рядком, щоб не налізала на «КУПИТИ»
+    U.text(ctx, line, 22, two ? 212 : 218, { size: 8, color: col });
+    if (two) {
+      let cd = it.cond.replace(/ або \d+ грн$/, ''); cd = 'або ' + cd.charAt(0).toLowerCase() + cd.slice(1);
+      while (cd.length > 4 && U.measure(cd, 7) > 274) cd = cd.slice(0, -2) + '…';
+      U.text(ctx, cd, 22, 223, { size: 7, color: '#8c8494' });
+    }
     // превʼю
     U.panel(ctx, 314, 50, 154, 184, { fill: 'rgba(58,46,68,0.95)' });
     U.rect(ctx, 'rgba(0,0,0,0.25)', 320, 56, 142, 136);
