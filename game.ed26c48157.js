@@ -37951,11 +37951,13 @@
     for (const P of [...peers.values()]) dropPeer(P);
     if (sig) sig.close();
     sig = null; hostId = null; roster = [];
-    C.role = null; C.room = ''; C.linked = false; C.inGame = false; C.relay = false; C.status = ''; C.buddyName = '';
+    C.priv = false; C.role = null; C.room = ''; C.linked = false; C.inGame = false; C.relay = false; C.status = ''; C.buddyName = '';
     clearAvs(); hostDown = null; hostOut = false; allDownT = 0;
     if (!silent) sfx('click');
   }
   C.leave = leave;
+  C.priv = false; // закрита кімната: немає в списку серверів, лише за кодом
+  C.setPrivate = (v) => { C.priv = !!v; if (C.priv) adGone(); else advertise(); };
   C._signal = (room, onMsg) => signal(room, onMsg);
   C.create = () => create(); C.join = (c) => join(String(c)); C.quick = () => quick(); C.begin = () => lbAct('go');
   Object.defineProperty(C, 'picking', { get: () => !!pick });
@@ -38065,7 +38067,7 @@
     lobby.send({ t: 'who' });
   }
   function closeLobby() { if (lobby && C.role !== 'host') { lobby.close(); lobby = null; rooms.clear(); } }
-  function advertise() { if (C.role !== 'host' || !lobby) return; adT = performance.now(); lobby.send({ t: 'ad', code: C.room, name: myName(), n: 1 + peers.size, inGame: C.inGame }); }
+  function advertise() { if (C.role !== 'host' || !lobby) return; if (C.priv) { adT = performance.now(); return; } adT = performance.now(); lobby.send({ t: 'ad', code: C.room, name: myName(), n: 1 + peers.size, inGame: C.inGame }); }
   function adGone() { if (lobby && C.room) lobby.send({ t: 'gone', code: C.room }); }
   function roomList() {
     const now = performance.now(), out = [];
@@ -38170,12 +38172,13 @@
     ctx.fillStyle = '#ff6050'; ctx.fillRect(bx - 10, y + 1, Math.round(20 * left), 1);
     if (revT > 0) { ctx.fillStyle = '#93c25b'; ctx.fillRect(bx - 10, y + 1, Math.round(20 * Math.min(1, revT / REV_T)), 1); }
   }
-  const REV_T = 1.5, REV_MAX = 15, REV_R = 22;
+  const REV_T = 1.5, REV_MAX = 15, REV_R = 22, PICK_T = 7; // PICK_T — секунд на вибір перка (уся команда)
   const EV_SYNC = { air_raid: 1, blackout: 1, rain: 1 };
   let snapSeq = 0, lastSeq = 0;
 
   // ═══════════════ ХОСТ ═══════════════
   let hostDown = null, hostOut = false, allDownT = 0, ending = false;
+  const PW = { w: 0, t: 0, choice: null }; // вибір перків командою: хвиля, таймер, вибір хоста (чекає на інших)
   const buddies = () => { const out = []; for (const P of peers.values()) if (P.av && P.av.alive) out.push(P.av); return out; };
   const buddiesUp = () => buddies().filter((b) => b.up);
   const hostUp = () => !!(G.player && !G.player.caught && !hostOut && !hostDown);
@@ -38212,7 +38215,7 @@
     }
     const MS = G.missions && G.missions.state;
     if (MS && MS.ev) out.ev = Object.keys(MS.ev).filter((kk) => EV_SYNC[kk]).map((kk) => [kk, Math.max(1, Math.round((MS.ev[kk].dur || 30) - (MS.ev[kk].t || 0)))]);
-    if (G.state === 'perk' && S && G.modes.offers) { const of = G.modes.offers(); if (of) out.pk = of.map((x) => x.id); }
+    if (G.state === 'perk' && S && G.modes.offers) { const of = G.modes.offers(); if (of) out.pk = of.map((x) => x.id); const pc = pickCount(); out.pc = [pc[0], pc[1], Math.max(0, Math.ceil(PICK_T - PW.t))]; }
     out.ch = G.tck && G.tck.chaseActive ? 1 : 0;
     out.pu = G.tck && G.tck.pursuit ? 1 : 0;
     return out;
@@ -38240,7 +38243,8 @@
         if (!allDown()) { toast(nm + ' СКРУТИЛИ! Біжи до нього — відбий!', 2600); sfx('whistle_fab'); }
         msgAll(nm + ' скрутили! Біжи відбий!', P);
       }
-    } else if (d.t === 'alert' && G.tck && G.tck.alert) G.tck.alert(d.x, d.y);
+    } else if (d.t === 'picked') { P.picked = d.w; }
+    else if (d.t === 'alert' && G.tck && G.tck.alert) G.tck.alert(d.x, d.y);
     else if (d.t === 'goal' && G.modes && G.modes.goal && G.modes.reachGoal) {
       C.dbg.goal++; G.modes.reachGoal(); toast((P.info.name || 'Друг') + ' дійшов до евакуації!', 2000);
       msgAll((P.info.name || 'Друг') + ' дійшов до евакуації!', P);
@@ -38257,6 +38261,60 @@
     if (cur && cd <= bd + stick) return cur;
     return best;
   }
+  // ── вибір перків командою: 7 с на всіх; світ стоїть, поки всі не оберуть ──
+  C._pick = () => ({ w: PW.w, t: PW.t, choice: PW.choice, peers: [...peers.values()].map((P) => P.picked) }); // для тестів
+  function pickCount() { // [обрали, усього] — хост + гості (кого забрали — не чекаємо)
+    let n = 1, done = PW.choice != null ? 1 : 0;
+    for (const P of peers.values()) { if (P.av && P.av.out) continue; n++; if (P.picked === PW.w) done++; }
+    return [done, n];
+  }
+  setTimeout(() => {
+    const M = G.modes, Sc = G.scenes.perk;
+    if (!M || !M.choosePerk || !Sc) return;
+    const choose0 = M.choosePerk;
+    let releasing = false;
+    M.choosePerk = function (i) {
+      if (releasing || C.role !== 'host' || !C.inGame) return choose0.apply(this, arguments);
+      if (PW.choice == null) { PW.choice = i; sfx('pickup'); }
+      return true;
+    };
+    const release = () => {
+      const S = M.state, n = (S && S.offers && S.offers.length) || 3;
+      const i = PW.choice != null ? PW.choice : Math.floor(Math.random() * n);
+      PW.choice = null; releasing = true;
+      try { choose0.call(M, i); } finally { releasing = false; }
+    };
+    const up0 = Sc.update, enter0 = Sc.enter, draw0 = Sc.draw;
+    Sc.enter = function (prev, d) { PW.t = 0; PW.choice = null; PW.w = (d && d.wave) || (M.state && M.state.wave) || 0; return enter0.apply(this, arguments); };
+    Sc.update = function (dt, realDt) {
+      if (C.role !== 'host' || !C.inGame) return up0.apply(this, arguments);
+      PW.t += realDt || dt;
+      if (PW.choice == null) up0.apply(this, arguments);
+      if (G.state !== 'perk') return;
+      const pc = pickCount();
+      if ((PW.choice != null && pc[0] >= pc[1]) || PW.t >= PICK_T) release();
+    };
+    Sc.draw = function (ctx) {
+      draw0.apply(this, arguments);
+      if (C.role !== 'host' || !C.inGame) return;
+      const U = G.ui.gfx, W = G.cfg.VIEW_W, pc = pickCount(), left = Math.max(0, Math.ceil(PICK_T - PW.t));
+      timerBar(ctx, W / 2, 58, PW.t / PICK_T, left);
+      if (PW.choice != null) {
+        const S = M.state, pk = S && S.offers && S.offers[PW.choice];
+        const msg = 'Твій перк: ' + (pk ? pk.name : '?') + ' · чекаємо команду ' + pc[0] + '/' + pc[1];
+        const w = U.measure(msg, 8) + 16;
+        U.rect(ctx, '#120a18', Math.round(W / 2 - w / 2) - 1, 207, w + 2, 16); U.rect(ctx, 'rgba(36,20,42,0.96)', Math.round(W / 2 - w / 2), 208, w, 14);
+        U.text(ctx, msg, W / 2, 211, { size: 8, align: 'center', color: '#93c25b' });
+      } else U.text(ctx, 'Обрали: ' + pc[0] + '/' + pc[1], W - 10, 58, { size: 8, align: 'right', color: '#fde98f' });
+    };
+  }, 0);
+  function timerBar(ctx, cx, y, k, left) {
+    const U = G.ui.gfx, w = 120, x = Math.round(cx - w / 2);
+    U.rect(ctx, '#120a18', x - 1, y - 1, w + 2, 6); U.rect(ctx, '#2a2030', x, y, w, 4);
+    U.rect(ctx, left <= 2 ? '#ff6050' : '#f7c948', x, y, Math.round(w * Math.max(0, 1 - k)), 4);
+    U.text(ctx, left + 'с', x + w + 6, y - 2, { size: 8, color: left <= 2 ? '#ff6050' : '#fde98f' });
+  }
+
   // ТЦК обирають ціль: найближчий гравець на ногах (з «липкістю»)
   if (G.Tck && G.Tck.prototype.update) {
     const orig = G.Tck.prototype.update;
@@ -38478,6 +38536,7 @@
     for (const [id, v] of busM) if (!seenB.has(id)) { v.alive = false; busM.delete(id); }
     G.bus.list = G.bus.list.filter((v) => v.alive);
     syncEvents(s.ev || []);
+    if (pick && (pick.wave !== m0(s) || N.hostState !== 'perk')) choose(Math.floor(Math.random() * pick.ids.length)); // хвиля вже інша — старий вибір закриваємо
     if (s.pk && N.hostState === 'perk' && !gPicked[m0(s)]) openPick(s);
     if (G.tck) { G.tck.busList = G.bus.list; G.tck.chaseActive = !!s.ch; G.tck.pursuit = !!s.pu; }
     // евакуація: будь-хто з команди може дійти
@@ -38618,7 +38677,7 @@
   function choose(i) {
     if (!pick) return;
     const pk = perkDef(pick.ids[i]);
-    gPicked[pick.wave] = true; pick = null;
+    gPicked[pick.wave] = true; sendTo(hostP(), { t: 'picked', w: pick.wave }); pick = null;
     if (!pk) return;
     gPerks[pk.id] = (gPerks[pk.id] || 0) + 1;
     sfx('pickup'); toast('Перк: ' + pk.name, 1800);
@@ -38662,7 +38721,8 @@
       for (let i = 0; i < rs.length; i++) { const r = rs[i]; if (m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h) { pick.sel = i; if (m.clicked) { choose(i); return true; } } }
       if (I.pressed('confirm') || I.pressed('attack')) { choose(pick.sel); return true; }
     }
-    if (pick.t > 15) choose(0); // не чекати вічно
+    const lim = (N.snap && N.snap.pc) ? N.snap.pc[2] : Math.ceil(PICK_T - pick.t);
+    if (pick.t > PICK_T || lim <= 0) choose(Math.floor(Math.random() * rs.length)); // не встиг — випадковий
     return true;
   }
   function pickDraw(ctx) {
@@ -38670,7 +38730,9 @@
     const U = G.ui.gfx, W = G.cfg.VIEW_W, H = G.cfg.VIEW_H;
     ctx.fillStyle = 'rgba(12,6,18,0.74)'; ctx.fillRect(0, 0, W, H);
     U.text(ctx, 'ОБЕРИ СВІЙ ПЕРК', W / 2, 14, { size: 18, align: 'center', color: '#93c25b', outline: '#120a18', shadow: true });
-    U.text(ctx, N.hostState === 'perk' ? 'Команда теж обирає' : 'Команда вже біжить — швидше!', W / 2, 40, { size: 8, align: 'center', color: N.hostState === 'perk' ? '#e8dcc8' : '#ff9a7a' });
+    const pc = N.snap && N.snap.pc, left = pc ? pc[2] : Math.max(0, Math.ceil(PICK_T - pick.t));
+    U.text(ctx, 'Обрали: ' + (pc ? pc[0] + '/' + pc[1] : '…') + ' · не встигнеш — буде випадковий', W / 2, 40, { size: 8, align: 'center', color: '#e8dcc8' });
+    timerBar(ctx, W / 2, 52, 1 - left / PICK_T, left);
     const rs = pickRects(), RC = { common: '#b4abb2', rare: '#8fc7e4', epic: '#c08af0', legend: '#f7c948' };
     for (let i = 0; i < rs.length; i++) {
       const r = rs[i], pk = perkDef(pick.ids[i]); if (!pk) continue;
@@ -38750,7 +38812,7 @@
     let msg = null;
     if (guestOut) msg = 'Тебе забрали в бус… Дивись, як тікає команда';
     else if (guestCaught) msg = 'СКРУТИЛИ! Чекай — команда може відбити' + (myBc ? ' (' + Math.max(0, Math.ceil(REV_MAX - myBc[0])) + 'с)' : '');
-    else if (N.hostState === 'perk' && !pick) msg = hostName() + ' обирає перк…';
+    else if (N.hostState === 'perk' && !pick) { const pc = N.snap && N.snap.pc; msg = 'Чекаємо, поки всі оберуть перк… ' + (pc ? pc[0] + '/' + pc[1] + ' · ' + pc[2] + 'с' : ''); }
     else if (N.hostState === 'paused') msg = hostName() + ' на паузі';
     if (msg) banner(ctx, msg, guestCaught || guestOut);
   }
@@ -38778,6 +38840,7 @@
     const out = [];
     const bad = C.role === 'guest' && !C.linked && C.status !== 'join';
     if (C.role === 'host') out.push({ id: 'go', label: C.linked ? 'ПОЧАТИ ГРУ' : 'ЧЕКАЄМО ГРАВЦІВ…', r: { x: cx - 85, y: H - 62, w: 170, h: 26 }, big: true, hot: C.linked, dis: !C.linked });
+    if (C.role === 'host') out.push({ id: 'priv', label: C.priv ? 'ЗАКРИТА · лише за кодом' : 'ВІДКРИТА · бачать усі', r: { x: cx - 85, y: H - 86, w: 170, h: 17 }, lock: true });
     out.push({ id: 'cancel', label: bad ? 'Назад до кімнат' : 'Вийти з кімнати', r: { x: cx - 65, y: H - 30, w: 130, h: 20 } });
     return out;
   }
@@ -38799,6 +38862,7 @@
       if (b.room.n >= MAXP) { toast('Кімната заповнена (5/5)', 1800); return; }
       needName(() => join(b.room.code));
     } else if (id === 'cancel') { leave(); openLobby(); }
+    else if (id === 'priv' && C.role === 'host') { C.setPrivate(!C.priv); toast(C.priv ? 'Кімната закрита — зайти можна лише за кодом ' + C.room : 'Кімната відкрита — її видно в списку серверів', 2200); }
     else if (id === 'go' && C.role === 'host' && C.linked) {
       C.inGame = true; snapSeq = 0; hostDown = null; hostOut = false; allDownT = 0; ending = false;
       for (const P of peers.values()) P.av = null;
@@ -38906,8 +38970,8 @@
     const list = rosterNow(), me = sig && sig.id;
     const title = C.role === 'host' ? 'ТВОЯ КІМНАТА' : C.linked ? 'КІМНАТА ' + hostName().toUpperCase() : 'ПІДКЛЮЧЕННЯ';
     drawTitle(ctx, title.length > 18 ? title.slice(0, 17) + '…' : title, null);
-    U.text(ctx, 'код кімнати', W - 14, 8, { size: 7, align: 'right', color: '#8c8494' });
-    U.text(ctx, C.room, W - 14, 17, { size: 14, align: 'right', color: '#fde98f', outline: '#120a18' });
+    U.text(ctx, 'код кімнати', W - 14, 4, { size: 7, align: 'right', color: '#8c8494' });
+    U.text(ctx, C.room, W - 14, 12, { size: 14, align: 'right', color: '#fde98f', outline: '#120a18' });
     // 5 місць
     const sw = 80, gap = 8, x0 = Math.round(W / 2 - (sw * MAXP + gap * (MAXP - 1)) / 2), y0 = 42, sh = 92;
     for (let i = 0; i < MAXP; i++) {
@@ -38939,7 +39003,7 @@
     // статус
     const dots = '.'.repeat(1 + Math.floor(G.realTime * 2) % 3);
     let st, col = '#e8dcc8';
-    if (C.role === 'host') st = C.linked ? 'Усі готові? Тисни «ПОЧАТИ ГРУ»' : 'Чекаємо гравців' + dots + ' Кімната вже є в списку серверів';
+    if (C.role === 'host') st = C.linked ? 'Усі готові? Тисни «ПОЧАТИ ГРУ»' : 'Чекаємо гравців' + dots + (C.priv ? ' Скажи друзям код ' + C.room : ' Кімната вже є в списку серверів');
     else if (C.status === 'full') { st = 'Кімната заповнена (5/5)'; col = '#ff9a7a'; }
     else if (C.status === 'busy') { st = 'Там уже грають — зачекай або обери іншу'; col = '#ff9a7a'; }
     else if (C.status === 'old') { st = 'У хоста інша версія гри — оновіть сторінку'; col = '#ff9a7a'; }
@@ -38950,6 +39014,14 @@
     if (C.relay) U.text(ctx, '(повільний зв\'язок — через сервер)', W / 2, yS + 27, { size: 7, align: 'center', color: '#ef8a3b' });
     for (let i = 0; i < bs.length; i++) {
       const b = bs[i], f = LB.focus === i;
+      if (b.lock) {
+        const r = b.r;
+        U.rect(ctx, f ? '#fde98f' : '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+        U.rect(ctx, C.priv ? '#6a2a2a' : '#2f5a26', r.x, r.y, r.w, r.h);
+        U.icon(ctx, 'unlock', r.x + 5, r.y + 3, 1);
+        U.text(ctx, b.label, r.x + r.w / 2 + 6, r.y + 4, { size: 7, align: 'center', color: '#fff8e0' });
+        continue;
+      }
       if (b.hot) {
         const r = b.r, pulse = 0.5 + 0.5 * Math.sin(LB.t * 5);
         U.rect(ctx, f ? '#fde98f' : '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
