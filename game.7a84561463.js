@@ -929,9 +929,28 @@
   let acc = 0, last = 0, fpsAcc = 0, fpsN = 0;
   const perfNow = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
   G.fps = 60;
+  // Round 35: частота екрана. 120/144 Гц — симуляція й малювання з тією ж частотою (крок 1/120 або 1/144 с), щоб гра
+  // справді йшла 120 кадрів/с; на низькій/мін якості — назад 60 (менше роботи). Вимір — медіана інтервалів rAF.
+  const HZ = { iv: [], hz: 60, done: false };
+  G.displayHz = 60;
+  function applySimHz() {
+    const q = G.quality, hi = q === 'high' || q === 'medium';
+    const want = hi ? HZ.hz : 60;
+    const dt = 1 / want;
+    if (Math.abs(G.cfg.DT - dt) > 1e-6) { G.cfg.DT = dt; G.simHz = want; }
+  }
+  G.events && G.events.on && G.events.on('quality:change', () => { if (HZ.done) applySimHz(); });
+  const touchDev = () => { try { return (navigator.maxTouchPoints || 0) > 0 && typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
   G._loop = function (ts) {
-    // Round 35: «мін» — рівні 30 кадрів/с (кожен другий кадр монітора пропускаємо; симуляція наздоганяє фіксованим кроком)
-    if (last && G.gfx && G.gfx.p && G.gfx.p.fps30 && ts - last < 28) { window.requestAnimationFrame(G._loop); return; }
+    if (!HZ.done && last && ts > last) {
+      HZ.iv.push(ts - last);
+      if (HZ.iv.length >= 90) {
+        const a = HZ.iv.slice(15).sort((x, y) => x - y), med = a[a.length >> 1];
+        HZ.hz = med < 7.6 ? 144 : med < 10.2 ? 120 : 60; G.displayHz = HZ.hz; HZ.done = true; applySimHz();
+      }
+    }
+    // Round 35: «мін» на телефонах/планшетах — рівні 30 кадрів/с (кожен другий кадр монітора пропускаємо)
+    if (last && G.gfx && G.gfx.p && G.gfx.p.fps30 && touchDev() && ts - last < 28) { window.requestAnimationFrame(G._loop); return; }
     if (!last) last = ts;
     let elapsed = (ts - last) / 1000;
     last = ts;
@@ -942,7 +961,7 @@
     let n = 0;
     const w0 = perfNow();
     try {
-      const maxSteps = Math.min(G.cfg.MAX_STEPS, (G.gfx && G.gfx.p && G.gfx.p.steps) || G.cfg.MAX_STEPS); // слабкий пристрій: не наздоганяти безкінечно
+      const maxSteps = Math.round(Math.min(G.cfg.MAX_STEPS, (G.gfx && G.gfx.p && G.gfx.p.steps) || G.cfg.MAX_STEPS) * (1 / 60) / G.cfg.DT); // слабкий пристрій: не наздоганяти безкінечно (на 120 Гц — удвічі більше кроків тієї ж тривалості)
       while (acc >= G.cfg.DT && n < maxSteps) { G.tick(); acc -= G.cfg.DT; n++; }
       if (n === maxSteps) acc = 0;
       G.render();
@@ -15886,7 +15905,7 @@
       p.vx = kb.vx; p.vy = kb.vy;
       G.physics.moveAndSlide(p, dt);
       p.vx = ovx; p.vy = ovy;
-      kb.vx *= 0.85; kb.vy *= 0.85;
+      const kd = Math.pow(0.85, dt * 60); kb.vx *= kd; kb.vy *= kd; // однаково при 60 і 120 Гц
       if (kb.t <= 0) traffic._kb = null;
     }
     if (traffic.inMetro) { updateMetro(dt); return; }
@@ -18754,7 +18773,7 @@
   let reqs = [], owned = false, lastSet = 1, ext = 1;
   // Round 16 (B3): −1e-6 — межа кадру не залежить від похибки округлення G.realTime (інакше 9 чи 10 кадрів залежно від того, скільки гри було до забігу)
   J.slowmo = function (scale, ms) { reqs.push({ scale, until: now() + ms / 1000 - 1e-6 }); applyTime(); };
-  J.hitStop = function (frames) { J.slowmo(CFG.HITSTOP_SCALE, (frames || 3) * G.cfg.DT * 1000); };
+  J.hitStop = function (frames) { J.slowmo(CFG.HITSTOP_SCALE, (frames || 3) * (1000 / 60)); };
   function applyTime() {
     if (G.timeScale !== lastSet) ext = G.timeScale; // хтось інший змінив (G.slowmo)
     const t = now();
