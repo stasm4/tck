@@ -24384,18 +24384,17 @@
   // Round 21: велика картка ГРАТИ + сітка 2×3 з іконками + рядок КЕРУВАННЯ
   const MENU_ICON = { heroes: 'person', escape: 'run', daily: 'cal', upgrades: 'fist', wardrobe: 'shirt', shop: 'coin', controls: 'gear', leaders: 'star', coop: 'person' };
   const MENU_COL = { heroes: '#e5483c', escape: '#f7c948', daily: '#93c25b', upgrades: '#ef8a3b', wardrobe: '#8fc7e4', shop: '#f7c948', controls: '#b4abb2', leaders: '#f7c948', coop: '#93c25b' };
+  // Round 34: ГРАТИ (сюжет) і РЕЖИМИ — великі картки; знизу — док з 6 іконок (Герої, Гардероб, Крамниця, Прокачка, Лідери, ⚙)
+  const DOCK = ['heroes', 'wardrobe', 'shop', 'upgrades', 'leaders', 'controls'];
+  const DOCK_LABEL = { heroes: 'ГЕРОЇ', wardrobe: 'ГАРДЕРОБ', shop: 'КРАМНИЦЯ', upgrades: 'ПРОКАЧКА', leaders: 'ЛІДЕРИ', controls: 'КЕРУВАННЯ' };
   function menuItems() {
-    const it = [{ id: 'start', label: 'ГРАТИ' }, { id: 'heroes', label: 'ГЕРОЇ' }, { id: 'escape', label: 'ВТЕЧА' }, { id: 'daily', label: 'ЩОДЕННА' }, { id: 'upgrades', label: 'ПРОКАЧКА' },
-      { id: 'wardrobe', label: 'ГАРДЕРОБ' }, { id: 'shop', label: 'КРАМНИЦЯ' }, { id: 'coop', label: 'УДВОХ' }, { id: 'leaders', label: 'ЛІДЕРИ' }, { id: 'controls', label: 'КЕРУВАННЯ' }];
-    const cw = Math.floor((MENU_W - 4) / 2);
-    it.forEach((o, i) => {
-      if (i === 0) o.r = { x: MENU_X, y: 44, w: MENU_W - 26, h: 36 };
-      else if (i < 9) { const k = i - 1; o.r = { x: MENU_X + (k % 2) * (cw + 4), y: 86 + Math.floor(k / 2) * 28, w: cw, h: 24 }; o.col = k % 2; }
-      else o.r = { x: MENU_X, y: 198, w: MENU_W, h: 17 };
-    });
+    const it = [{ id: 'start', label: 'ГРАТИ', r: { x: MENU_X, y: 42, w: MENU_W - 26, h: 40 } },
+      { id: 'modes', label: 'РЕЖИМИ', r: { x: MENU_X, y: 88, w: MENU_W, h: 44 } }];
+    const cw = Math.floor((MENU_W - 8) / 3);
+    DOCK.forEach((id, k) => it.push({ id, label: DOCK_LABEL[id], dock: k, r: { x: MENU_X + (k % 3) * (cw + 4), y: 140 + Math.floor(k / 3) * 36, w: cw, h: 32 } }));
     return it;
   }
-  const missionsBtn = () => ({ x: MENU_X + MENU_W - 22, y: 44, w: 22, h: 36 });
+  const missionsBtn = () => ({ x: MENU_X + MENU_W - 22, y: 42, w: 22, h: 40 });
   function changeDay(d) {
     const maxDay = G.progress ? G.progress.maxDay || 1 : 1;
     const n = G.util.clamp(M.day + d, 1, maxDay);
@@ -24407,6 +24406,7 @@
       if (G.progress && G.progress.selectDay) G.progress.selectDay(M.day);
       G.setState('intro');
     } else if (id === 'escape' && G.modes) { click('pickup'); G.setState('heroes', { then: 'escape' }); } // Round 14: спершу — вибір героя
+    else if (id === 'modes') { click('pickup'); G.setState('modes'); }
     else if (id === 'heroes') { click(); G.setState('heroes'); }
     else if (id === 'daily' && G.scenes.daily) { click(); G.setState('daily'); }
     else if (id === 'upgrades' && G.scenes.upgrades) { click(); G.setState('upgrades'); }
@@ -24417,7 +24417,8 @@
     else if (id === 'missions' && G.scenes.missions) { click(); G.setState('missions'); }
     else if (id === 'shop' && G.scenes.shop) { click(); G.setState('shop'); }
   }
-  S.menu.enter = function () {
+  S.menu.enter = function (prev) {
+    if (G._modesBack && MODES_BACK[prev]) { G._modesBack = false; G.setState('modes'); return; }
     M.t = 0;
     M.day = G.progress ? G.progress.day || 1 : 1;
     if (G.progress && M.day > (G.progress.maxDay || 1)) M.day = G.progress.maxDay;
@@ -24436,7 +24437,7 @@
     if (navUp()) { M.focus = (M.focus + n - 1) % n; click(); }
     if (navDown()) { M.focus = (M.focus + 1) % n; click(); }
     const cur = M.items[M.focus];
-    if (cur && cur.col != null && (navLeft() || navRight())) { M.focus += cur.col ? -1 : 1; click(); }
+    if (cur && cur.dock != null) { if (navLeft() && cur.dock % 3 > 0) { M.focus--; click(); } if (navRight() && cur.dock % 3 < 2 && M.focus + 1 < n) { M.focus++; click(); } }
     if (cur && cur.id === 'start') {
       if (navLeft()) changeDay(-1);
       if (navRight()) changeDay(1);
@@ -24524,6 +24525,123 @@
     }
     return y + 46;
   }
+  // картка «РЕЖИМИ»: синьо-бірюзова, з чотирма кольоровими плитками режимів і значком «НОВЕ»
+  function drawModesCard(ctx, r, f) {
+    U.rect(ctx, 'rgba(0,0,0,0.35)', r.x + 2, r.y + 3, r.w, r.h);
+    U.rect(ctx, f ? '#fde98f' : '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+    U.rect(ctx, f ? '#2f7fb4' : '#24638e', r.x, r.y, r.w, r.h);
+    U.rect(ctx, f ? '#4aa2d8' : '#3482b4', r.x, r.y, r.w, Math.round(r.h / 2));
+    U.rect(ctx, 'rgba(255,255,255,0.35)', r.x, r.y, r.w, 1); U.rect(ctx, 'rgba(0,0,0,0.25)', r.x, r.y + r.h - 2, r.w, 2);
+    const sh = (M.t * 70 + 90) % (r.w + 60) - 30;
+    if (sh > 2 && sh < r.w - 10) { ctx.save(); ctx.fillStyle = 'rgba(220,240,255,0.22)'; ctx.fillRect(Math.round(r.x + sh), r.y + 2, 8, r.h - 4); ctx.restore(); }
+    // плитки режимів
+    const T4 = [['run', '#f7c948'], ['cal', '#93c25b'], ['person', '#8fc7e4'], ['eye_off', '#e5483c']];
+    T4.forEach(([ic, c], i) => { const x = r.x + 8 + i * 15, y = r.y + 8; U.rect(ctx, '#120a18', x - 1, y - 1, 14, 14); U.rect(ctx, c, x, y, 12, 12); U.rect(ctx, 'rgba(255,255,255,0.3)', x, y, 12, 1); const sz = U.iconSize(ic); U.icon(ctx, ic, x + Math.round((12 - sz.w) / 2), y + Math.round((12 - sz.h) / 2)); });
+    U.text(ctx, 'РЕЖИМИ', r.x + 72 + (r.w - 72) / 2, r.y + 5, { size: 16, align: 'center', color: '#fff8e0', outline: '#0e2a40' });
+    U.text(ctx, 'Втеча · Удвох · Стукач', r.x + r.w / 2, r.y + 28, { size: 7, align: 'center', color: '#d8f0ff' });
+    const on = Math.sin(G.realTime * 6) > -0.3, bw = U.measure('НОВЕ', 7) + 6;
+    U.rect(ctx, '#1a0e20', r.x + r.w - bw - 3, r.y - 5, bw + 2, 11); U.rect(ctx, on ? '#ff4a3a' : '#c8302a', r.x + r.w - bw - 2, r.y - 4, bw, 9);
+    U.text(ctx, 'НОВЕ', r.x + r.w - bw + 1, r.y - 3, { size: 7, color: '#fff8e0' });
+    if (f) { const blink = Math.floor(G.realTime * 3) % 2 ? 0 : 1; U.tri(ctx, r.x - 6 - blink, r.y + r.h / 2, 'right', 4, '#fde98f'); }
+  }
+  // кнопка доку: велика іконка над підписом
+  function drawDockBtn(ctx, it, r, f, nb) {
+    const col = MENU_COL[it.id] || '#b4abb2';
+    U.rect(ctx, 'rgba(0,0,0,0.3)', r.x + 1, r.y + 2, r.w, r.h);
+    U.rect(ctx, f ? '#fde98f' : '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+    U.rect(ctx, f ? 'rgba(72,52,86,0.97)' : 'rgba(34,22,44,0.9)', r.x, r.y, r.w, r.h);
+    U.rect(ctx, 'rgba(255,255,255,' + (f ? 0.18 : 0.08) + ')', r.x, r.y, r.w, 1);
+    U.rect(ctx, col, r.x, r.y + r.h - 2, r.w, 2);
+    const ic = MENU_ICON[it.id], sz = U.iconSize(ic);
+    const bob = f ? Math.round(Math.sin(G.realTime * 6)) : 0;
+    if (ic) U.icon(ctx, ic, r.x + Math.round((r.w - sz.w * 2) / 2), r.y + 3 + bob, 2);
+    let lb = it.label; while (lb.length > 3 && U.measure(lb, 7) > r.w - 4) lb = lb.slice(0, -2) + '.';
+    U.text(ctx, lb, r.x + r.w / 2, r.y + r.h - 12, { size: 7, align: 'center', color: f ? '#fde98f' : '#e8dcc8' });
+    if (nb) { const bx = r.x + r.w - 6, by = r.y - 3, on = Math.sin(G.realTime * 6) > -0.3; U.rect(ctx, '#1a0e20', bx - 1, by - 1, 9, 9); U.rect(ctx, on ? '#ff4a3a' : '#c8302a', bx, by, 7, 7); U.rect(ctx, '#fff8e0', bx + 3, by + 1, 1, 3); U.rect(ctx, '#fff8e0', bx + 3, by + 5, 1, 1); }
+  }
+
+  // ═══════════════ Round 34: екран «РЕЖИМИ» — усі режими гри картками ═══════════════
+  const MODES_BACK = { missions: 1, coop: 1, daily: 1, heroes: 1, stukach: 1, leaders: 1 };
+  G.events.on('state:change', (d) => { if (d.to === 'play' || d.to === 'intro') G._modesBack = false; });
+  const MD = { focus: 0, t: 0 };
+  const MODE_CARDS = [
+    { id: 'story', title: 'СЮЖЕТ', icon: 'clip', col: '#e5483c', d: ['30 місій історії Андрія:', 'робота, Катя, ТЦК і Перемога'] },
+    { id: 'escape', title: 'ВТЕЧА', icon: 'run', col: '#f7c948', d: ['Хвилі ТЦК, перки, рекорд.', 'Скільки протримаєшся?'] },
+    { id: 'daily', title: 'ЩОДЕННА', icon: 'cal', col: '#93c25b', d: ['Один забіг на день —', 'однаковий для всієї країни'] },
+    { id: 'coop', title: 'УДВОХ', icon: 'person', col: '#8fc7e4', d: ['Втеча разом з другом', 'по інтернету'] },
+    { id: 'stukach', title: 'СТУКАЧ', icon: 'eye_off', col: '#c08af0', d: ['3–5 друзів, і один із вас', 'таємно здає всіх ТЦК'], isNew: true },
+  ];
+  function modeRects() {
+    const W = VW(), cw = 142, ch = 92, gap = 10, x0 = Math.round(W / 2 - (cw * 3 + gap * 2) / 2);
+    return MODE_CARDS.map((m, i) => {
+      const row = i < 3 ? 0 : 1, k = row ? i - 3 : i, n = row ? 2 : 3, rx = row ? Math.round(W / 2 - (cw * n + gap * (n - 1)) / 2) : x0;
+      return { x: rx + k * (cw + gap), y: 42 + row * (ch + 10), w: cw, h: ch };
+    });
+  }
+  const modesBack = () => ({ x: 10, y: VH() - 24, w: 74, h: 18 });
+  function modeSub(id) {
+    const P = G.progress;
+    if (id === 'story') return P ? 'Місія ' + Math.min(P.maxDay || 1, (G.missions && G.missions.CAMPAIGN) || 30) + ' · ★ ' + (P.totalStars || 0) + '/' + (P.maxStars || 90) : '';
+    if (id === 'escape') return P && P.escRecord && P.escRecord.best ? 'Рекорд ★ ' + P.escRecord.best : 'Ще не грав';
+    if (id === 'daily') { const bd = P && P.badges ? P.badges() : {}; return bd.daily ? 'Сьогодні не зіграно!' : 'Сьогодні зіграно'; }
+    if (id === 'coop') return 'Код кімнати — і погнали';
+    if (id === 'stukach') return G.scenes.stukach ? '3–5 гравців онлайн' : 'СКОРО';
+    return '';
+  }
+  function modeGo(id) {
+    G._modesBack = true;
+    if (id === 'story') { click(); G.setState(G.scenes.missions ? 'missions' : 'menu'); }
+    else if (id === 'escape' && G.modes) { click('pickup'); G.setState('heroes', { then: 'escape' }); }
+    else if (id === 'daily' && G.scenes.daily) { click(); G.setState('daily'); }
+    else if (id === 'coop' && G.scenes.coop) { click('pickup'); G.setState('coop'); }
+    else if (id === 'stukach') { if (G.scenes.stukach) { click('pickup'); G.setState('stukach'); } else { G._modesBack = false; click(); G.ui.toast('Режим «Стукач» — уже скоро!', 2000); } }
+  }
+  G.scenes.modes = {
+    enter() { MD.t = 0; G.ui.reset(); if (MD.focus >= MODE_CARDS.length) MD.focus = 0; },
+    exit() {},
+    drawBg(ctx) { drawMenuBg(ctx, M.t); },
+    update(dt, realDt) {
+      MD.t += realDt || dt; M.t += realDt || dt;
+      const I = G.input, m = I.mouse, rs = modeRects(), n = rs.length, moved = mouseMoved();
+      if (I.pressed('pause')) { I.consume('pause'); G._modesBack = false; click(); G.setState('menu'); return; }
+      if (navLeft()) { MD.focus = (MD.focus + n - 1) % n; click(); }
+      if (navRight()) { MD.focus = (MD.focus + 1) % n; click(); }
+      if (navUp() && MD.focus >= 3) { MD.focus = Math.min(2, MD.focus - 3 + 1); click(); }
+      if (navDown() && MD.focus < 3) { MD.focus = Math.min(n - 1, 3 + Math.max(0, MD.focus - 1)); click(); }
+      if (U.inRect(m.x, m.y, modesBack()) && m.clicked) { G._modesBack = false; click(); G.setState('menu'); return; }
+      for (let i = 0; i < n; i++) if (U.inRect(m.x, m.y, rs[i])) { if (moved) MD.focus = i; if (m.clicked) { modeGo(MODE_CARDS[i].id); return; } }
+      if (ok()) modeGo(MODE_CARDS[MD.focus].id);
+    },
+    draw(ctx) {
+      if (!G._bgDone) drawMenuBg(ctx, M.t);
+      U.rect(ctx, 'rgba(14,8,22,0.62)', 0, 0, VW(), VH());
+      U.text(ctx, 'РЕЖИМИ', VW() / 2 + 1, 9, { size: 24, align: 'center', color: '#1a0e20' });
+      U.text(ctx, 'РЕЖИМИ', VW() / 2, 8, { size: 24, align: 'center', color: '#fde98f', outline: '#1a0e20' });
+      const rs = modeRects();
+      MODE_CARDS.forEach((md, i) => {
+        const r = rs[i], f = i === MD.focus, lift = f ? -2 : 0, y = r.y + lift, soon = md.id === 'stukach' && !G.scenes.stukach;
+        U.rect(ctx, 'rgba(0,0,0,0.4)', r.x + 3, r.y + 4, r.w, r.h);
+        U.rect(ctx, f ? '#fde98f' : '#120a18', r.x - 1, y - 1, r.w + 2, r.h + 2);
+        U.rect(ctx, 'rgba(30,20,40,0.96)', r.x, y, r.w, r.h);
+        // кольорова шапка з великою іконкою
+        U.rect(ctx, md.col, r.x, y, r.w, 34); U.rect(ctx, 'rgba(255,255,255,0.3)', r.x, y, r.w, 1); U.rect(ctx, 'rgba(0,0,0,0.25)', r.x, y + 32, r.w, 2);
+        for (let k = 0; k < 6; k++) U.rect(ctx, 'rgba(255,255,255,0.07)', r.x + k * 26 + ((MD.t * 12) % 26), y + 2, 10, 30); // легкі смуги
+        const sz = U.iconSize(md.icon);
+        U.rect(ctx, 'rgba(18,10,24,0.55)', r.x + 5, y + 5, sz.w * 2 + 6, 24); U.icon(ctx, md.icon, r.x + 8, y + Math.round((34 - sz.h * 2) / 2), 2);
+        U.text(ctx, md.title, r.x + 8 + sz.w * 2 + 8, y + 9, { size: 16, color: '#fff8e0', outline: '#1a0e20' });
+        U.text(ctx, md.d[0], r.x + 7, y + 40, { size: 7, color: '#e8dcc8' });
+        U.text(ctx, md.d[1], r.x + 7, y + 50, { size: 7, color: '#e8dcc8' });
+        const sub = modeSub(md.id);
+        U.rect(ctx, 'rgba(255,255,255,0.08)', r.x + 5, y + r.h - 20, r.w - 10, 14);
+        U.text(ctx, sub, r.x + r.w / 2, y + r.h - 17, { size: 7, align: 'center', color: soon ? '#ff9a7a' : md.col });
+        if (md.isNew) { const on = Math.sin(G.realTime * 6) > -0.3, bw = U.measure('НОВЕ', 7) + 6; U.rect(ctx, '#1a0e20', r.x + r.w - bw - 3, y - 5, bw + 2, 11); U.rect(ctx, on ? '#ff4a3a' : '#c8302a', r.x + r.w - bw - 2, y - 4, bw, 9); U.text(ctx, 'НОВЕ', r.x + r.w - bw + 1, y - 3, { size: 7, color: '#fff8e0' }); }
+        if (f) { const sh = (MD.t * 110) % (r.w + 50) - 25; if (sh > 0 && sh < r.w - 8) { ctx.save(); ctx.fillStyle = 'rgba(255,250,220,0.18)'; ctx.fillRect(Math.round(r.x + sh), y + 1, 7, r.h - 2); ctx.restore(); } }
+      });
+      const b = modesBack();
+      U.button(ctx, b, 'НАЗАД', false, { size: 8 });
+      if (!isTouch()) U.text(ctx, 'Стрілки + Enter · Esc — назад', VW() - 6, VH() - 12, { size: 7, align: 'right', color: 'rgba(255,255,255,0.5)' });
+    },
+  };
   S.menu.drawBg = function (ctx) { drawMenuBg(ctx, M.t); }; // Round 21: фон меню — на весь екран (і під вирізом)
   S.menu.draw = function (ctx) {
     if (!G._bgDone) drawMenuBg(ctx, M.t);
@@ -24567,6 +24685,8 @@
         for (let k = 0; k < 3; k++) U.rect(ctx, '#e8dcc8', mb.x + 6, mb.y + 12 + k * 5, 10, 2);
         continue;
       }
+      if (it.id === 'modes') { drawModesCard(ctx, r, f); continue; }
+      if (it.dock != null) { drawDockBtn(ctx, it, r, f, nb); continue; }
       const col = MENU_COL[it.id] || '#b4abb2';
       // тінь, рамка, тіло
       U.rect(ctx, 'rgba(0,0,0,0.3)', r.x + 1, r.y + 2, r.w, r.h);
