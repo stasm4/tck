@@ -557,14 +557,16 @@
   // ?q=low|medium|high у URL — примусово (для тестів). Параметри рівня: G.gfx.p (див. PRESET).
   G.quality = 'high';
   G.gfx = (function () {
-    const LV = ['low', 'medium', 'high'];
+    const LV = ['min', 'low', 'medium', 'high'];
     // maxScale — межа множника буфера екрана (×логічні 480×270); light — 2 повне світло, 1 без дорогих режимів
     // змішування (soft-light/saturation/overlay), 0 — мінімум; fx — ліміт разових ефектів; lines — ліній швидкості;
     // npcK/carK — частка перехожих/машин біля камери; warmEvery — добудова чанків раз на N кадрів; mmEvery — міні-карта
     const PRESET = {
-      high: { maxScale: 99, light: 2, fx: 60, lines: 22, npcK: 1, carK: 1, warmEvery: 1, mmEvery: 1, busDust: 30 },
-      medium: { maxScale: 3, light: 1, fx: 32, lines: 12, npcK: 1, carK: 1, warmEvery: 2, mmEvery: 3, busDust: 14 },
-      low: { maxScale: 2, light: 0, fx: 16, lines: 6, npcK: 0.7, carK: 0.75, warmEvery: 3, mmEvery: 6, busDust: 6 },
+      high: { maxScale: 99, light: 2, fx: 60, lines: 22, npcK: 1, carK: 1, warmEvery: 1, mmEvery: 1, busDust: 30, snow: 1, steps: 5 },
+      medium: { maxScale: 3, light: 1, fx: 32, lines: 12, npcK: 1, carK: 1, warmEvery: 2, mmEvery: 3, busDust: 14, snow: 0.8, steps: 4 },
+      low: { maxScale: 2, light: 0, fx: 16, lines: 6, npcK: 0.7, carK: 0.75, warmEvery: 3, mmEvery: 6, busDust: 6, snow: 0.5, steps: 3 },
+      // Round 35: слабкі планшети/телефони — буфер ×1 (екран лише збільшує піксель-арт), рівні 30 кадрів/с, мінімум ефектів
+      min: { maxScale: 1, light: -1, fx: 8, lines: 0, npcK: 0.5, carK: 0.55, warmEvery: 4, mmEvery: 10, busDust: 0, snow: 0.3, steps: 3, fps30: true },
     };
     const Q = { PRESET, p: PRESET.high, override: null, auto: 'high', forced: null, changes: 0 };
     // blocked[level] — до якого моменту (мс ігрового часу монітора) не повертатися на рівень, з якого впали;
@@ -590,15 +592,16 @@
         const sh = (typeof screen !== 'undefined' && screen && screen.height) || window.innerHeight || 720;
         const small = Math.min(sw, sh) < 500;
         const hwc = nav.hardwareConcurrency || 4, mem = nav.deviceMemory || 4;
-        if (hwc <= 2 || mem <= 1) return (touch || small) ? 'low' : 'medium';
-        if (touch || small) return (hwc <= 4 && mem <= 2) ? 'low' : 'medium';
+        if (hwc <= 2 || mem <= 1) return (touch || small) ? 'min' : 'medium';
+        // Round 35: сенсорні пристрої стартують обережно — монітор підніме якість, якщо кадри встигають
+        if (touch || small) return (hwc <= 4 || mem <= 2) ? 'min' : (hwc >= 8 && mem >= 6) ? 'medium' : 'low';
         return 'high';
       } catch (e) { return 'high'; }
     };
     Q.init = function () {
       let q = '';
       try { q = String((window.location && window.location.search) || '') + String((window.location && window.location.hash) || ''); } catch (e) { /* */ }
-      const m = /[?&#]q=(low|medium|high)\b/.exec(q);
+      const m = /[?&#]q=(min|low|medium|high)\b/.exec(q);
       Q.forced = m ? m[1] : null;
       const sv = G.save.get('gfx');
       Q.override = sv && PRESET[sv.q] ? sv.q : null;
@@ -628,7 +631,8 @@
       if (M.ut >= 10000) {
         const af = M.uf / M.un, aw = M.uw / M.un;
         M.ut = M.uf = M.uw = M.un = 0;
-        if (af < 17.5 && aw < 5 && i < 2 && !(M.blocked[LV[i + 1]] > M.clock)) { Q.auto = LV[i + 1]; apply(Q.auto); M.hold = 2000; resetWin(); }
+        const fast = LV[i] === 'min' ? aw < 6 : (af < 17.5 && aw < 5); // на «мін» кадри 30/с — дивимось на час роботи
+        if (fast && i < LV.length - 1 && !(M.blocked[LV[i + 1]] > M.clock)) { Q.auto = LV[i + 1]; apply(Q.auto); M.hold = 2000; resetWin(); }
       }
     };
     Q._mon = M;
@@ -926,6 +930,8 @@
   const perfNow = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
   G.fps = 60;
   G._loop = function (ts) {
+    // Round 35: «мін» — рівні 30 кадрів/с (кожен другий кадр монітора пропускаємо; симуляція наздоганяє фіксованим кроком)
+    if (last && G.gfx && G.gfx.p && G.gfx.p.fps30 && ts - last < 28) { window.requestAnimationFrame(G._loop); return; }
     if (!last) last = ts;
     let elapsed = (ts - last) / 1000;
     last = ts;
@@ -936,8 +942,9 @@
     let n = 0;
     const w0 = perfNow();
     try {
-      while (acc >= G.cfg.DT && n < G.cfg.MAX_STEPS) { G.tick(); acc -= G.cfg.DT; n++; }
-      if (n === G.cfg.MAX_STEPS) acc = 0;
+      const maxSteps = Math.min(G.cfg.MAX_STEPS, (G.gfx && G.gfx.p && G.gfx.p.steps) || G.cfg.MAX_STEPS); // слабкий пристрій: не наздоганяти безкінечно
+      while (acc >= G.cfg.DT && n < maxSteps) { G.tick(); acc -= G.cfg.DT; n++; }
+      if (n === maxSteps) acc = 0;
       G.render();
     } catch (e) {
       console.error(e);
@@ -13816,6 +13823,7 @@
     ctx.imageSmoothingEnabled = true;
     // 1) тепло і контраст (вечір — помаранчевіше)
     const lq = LQ();
+    if (lq < 0) { ctx.restore(); return; } // «мін» (слабкі планшети): без кольорової обробки кадру — ніч і вогні лишаються
     if (lq >= 2) {
       ctx.globalCompositeOperation = 'soft-light';
       ctx.globalAlpha = (0.1 + (eve ? 0.3 : 0.2) * w) * day;
@@ -13900,7 +13908,7 @@
     ctx.fillStyle = B > 0.5 ? 'rgb(14,20,40)' : 'rgb(18,34,52)'; ctx.fillRect(0, 0, VW, VH);
     // сутінки: небо над містом
     const dk = Math.sin(Math.PI * clamp01(n)) * (1 - 0.6 * B);
-    if (dk > 0.02) {
+    if (dk > 0.02 && LQ() >= 0) {
       ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = 0.45 * dk;
       ctx.drawImage(duskGrad(S.eve, 1), 0, 0);
       if (LQ() >= 2) { ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = 0.55 * dk; ctx.drawImage(duskGrad(S.eve), 0, 0); }
@@ -25395,7 +25403,7 @@
     if (which === 'sfx') click();
   }
   // Round 17: «Графіка»: авто → висока → середня → низька → авто
-  const GFX_ORDER = [null, 'high', 'medium', 'low'], GFX_NAME = { high: 'висока', medium: 'середня', low: 'низька' };
+  const GFX_ORDER = [null, 'high', 'medium', 'low', 'min'], GFX_NAME = { high: 'висока', medium: 'середня', low: 'низька', min: 'мінімальна' };
   function gfxLabel() {
     const X = G.gfx;
     if (!X) return 'висока';
@@ -36805,7 +36813,7 @@
     const col = nt > 0.4 ? '232,240,255' : '255,255,255';
     ctx.save();
     if (bl > 0.02) { ctx.fillStyle = 'rgba(225,232,242,' + (0.1 * bl).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH); }
-    const WW = VW + 24, HH = VH + 24, dens = k * (1 + 0.8 * bl) * (VW / 480);
+    const WW = VW + 24, HH = VH + 24, dens = k * (1 + 0.8 * bl) * (VW / 480) * ((G.gfx && G.gfx.p && G.gfx.p.snow) || 1);
     for (let L = 0; L < LAYERS.length; L++) {
       const Ly = LAYERS[L], n = Math.round(Ly.n * dens);
       const a = Ly.a * (nt > 0.4 ? 0.85 : 1) * Math.min(1, k * 1.6);
