@@ -1152,7 +1152,8 @@
     T.touches[id] = rec;
     if (st === 'play' && G.brawl && G.brawl.grab) { rec.kind = 'none'; pulse('attack'); return; } // Round 22: захват — тап будь-де
     // гра вдвох: друг обирає перк поверх гри — тап по картці = клік (кожен обирає собі сам)
-    if (st === 'play' && G.coop && G.coop.picking) { I.tap(t.clientX, t.clientY, { type: 'touchstart', code: '' }); I.mouse.down = true; return; }
+    if (st === 'play' && G.stukach && G.stukach.inGame && !G.stukach.modal && G.stukach.tap && G.stukach.tap(lx, ly)) { rec.kind = 'none'; return; } // «Стукач»: ЗДАТИ / ЗБОРИ
+    if (st === 'play' && ((G.coop && G.coop.picking) || (G.stukach && G.stukach.modal))) { I.tap(t.clientX, t.clientY, { type: 'touchstart', code: '' }); I.mouse.down = true; return; }
     if (st === 'play') {
       if (inR(lx, ly, PAUSE(), 6)) { rec.kind = 'pause'; pulse('pause'); return; }
       layout();
@@ -37806,6 +37807,7 @@
     if (!silent) sfx('click');
   }
   C.leave = leave;
+  C._signal = (room, onMsg) => signal(room, onMsg); // для «Стукача» (кімната на 3–5 гравців)
   C.create = () => create(); C.join = (c) => join(String(c)); C.begin = () => lbAct('go');
   Object.defineProperty(C, 'buddy', { get: () => buddy });
   Object.defineProperty(C, 'goal', { get: () => { const m = N.snap && N.snap.m; return m && m.g && !m.cl ? { x: m.g[0], y: m.g[1] } : null; } });
@@ -38430,6 +38432,7 @@
     }
   }
   let codeBox = null;
+  C._askCode = (done) => askCode(done);
   function askCode(done) {
     if (codeBox) return;
     codeBox = document.createElement('div');
@@ -38514,6 +38517,636 @@
     if (!d || !C.role) return;
     if (d.to === 'menu' && C.role && !C.inGame && d.from === 'result') G.setState('coop');
   });
+})();
+
+
+/* ===== 89_stukach.js ===== */
+// ═══════════════════════════ 89_stukach — «СТУКАЧ» (3–5 гравців онлайн, соціальна дедукція) ═══════════════════════════
+// Кімната з кодом (сигнальний канал з 88_coop: Supabase Realtime або BroadcastChannel для ?coop=local). ХОСТ — суддя:
+// роздає ролі (один СТУКАЧ, решта ВТІКАЧІ) і справи, рахує прогрес, ловлі, голосування, перемогу.
+// Втікачі: виконати свої справи по місту (постояти біля точки) — спільна шкала. Стукач: вдає, що робить справи (шкала не
+// росте!), і раз на 35 с тисне «ЗДАТИ» — на найближчого втікача приїжджає бус ТЦК. Скрученого відбиває інший гравець
+// (стояти поруч 2 с), інакше за 25 с його забирають. «ЗБОРИ» біля фонтану — голосування; вигнали стукача — втікачі
+// виграли. Стукач виграє, коли всіх втікачів забрали або вийшов час (6 хв).
+// G.stukach: {role, inGame, modal, tap(x,y)}
+(function () {
+  'use strict';
+  const C = G.coop;
+  if (!C || !C._signal) return;
+  const VW = () => G.cfg.VIEW_W, VH = () => G.cfg.VIEW_H;
+  const sfx = (n, o) => { try { G.audio && G.audio.sfx && G.audio.sfx(n, o); } catch (e) {} };
+  const toast = (t, ms) => { try { G.ui && G.ui.toast && G.ui.toast(t, ms || 2500); } catch (e) {} };
+  const myName = () => (G.online && G.online.name) || 'Гравець';
+  const mySkin = () => { const p = G.progress; return (G.heroes && G.heroes.skinFor && G.heroes.cur ? G.heroes.skinFor(G.heroes.cur) : null) || (p && p.equipped) || 'office'; };
+  const myOutfit = () => { try { return G.progress && G.progress.outfit ? G.progress.outfit() : null; } catch (e) { return null; } };
+  const DIRS = ['down', 'up', 'left', 'right'];
+  const r1 = (v) => Math.round(v * 10) / 10;
+  const TEST2 = /[?&]sk2\b/.test(location.search); // тест: дозволити старт удвох
+
+  const TASKS = [
+    ['np', 'Забрати посилку'], ['atb', 'Хліб в АТБ'], ['coffee_sq', 'Кава для Каті'], ['pharmacy', 'Ліки для мами'],
+    ['bakery', 'Пиріжки з пекарні'], ['flowers_kiosk', 'Квіти тещі'], ['press_prosp', 'Свіжа газета'], ['shawarma_kiosk', 'Шаурма'],
+  ];
+  const PER = 3, HOLD = 2.5, SNITCH_CD = 35, SNITCH_R = 130, REV_T = 2, CAUGHT_MAX = 25, ROUND = 360, MEET_T = 35, MEET_CD = 25, MEET_R = 46;
+
+  const SK = G.stukach = { role: null, inGame: false, get modal() { return !!(R.meet || R.end); } };
+  SK._t = { create: () => create(), join: (c) => join(String(c)), start: () => hostStart(), act: () => act(), vote: (v) => vote(v), get L() { return L; }, get R() { return R; } }; // тести
+  // лобі
+  const L = { sig: null, host: false, room: '', id: '', roster: [], status: '', focus: 0, t: 0 };
+  // раунд
+  let R = {};
+  function freshRound() { return { me: null, tasks: [], prog: 0, total: 1, ps: {}, avs: {}, cd: 0, posT: 0, stT: 0, time: 0, meet: null, meetCd: 0, end: null, grabs: {}, holdI: -1, holdT: 0, role: null, roles: {}, votes: {}, myVote: null, sel: 0, revT: {}, caughtT: {} }; }
+  R = freshRound();
+
+  // ═══════════════ мережа ═══════════════
+  function send(m) { if (L.sig) L.sig.send(m); }
+  function leave(silent) {
+    if (L.sig) { try { L.sig.send({ t: 'bye' }); } catch (e) {} L.sig.close(); }
+    L.sig = null; L.host = false; L.room = ''; L.roster = []; L.status = '';
+    endLocal();
+    if (!silent) sfx('click');
+  }
+  function create() {
+    leave(true);
+    L.host = true; L.room = String(1000 + Math.floor(Math.random() * 9000));
+    L.sig = C._signal('sk' + L.room, onMsg); L.id = L.sig.id;
+    L.roster = [{ id: L.id, name: myName(), skin: mySkin(), outfit: myOutfit() }];
+    L.status = 'wait';
+  }
+  function join(code) {
+    leave(true);
+    L.host = false; L.room = code;
+    L.sig = C._signal('sk' + code, onMsg); L.id = L.sig.id; L.status = 'join';
+    let n = 0;
+    const hello = () => { if (!L.sig || L.room !== code || L.roster.some((p) => p.id === L.id)) return; send({ t: 'hello', name: myName(), skin: mySkin(), outfit: myOutfit() }); if (++n < 10) setTimeout(hello, 1200); else if (!L.roster.length) L.status = 'nobody'; };
+    setTimeout(hello, 300);
+  }
+  const rosterMsg = () => ({ t: 'roster', ps: L.roster, inGame: SK.inGame });
+  function onMsg(m) {
+    if (!m || !m.t) return;
+    const from = m.from;
+    // ── лобі ──
+    if (m.t === 'hello' && L.host) {
+      if (!L.roster.some((p) => p.id === from)) {
+        if (L.roster.length >= 5 || SK.inGame) { send({ t: 'full', to: from }); return; }
+        L.roster.push({ id: from, name: String(m.name || 'Гравець').slice(0, 16), skin: m.skin, outfit: m.outfit }); sfx('pickup');
+      }
+      send(rosterMsg());
+    } else if (m.t === 'roster' && !L.host) { L.roster = m.ps || []; L.hostId = from; L.status = 'in'; }
+    else if (m.t === 'full' && !L.host) { L.status = 'full'; }
+    else if (m.t === 'bye') {
+      if (L.host) { L.roster = L.roster.filter((p) => p.id !== from); send(rosterMsg()); if (SK.inGame && R.ps[from]) { R.ps[from].st = 'out'; R.ps[from].left = true; hostCheckWin(); hostState(); } }
+      else if (from === L.hostId) { toast('Хост вийшов з кімнати', 2500); leave(true); G.setState('stukach'); }
+      if (R.avs[from]) { R.avs[from].alive = false; delete R.avs[from]; }
+    }
+    // ── гра ──
+    else if (m.t === 'go') startRound(m);
+    else if (m.t === 'role') { L.pendRole = m; if (SK.inGame) applyRole(); }
+    else if (m.t === 'pos') { const a = R.avs[from]; if (a) a.apply(m.a); }
+    else if (m.t === 'did' && L.host) hostDid(from, m.i);
+    else if (m.t === 'snitch' && L.host) hostSnitch(from, m.target);
+    else if (m.t === 'st') applyState(m);
+    else if (m.t === 'grab') startGrab(m.id, m.x, m.y);
+    else if (m.t === 'free') { stopGrab(m.id, true); }
+    else if (m.t === 'gone') { stopGrab(m.id, false); }
+    else if (m.t === 'call' && L.host) hostMeet(from);
+    else if (m.t === 'meet') startMeet(m);
+    else if (m.t === 'vote' && L.host) hostVote(from, m.v);
+    else if (m.t === 'verdict') verdict(m);
+    else if (m.t === 'end') showEnd(m);
+  }
+
+  // ═══════════════ ХОСТ: суддя ═══════════════
+  function hostStart() {
+    if (!L.host || L.roster.length < (TEST2 ? 2 : 3)) return;
+    const ids = L.roster.map((p) => p.id), sk = ids[Math.floor(Math.random() * ids.length)];
+    const ps = {}; ids.forEach((id) => { ps[id] = { st: 'ok', done: 0 }; });
+    R = freshRound();
+    R.roles = {}; ids.forEach((id) => { R.roles[id] = id === sk ? 'stukach' : 'runner'; });
+    R.ps = ps; R.total = (ids.length - 1) * PER; R.prog = 0; R.doneSet = {};
+    R.hostTasks = {};
+    for (const id of ids) {
+      const pool = TASKS.map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, PER);
+      R.hostTasks[id] = pool;
+    }
+    const go = { t: 'go', ps: L.roster, total: R.total, seed: Math.floor(Math.random() * 1e6) };
+    send(go);
+    for (const id of ids) if (id !== L.id) send({ t: 'role', to: id, role: R.roles[id], tasks: R.hostTasks[id] });
+    const keepRoles = R.roles, keepTasks = R.hostTasks, keepPs = R.ps;
+    startRound(go);
+    R.roles = keepRoles; R.hostTasks = keepTasks; R.ps = keepPs; R.doneSet = {};
+    R.role = SK.role = keepRoles[L.id]; R.tasks = keepTasks[L.id].map((i) => ({ i, done: false }));
+    hostState();
+  }
+  function hostState() { const m = { t: 'st', prog: R.prog, total: R.total, ps: R.ps, time: Math.round(R.time) }; send(m); applyState(m); }
+  function hostDid(from, i) {
+    if (!R.roles || R.roles[from] !== 'runner' || !R.ps[from] || R.ps[from].st !== 'ok') return;
+    const k = from + ':' + i;
+    if (R.doneSet[k] || !(R.hostTasks[from] || []).includes(i)) return;
+    R.doneSet[k] = 1; R.prog++; R.ps[from].done++;
+    hostState(); hostCheckWin();
+  }
+  function posOf(id) { if (id === L.id && G.player) return { x: G.player.x, y: G.player.y }; const a = R.avs[id]; return a ? { x: a.x, y: a.y } : null; }
+  function hostSnitch(from, target) {
+    if (!R.roles || R.roles[from] !== 'stukach' || R.meet || R.end) return;
+    const t = R.ps[target], a = posOf(from), b = posOf(target);
+    if (!t || t.st !== 'ok' || R.roles[target] !== 'runner' || !a || !b || Math.hypot(a.x - b.x, a.y - b.y) > SNITCH_R + 20) return;
+    t.st = 'caught'; R.caughtT[target] = 0; R.revT[target] = 0;
+    const g = { t: 'grab', id: target, x: r1(b.x), y: r1(b.y) }; send(g); startGrab(target, b.x, b.y);
+    hostState();
+  }
+  function hostTick(dt) {
+    if (R.end) return;
+    if (!R.meet) R.time += dt;
+    for (const id in R.ps) {
+      const p = R.ps[id]; if (p.st !== 'caught' || R.meet) continue;
+      R.caughtT[id] = (R.caughtT[id] || 0) + dt;
+      const me = posOf(id); let near = false;
+      if (me) for (const o in R.ps) if (o !== id && R.ps[o].st === 'ok') { const q = posOf(o); if (q && Math.hypot(q.x - me.x, q.y - me.y) < 18) near = true; }
+      R.revT[id] = near ? (R.revT[id] || 0) + dt : Math.max(0, (R.revT[id] || 0) - dt);
+      if (R.revT[id] >= REV_T) { p.st = 'ok'; send({ t: 'free', id }); stopGrab(id, true); hostState(); }
+      else if (R.caughtT[id] >= CAUGHT_MAX) { p.st = 'out'; send({ t: 'gone', id }); stopGrab(id, false); hostState(); hostCheckWin(); }
+    }
+    R.stT += dt; if (R.stT > 2) { R.stT = 0; hostState(); }
+    if (R.time >= ROUND) hostEnd('stukach', 'Час вийшов — справи не зроблено');
+    if (R.meet && !R.meet.done) { R.meet.left -= dt; if (R.meet.left <= 0) hostTally(); }
+  }
+  function hostMeet(from) {
+    if (R.meet || R.end || R.meetCd > 0 || !R.ps[from] || R.ps[from].st !== 'ok') return;
+    const m = { t: 'meet', by: from, dur: MEET_T }; send(m); startMeet(m);
+    R.votes = {};
+  }
+  function hostVote(from, v) {
+    if (!R.meet || !R.ps[from] || R.ps[from].st === 'out') return;
+    R.votes[from] = v;
+    const alive = Object.keys(R.ps).filter((id) => R.ps[id].st !== 'out');
+    if (alive.every((id) => R.votes[id] != null)) hostTally();
+  }
+  function hostTally() {
+    if (!R.meet || R.meet.done) return;
+    R.meet.done = true;
+    const cnt = {}; for (const id in R.votes) { const v = R.votes[id]; cnt[v] = (cnt[v] || 0) + 1; }
+    let best = null, bn = 0, tie = false;
+    for (const k in cnt) { if (cnt[k] > bn) { best = k; bn = cnt[k]; tie = false; } else if (cnt[k] === bn) tie = true; }
+    const out = (!best || best === 'skip' || tie) ? null : best;
+    if (out && R.ps[out]) { R.ps[out].st = 'out'; stopGrab(out, false); }
+    const m = { t: 'verdict', id: out, role: out ? R.roles[out] : null, votes: cnt };
+    send(m); verdict(m); hostState();
+    if (out && R.roles[out] === 'stukach') hostEnd('runners', 'Стукача викрито!');
+    else hostCheckWin();
+  }
+  function hostCheckWin() {
+    if (R.end || !R.roles) return;
+    const skId = Object.keys(R.roles).find((id) => R.roles[id] === 'stukach');
+    if (R.prog >= R.total) return hostEnd('runners', 'Усі справи зроблено!');
+    if (skId && R.ps[skId] && R.ps[skId].st === 'out') return hostEnd('runners', R.ps[skId].left ? 'Стукач утік з гри' : 'Стукача викрито!');
+    const runners = Object.keys(R.roles).filter((id) => R.roles[id] === 'runner' && R.ps[id] && R.ps[id].st !== 'out');
+    if (!runners.length) return hostEnd('stukach', 'Усіх втікачів забрали');
+  }
+  function hostEnd(w, why) {
+    if (R.end) return;
+    const skId = Object.keys(R.roles).find((id) => R.roles[id] === 'stukach');
+    const m = { t: 'end', w, why, sk: skId }; send(m); showEnd(m);
+  }
+
+  // ═══════════════ раунд на кожному клієнті ═══════════════
+  // блок звичайних ТЦК і бусів (у «Стукачі» вони приїжджають лише на «ЗДАТИ»)
+  let allow = false;
+  function block(obj, names) { if (!obj) return; for (const n of names) { const f = obj[n]; if (typeof f !== 'function') continue; obj[n] = function () { if (SK.inGame && !allow) return n === 'spawnGroup' ? [] : null; return f.apply(this, arguments); }; } }
+  setTimeout(() => {
+    block(G.tck, ['spawnPost', 'spawnMetroPatrol', 'forceChase', 'startChase', 'dismissGroup', 'alert', 'spawnGroup']);
+    block(G.bus, ['spawn', 'spawnAtEdge', 'spawnNear', 'spawnScripted', 'spawnPost', 'spawnDrop', 'spawnYard', 'spawnPickup']);
+    const oe = G.endRun; G.endRun = function () { if (SK.inGame) return; return oe.apply(this, arguments); };
+    if (typeof G.updatePlay === 'function') {
+      const up = G.updatePlay;
+      const w = function (dt) {
+        if (SK.inGame && (R.meet || R.end)) { meetUpdate(dt); if (L.host) hostTick(dt); G.camera && G.camera.update(dt); return; }
+        up(dt);
+        if (SK.inGame) { try { tick(dt); } catch (e) { console.error('stukach', e); } }
+      };
+      for (const k in up) w[k] = up[k];
+      G.updatePlay = w;
+    }
+  }, 0);
+
+  class Av extends G.Entity {
+    constructor(info) { super(0, 0, 10, 6, 'mate'); this.body = 'manual'; this.info = info; this.tx = 0; this.ty = 0; this.frame = 0; this.got = false; }
+    get shadow() { return !this.gone(); }
+    gone() { const p = R.ps[this.info.id]; return !this.got || (p && p.st === 'out'); }
+    apply(a) { this.tx = a[0]; this.ty = a[1]; this.dir = DIRS[a[2]] || 'down'; this.frame = a[3] | 0; this.punch = !!(a[4] & 1); if (!this.got) { this.x = this.tx; this.y = this.ty; this.got = true; } }
+    update(dt) { const dx = this.tx - this.x, dy = this.ty - this.y; if (dx * dx + dy * dy > 150 * 150) { this.x = this.tx; this.y = this.ty; } else { const k = Math.min(1, dt * 12); this.x += dx * k; this.y += dy * k; } }
+    draw(ctx) {
+      if (this.gone()) return;
+      const O = G.outfit, prev = O ? O.override : null; let img = null;
+      try { if (O) O.override = this.info.outfit || null; img = G.sprites.get('player', { skin: this.info.skin || 'office', dir: this.dir, frame: this.punch ? 4 : this.frame }); } catch (e) { img = null; } finally { if (O) O.override = prev; }
+      const bx = Math.round(this.x), by = Math.round(this.y + this.h / 2), caught = R.ps[this.info.id] && R.ps[this.info.id].st === 'caught';
+      if (img) ctx.drawImage(img, bx - (img.width >> 1), by - img.height);
+      nameTag(ctx, bx, by - 34, this.info.name, caught ? '#ff9a7a' : '#e8dcc8');
+      if (caught) ringBar(ctx, bx, by - 40, this.info.id);
+    }
+  }
+  function nameTag(ctx, x, y, nm, col) { const U = G.ui && G.ui.gfx; if (!U) return; const w = U.measure(nm, 7) + 6; ctx.fillStyle = 'rgba(18,10,24,0.75)'; ctx.fillRect(x - (w >> 1), y - 1, w, 10); U.text(ctx, nm, x, y, { size: 7, align: 'center', color: col }); }
+  function ringBar(ctx, x, y, id) {
+    const left = Math.max(0, 1 - (R.caughtTc && R.caughtTc[id] || 0) / CAUGHT_MAX);
+    ctx.fillStyle = '#2a1a2e'; ctx.fillRect(x - 11, y, 22, 3); ctx.fillStyle = '#ff6050'; ctx.fillRect(x - 10, y + 1, Math.round(20 * left), 1);
+  }
+
+  function startRound(m) {
+    // кожен клієнт: свій забіг у тому самому місті (без хвиль і ТЦК), усі — біля фонтану
+    const keep = L.host ? { roles: R.roles, hostTasks: R.hostTasks, ps: R.ps } : null;
+    for (const id in R.avs) R.avs[id].alive = false;
+    R = freshRound(); if (keep) Object.assign(R, keep);
+    R.total = m.total || 1; R.caughtTc = {};
+    SK.inGame = true; SK.role = null;
+    if (G.modes) { G.modes.start('escape'); if (G.modes.reset) G.modes.reset(); }
+    if (G.tck) { G.tck.list = []; if (G.tck.first) G.tck.first.pending = false; }
+    if (G.bus) G.bus.list = [];
+    const F = G.missions && G.missions.poi && G.missions.poi('fountain_sq');
+    const idx = Math.max(0, (m.ps || []).findIndex((p) => p.id === L.id));
+    if (F && G.player) { const an = idx / 5 * Math.PI * 2; G.player.x = F.x + Math.cos(an) * 24; G.player.y = F.y + Math.sin(an) * 16 + 4; if (G.camera) G.camera.follow(G.player, true); }
+    for (const p of m.ps || []) if (p.id !== L.id) { const a = G.addEntity(new Av(p)); R.avs[p.id] = a; }
+    R.cd = 25; R.meetCd = 20;
+    if (G.ui) { G.ui.reset && G.ui.reset(); }
+    sfx('pickup');
+    R.reveal = 4.5;
+    if (!L.host) applyRole();
+  }
+  function applyRole() { const m = L.pendRole; if (!m) return; L.pendRole = null; R.role = SK.role = m.role; R.tasks = (m.tasks || []).map((i) => ({ i, done: false })); }
+  function applyState(m) {
+    if (!SK.inGame) return;
+    R.prog = m.prog; R.total = m.total;
+    for (const id in m.ps) { if (!L.host) R.ps[id] = m.ps[id]; }
+    if (!L.host) R.time = m.time || R.time;
+    const me = R.ps[L.id];
+    if (me && G.player) { G.player.caught = me.st === 'caught'; if (me.st === 'out' && !R.wasOut) { R.wasOut = true; toast('Тебе забрали. Тепер ти привид — дивись і підказуй у голосуванні не можна.', 3500); } }
+  }
+  function endLocal() {
+    for (const id in R.avs) R.avs[id].alive = false;
+    for (const id in R.grabs) stopGrab(id, false);
+    if (G.player) { G.player.caught = false; G.player.hidden = false; }
+    SK.inGame = false; SK.role = null; R = freshRound();
+  }
+
+  // ── бус ТЦК на «ЗДАТИ»: підʼїжджає до цілі, двоє ТЦК крутять (візуально — у кожного клієнта) ──
+  function startGrab(id, x, y) {
+    if (!SK.inGame) return;
+    stopGrab(id, false);
+    if (R.ps[id]) R.ps[id].st = 'caught';
+    R.caughtTc[id] = 0;
+    if (id === L.id && G.player) { G.player.caught = true; G.player.vx = G.player.vy = 0; }
+    const g = { id, x, y, t: 0, bus: null, crew: [], ph: 'drive' };
+    allow = true;
+    try {
+      let pts = null;
+      const N = G.world && G.world.roads;
+      if (N) {
+        let best = null;
+        for (const e of N.edges) for (const ln of e.lanes) {
+          const vx = ln.x1 - ln.x0, vy = ln.y1 - ln.y0, Ln = Math.hypot(vx, vy) || 1, ux = vx / Ln, uy = vy / Ln;
+          const k = Math.max(0, Math.min(Ln - 30, (x - ln.x0) * ux + (y - ln.y0) * uy));
+          if (k < 120) continue;
+          const sx = ln.x0 + ux * k, sy = ln.y0 + uy * k, d = Math.hypot(sx - x, sy - y);
+          if (d < 160 && (!best || d < best.d)) best = { d, pts: [{ x: sx - ux * Math.min(260, k), y: sy - uy * Math.min(260, k) }, { x: sx, y: sy }] };
+        }
+        if (best) pts = best.pts;
+      }
+      if (!pts && G.bus && G.bus.yardRoute) { const r = G.bus.yardRoute(x, y, { maxCost: 600 }); if (r && r.pts && r.pts.length >= 2) pts = r.pts.slice(Math.max(0, r.pts.length - 8)); }
+      if (pts && G.bus && G.bus.spawnScripted) g.bus = G.bus.spawnScripted(pts, { crew: 0 });
+    } catch (e) { g.bus = null; } finally { allow = false; }
+    if (!g.bus) g.ph = 'walk';
+    R.grabs[id] = g;
+    if (id === L.id) { sfx('slide_door'); if (G.camera && G.camera.shake) G.camera.shake(2, 300); }
+  }
+  function grabTick(g, dt) {
+    g.t += dt;
+    const tgt = g.id === L.id && G.player ? G.player : R.avs[g.id];
+    const tx = tgt ? tgt.x : g.x, ty = tgt ? tgt.y : g.y;
+    if (g.ph === 'drive' && g.bus && ((g.bus.script && g.bus.script.stopped) || g.t > 7)) { g.bus.doorOpen = true; g.ph = 'walk'; g.t = 0; }
+    if (g.ph === 'walk' && g.crew.length < 2 && g.t > 0.3 + g.crew.length * 0.4) {
+      allow = true;
+      try {
+        const d = g.bus && g.bus.doorPoint ? g.bus.doorPoint({ x: tx, y: ty }) : { x: tx + 70, y: ty };
+        const t = G.tck.spawnGroup(d.x, d.y, 1, [g.crew.length ? 'polite' : 'rude'], { state: 'script', bus: g.bus, origin: 'bus', exact: true })[0];
+        if (t) g.crew.push(t);
+      } catch (e) { /* */ } finally { allow = false; }
+      if (g.crew.length === 1 && G.ui && G.ui.bubble) G.ui.bubble(g.crew[0], 'Стояти! ТЦК!', 1600, { style: 'shout' });
+    }
+    g.crew.forEach((t, i) => { if (!t.alive) return; t.scriptTarget = { x: tx + (i ? 12 : -12), y: ty + 1 }; if (t.arrived) { t.grabAnim = 0.5; t.face && t.face(tx, ty); } });
+  }
+  function stopGrab(id, freed) {
+    const g = R.grabs[id];
+    if (g) { for (const t of g.crew) t.alive = false; if (g.bus) g.bus.alive = false; delete R.grabs[id]; }
+    if (R.caughtTc) delete R.caughtTc[id];
+    if (id === L.id && G.player) { G.player.caught = false; if (freed) { toast('ТЕБЕ ВІДБИЛИ! Тікай!', 2000); sfx('pickup'); } }
+    else if (freed && R.avs[id]) { const a = R.avs[id]; if (G.ui && G.ui.bubble) G.ui.bubble(a, 'Дякую!', 1500, { style: 'say' }); }
+  }
+
+  // ── кадр гри ──
+  function tick(dt) {
+    const p = G.player; if (!p) return;
+    if (L.host) hostTick(dt);
+    if (R.reveal > 0) R.reveal -= dt;
+    R.cd = Math.max(0, R.cd - dt); R.meetCd = Math.max(0, R.meetCd - dt);
+    for (const id in R.caughtTc) R.caughtTc[id] += dt;
+    for (const id in R.grabs) grabTick(R.grabs[id], dt);
+    // позиція — всім (~7 разів/с)
+    R.posT -= dt;
+    // позиція — всім ~4 рази/с і лише в русі (+ раз на 1.5 с стоячи): ліміт повідомлень безкоштовного Supabase
+    R.idleT = (R.idleT || 0) + dt;
+    if (R.posT <= 0) {
+      const moved = !R.lastSent || Math.abs(R.lastSent.x - p.x) + Math.abs(R.lastSent.y - p.y) > 1 || R.lastSent.d !== p.dir;
+      if (moved || R.idleT > 1.5) { R.posT = 0.25; R.idleT = 0; R.lastSent = { x: p.x, y: p.y, d: p.dir }; send({ t: 'pos', a: [r1(p.x), r1(p.y), Math.max(0, DIRS.indexOf(p.dir)), p.frame | 0, p.punchT > 0 ? 1 : 0] }); }
+    }
+    const me = R.ps[L.id], ok = me && me.st === 'ok';
+    // привид: напівпрозорий, без справ
+    if (me && me.st === 'out') { p.alpha = 0.45; return; } else p.alpha = 1;
+    // справи: постояти біля точки
+    R.holdI = -1;
+    if (ok) for (let k = 0; k < R.tasks.length; k++) {
+      const tk = R.tasks[k]; if (tk.done) continue;
+      const q = G.missions.poi(TASKS[tk.i][0]); if (!q) continue;
+      if (Math.hypot(q.x - p.x, q.y - p.y) < 22) { R.holdI = k; break; }
+    }
+    if (R.holdI >= 0) {
+      R.holdT += dt;
+      if (R.holdT >= HOLD) {
+        const tk = R.tasks[R.holdI]; tk.done = true; R.holdT = 0; sfx('pickup');
+        toast('Зроблено: ' + TASKS[tk.i][1], 1600);
+        if (L.host) hostDid(L.id, tk.i); else send({ t: 'did', i: tk.i });
+      }
+    } else R.holdT = 0;
+    if (G.input.pressed('use')) { G.input.consume('use'); act(); }
+  }
+  function nearestVictim() {
+    const p = G.player; let best = null, bd = SNITCH_R;
+    for (const id in R.avs) { const a = R.avs[id], st = R.ps[id]; if (!a.got || !st || st.st !== 'ok') continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < bd) { bd = d; best = id; } }
+    return best;
+  }
+  function nearFountain() { const F = G.missions && G.missions.poi && G.missions.poi('fountain_sq'), p = G.player; return F && p && Math.hypot(F.x - p.x, F.y - p.y) < MEET_R; }
+  function act() {
+    const me = R.ps[L.id]; if (!me || me.st !== 'ok' || R.meet || R.end) return;
+    if (nearFountain() && R.meetCd <= 0) { if (L.host) hostMeet(L.id); else send({ t: 'call' }); sfx('click'); return; }
+    if (R.role === 'stukach') {
+      if (R.cd > 0) { toast('«ЗДАТИ» буде через ' + Math.ceil(R.cd) + ' с', 1400); return; }
+      const v = nearestVictim();
+      if (!v) { toast('Поруч нікого — підійди ближче до втікача', 1600); return; }
+      R.cd = SNITCH_CD;
+      if (L.host) hostSnitch(L.id, v); else send({ t: 'snitch', target: v });
+      sfx('vibrate');
+    }
+  }
+
+  // ═══════════════ збори і голосування ═══════════════
+  function startMeet(m) {
+    if (!SK.inGame) return;
+    R.meet = { left: m.dur || MEET_T, by: m.by }; R.myVote = null; R.sel = 0; R.verdict = null;
+    for (const id in R.grabs) { const g = R.grabs[id]; for (const t of g.crew) t.scriptTarget = null; }
+    const F = G.missions.poi('fountain_sq'), p = G.player, ids = [L.id].concat(Object.keys(R.avs)).sort();
+    const k = ids.indexOf(L.id);
+    if (F && p && R.ps[L.id] && R.ps[L.id].st !== 'out') { const an = k / ids.length * Math.PI * 2; p.x = F.x + Math.cos(an) * 26; p.y = F.y + Math.sin(an) * 16 + 4; p.vx = p.vy = 0; }
+    sfx('whistle_fab'); if (G.audio && G.audio.sfx) G.audio.sfx('vibrate');
+  }
+  function meetList() { return [{ id: L.id, name: myName() + ' (ти)' }].concat(Object.values(R.avs).map((a) => ({ id: a.info.id, name: a.info.name, info: a.info }))).filter((x) => R.ps[x.id] && R.ps[x.id].st !== 'out').concat([{ id: 'skip', name: 'ПРОПУСТИТИ' }]); }
+  function meetRects() {
+    const list = meetList(), W = VW(), cols = Math.min(3, list.length), cw = 108, ch = 40, gx = 8;
+    return list.map((it, i) => { const row = Math.floor(i / cols), col = i % cols, n = Math.min(cols, list.length - row * cols), x0 = Math.round(W / 2 - (n * cw + (n - 1) * gx) / 2); return { it, r: { x: x0 + col * (cw + gx), y: 70 + row * (ch + 8), w: cw, h: ch } }; });
+  }
+  function vote(v) {
+    const me = R.ps[L.id]; if (!R.meet || R.myVote || !me || me.st === 'out') return;
+    R.myVote = v; sfx('click');
+    if (L.host) hostVote(L.id, v); else send({ t: 'vote', v });
+  }
+  function meetUpdate(dt) {
+    if (R.end) { if (R.verdict && R.verdict.t > 0) { R.verdict.t -= dt; return; } endUpdate(dt); return; }
+    if (R.verdict) { R.verdict.t -= dt; if (R.verdict.t <= 0) { R.verdict = null; R.meet = null; R.meetCd = MEET_CD; } return; }
+    if (!R.meet) return;
+    if (!L.host) R.meet.left -= dt;
+    const I = G.input, m = I.mouse, rs = meetRects();
+    if (I.pressed('left')) R.sel = (R.sel + rs.length - 1) % rs.length;
+    if (I.pressed('right')) R.sel = (R.sel + 1) % rs.length;
+    for (let i = 0; i < rs.length; i++) { const r = rs[i].r; if (m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h) { R.sel = i; if (m.clicked) { m.clicked = false; vote(rs[i].it.id); return; } } }
+    if (I.pressed('confirm') || I.pressed('attack')) { I.consume('confirm'); I.consume('attack'); if (rs[R.sel]) vote(rs[R.sel].it.id); }
+  }
+  function verdict(m) {
+    if (!R.meet) R.meet = { left: 0 };
+    const nm = m.id ? (m.id === L.id ? 'ТЕБЕ' : (R.avs[m.id] ? R.avs[m.id].info.name : '?')) : null;
+    R.verdict = { t: 3.5, text: nm ? nm + ' вигнали…' : 'Нікого не вигнали', sub: nm ? (m.role === 'stukach' ? 'ЦЕ БУВ СТУКАЧ!' : 'Це був звичайний втікач.') : 'Голоси розділились', bad: m.role === 'stukach' };
+    if (m.id && R.ps[m.id]) R.ps[m.id].st = 'out';
+    sfx(m.role === 'stukach' ? 'goal' : 'hit');
+  }
+
+  // ═══════════════ кінець раунду ═══════════════
+  function showEnd(m) {
+    if (!SK.inGame) return;
+    const skName = m.sk === L.id ? 'ТИ' : (R.avs[m.sk] ? R.avs[m.sk].info.name : '?');
+    const iWon = (m.w === 'stukach') === (R.role === 'stukach');
+    R.end = { w: m.w, why: m.why, sk: skName, won: iWon, t: 0 };
+    for (const id in R.grabs) stopGrab(id, false);
+    sfx(iWon ? 'goal' : 'hit');
+    if (G.progress && G.progress.addMoney) G.progress.addMoney(iWon ? 40 : 15);
+  }
+  const endBtn = () => ({ x: VW() / 2 - 70, y: VH() - 46, w: 140, h: 24 });
+  function endUpdate(dt) {
+    R.end.t += dt;
+    const I = G.input, m = I.mouse, b = endBtn();
+    if (R.end.t > 1.2 && ((m.clicked && m.x >= b.x && m.x < b.x + b.w && m.y >= b.y && m.y < b.y + b.h) || I.pressed('confirm') || I.pressed('attack'))) {
+      I.consume('confirm'); I.consume('attack'); m.clicked = false;
+      endLocal(); G.setState('stukach');
+    }
+  }
+
+  // ═══════════════ HUD ═══════════════
+  const actBtn = () => ({ x: VW() - 78 - ((G.safe && G.safe.s) || 0), y: VH() - 132, w: 66, h: 26 });
+  SK.tap = function (x, y) {
+    if (!SK.inGame || R.meet || R.end) return false;
+    const b = actBtn();
+    if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h && actLabel()) { act(); return true; }
+    return false;
+  };
+  function actLabel() {
+    const me = R.ps[L.id]; if (!me || me.st !== 'ok') return null;
+    if (nearFountain() && R.meetCd <= 0) return 'ЗБОРИ';
+    if (R.role === 'stukach') return R.cd > 0 ? 'ЗДАТИ ' + Math.ceil(R.cd) : 'ЗДАТИ';
+    return null;
+  }
+  function edgeArrow(ctx, tx, ty, col, label) {
+    const U = G.ui.gfx, r = G.camera.rect(), W = VW(), H = VH();
+    const sx = (tx - r.x) * W / r.w, sy = (ty - r.y) * H / r.h;
+    if (sx > 8 && sx < W - 8 && sy > 24 && sy < H - 8) { U.text(ctx, label, Math.round(sx), Math.round(sy) - 28, { size: 7, align: 'center', color: col, outline: '#120a18' }); return; }
+    const cx = W / 2, cy = H / 2, dx = sx - cx, dy = sy - cy;
+    const k = Math.min((W / 2 - 16) / Math.abs(dx || 1e-3), (H / 2 - 24) / Math.abs(dy || 1e-3));
+    const ax = cx + dx * k, ay = cy + dy * k, an = Math.atan2(dy, dx);
+    ctx.save(); ctx.translate(Math.round(ax), Math.round(ay)); ctx.rotate(an);
+    ctx.fillStyle = '#120a18'; ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, -7); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(-4, -5); ctx.lineTo(-4, 5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    U.text(ctx, label, Math.round(ax - Math.cos(an) * 16), Math.round(ay - Math.sin(an) * 16) - 4, { size: 7, align: 'center', color: col, outline: '#120a18' });
+  }
+  function panel(ctx, x, y, w, h, border) { const U = G.ui.gfx; U.rect(ctx, border || '#120a18', x - 1, y - 1, w + 2, h + 2); U.rect(ctx, 'rgba(30,20,40,0.94)', x, y, w, h); }
+  function hud(ctx) {
+    const U = G.ui.gfx, W = VW(), H = VH(), st = (G.safe && G.safe.t) || 0;
+    const isSk = R.role === 'stukach', me = R.ps[L.id];
+    // верх: роль, шкала справ, час
+    const left = Math.max(0, ROUND - R.time), clock = Math.floor(left / 60) + ':' + String(Math.floor(left % 60)).padStart(2, '0');
+    const bw = 170, bx = Math.round(W / 2 - bw / 2), by = 4 + st;
+    panel(ctx, bx, by, bw, 22, isSk ? '#c8302a' : '#120a18');
+    U.text(ctx, isSk ? 'ТИ — СТУКАЧ' : 'ТИ — ВТІКАЧ', bx + 5, by + 2, { size: 7, color: isSk ? '#ff7a6a' : '#93c25b' });
+    U.text(ctx, clock, bx + bw - 5, by + 2, { size: 7, align: 'right', color: left < 60 ? '#ff6050' : '#fde98f' });
+    const k = Math.min(1, R.prog / Math.max(1, R.total));
+    U.rect(ctx, '#120a18', bx + 5, by + 13, bw - 10, 6); U.rect(ctx, '#4a8a3a', bx + 6, by + 14, Math.round((bw - 12) * k), 4);
+    U.text(ctx, 'СПРАВИ ' + R.prog + '/' + R.total, W / 2, by + 12, { size: 7, align: 'center', color: '#fbf6ea', outline: '#120a18' });
+    // мої справи (ліворуч)
+    const ly = 46 + st;
+    panel(ctx, 6, ly, 118, 12 + R.tasks.length * 11);
+    U.text(ctx, isSk ? 'ВДАВАЙ, ЩО РОБИШ:' : 'ТВОЇ СПРАВИ:', 10, ly + 2, { size: 7, color: isSk ? '#ff9a7a' : '#fde98f' });
+    R.tasks.forEach((tk, i) => { U.text(ctx, (tk.done ? '✓ ' : '· ') + TASKS[tk.i][1], 10, ly + 12 + i * 11, { size: 7, color: tk.done ? '#6a8a5a' : '#e8dcc8' }); });
+    // стрілки до справ
+    if (me && me.st === 'ok') for (const tk of R.tasks) if (!tk.done) { const q = G.missions.poi(TASKS[tk.i][0]); if (q) edgeArrow(ctx, q.x, q.y, '#fde98f', TASKS[tk.i][1]); }
+    // скручені друзі
+    for (const id in R.ps) if (R.ps[id].st === 'caught' && id !== L.id && R.avs[id]) edgeArrow(ctx, R.avs[id].x, R.avs[id].y, '#ff6050', 'ВІДБИЙ ' + R.avs[id].info.name);
+    // процес справи
+    if (R.holdI >= 0) { const w = 90, x = Math.round(W / 2 - w / 2), y = Math.round(H / 2 + 26); U.rect(ctx, '#120a18', x - 1, y - 1, w + 2, 8); U.rect(ctx, '#f7c948', x, y, Math.round(w * R.holdT / HOLD), 6); U.text(ctx, TASKS[R.tasks[R.holdI].i][1] + '…', W / 2, y - 11, { size: 7, align: 'center', color: '#fde98f', outline: '#120a18' }); }
+    // кнопка дії
+    const lab = actLabel();
+    if (lab) {
+      const b = actBtn(), on = lab === 'ЗБОРИ' || (isSk && R.cd <= 0);
+      U.rect(ctx, '#120a18', b.x - 1, b.y - 1, b.w + 2, b.h + 2); U.rect(ctx, on ? (lab === 'ЗБОРИ' ? '#3482b4' : '#c8302a') : '#4a3a4a', b.x, b.y, b.w, b.h);
+      U.rect(ctx, 'rgba(255,255,255,0.3)', b.x, b.y, b.w, 1);
+      U.text(ctx, lab, b.x + b.w / 2, b.y + 8, { size: 8, align: 'center', color: '#fff8e0' });
+      if (!(G.touch && G.touch.active)) U.text(ctx, 'E', b.x + b.w - 4, b.y + 1, { size: 7, align: 'right', color: 'rgba(255,255,255,0.6)' });
+    }
+    if (nearFountain() && R.meetCd > 0 && me && me.st === 'ok') U.text(ctx, 'Збори через ' + Math.ceil(R.meetCd) + ' с', W / 2, H - 40, { size: 7, align: 'center', color: '#8fc7e4', outline: '#120a18' });
+    // стан
+    let msg = null;
+    if (me && me.st === 'caught') msg = 'ТЕБЕ ЗДАЛИ! Чекай — хтось може відбити (' + Math.max(0, Math.ceil(CAUGHT_MAX - (R.caughtTc[L.id] || 0))) + 'с)';
+    else if (me && me.st === 'out') msg = 'Тебе забрали. Ти привид — просто дивись.';
+    if (msg) { const w = U.measure(msg, 8) + 14, x = Math.round(W / 2 - w / 2), y = Math.round(H / 2 - 40); panel(ctx, x, y, w, 16); U.text(ctx, msg, W / 2, y + 4, { size: 8, align: 'center', color: '#ff9a7a' }); }
+    // показ ролі на старті
+    if (R.reveal > 0 && R.role) {
+      const a = Math.min(1, R.reveal / 0.6, (4.5 - R.reveal) / 0.3);
+      ctx.save(); ctx.globalAlpha = a;
+      U.rect(ctx, 'rgba(10,6,16,0.85)', 0, 0, W, H);
+      U.text(ctx, 'ТВОЯ РОЛЬ', W / 2, H / 2 - 50, { size: 10, align: 'center', color: '#b4abb2' });
+      U.text(ctx, isSk ? 'СТУКАЧ' : 'ВТІКАЧ', W / 2, H / 2 - 30, { size: 27, align: 'center', color: isSk ? '#ff5a4a' : '#93c25b', outline: '#120a18' });
+      U.text(ctx, isSk ? 'Здавай втікачів ТЦК і не спались. Вдавай, що робиш справи.' : 'Зроби свої справи по місту. Один із вас — стукач!', W / 2, H / 2 + 10, { size: 8, align: 'center', color: '#e8dcc8' });
+      ctx.restore();
+    }
+    if (R.meet || R.end) meetDraw(ctx);
+  }
+  function meetDraw(ctx) {
+    const U = G.ui.gfx, W = VW(), H = VH();
+    U.rect(ctx, 'rgba(10,6,16,0.86)', 0, 0, W, H);
+    if (R.end && !(R.verdict && R.verdict.t > 0)) {
+      const e = R.end;
+      U.text(ctx, e.won ? 'ПЕРЕМОГА!' : 'ПОРАЗКА', W / 2, 30, { size: 27, align: 'center', color: e.won ? '#93c25b' : '#ff5a4a', outline: '#120a18' });
+      U.text(ctx, e.w === 'stukach' ? 'Переміг СТУКАЧ' : 'Перемогли ВТІКАЧІ', W / 2, 70, { size: 10, align: 'center', color: '#fde98f' });
+      U.text(ctx, e.why || '', W / 2, 88, { size: 8, align: 'center', color: '#e8dcc8' });
+      U.text(ctx, 'Стукачем був: ' + e.sk, W / 2, 112, { size: 10, align: 'center', color: '#ff9a7a', outline: '#120a18' });
+      U.text(ctx, e.won ? '+40 грн' : '+15 грн', W / 2, 134, { size: 8, align: 'center', color: '#93c25b' });
+      if (e.t > 1.2) U.button(ctx, endBtn(), 'В КІМНАТУ', true, { size: 8 });
+      return;
+    }
+    if (R.verdict) {
+      const v = R.verdict;
+      U.text(ctx, v.text, W / 2, H / 2 - 30, { size: 18, align: 'center', color: '#fde98f', outline: '#120a18' });
+      U.text(ctx, v.sub, W / 2, H / 2, { size: 10, align: 'center', color: v.bad ? '#93c25b' : '#ff9a7a' });
+      return;
+    }
+    const by = R.meet.by === L.id ? 'ти' : (R.avs[R.meet.by] ? R.avs[R.meet.by].info.name : 'хтось');
+    U.text(ctx, 'ЗБОРИ', W / 2, 10, { size: 24, align: 'center', color: '#8fc7e4', outline: '#120a18' });
+    U.text(ctx, 'Скликав: ' + by + ' · Хто стукач? Обговоріть і голосуйте · ' + Math.max(0, Math.ceil(R.meet.left)) + ' с', W / 2, 44, { size: 7, align: 'center', color: '#e8dcc8' });
+    const rs = meetRects(), me = R.ps[L.id];
+    rs.forEach((o, i) => {
+      const r = o.r, f = i === R.sel, mine = R.myVote === o.it.id;
+      U.rect(ctx, mine ? '#fde98f' : f ? '#8fc7e4' : '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+      U.rect(ctx, o.it.id === 'skip' ? 'rgba(60,50,70,0.95)' : 'rgba(36,24,48,0.95)', r.x, r.y, r.w, r.h);
+      if (o.it.id !== 'skip') {
+        const info = o.it.id === L.id ? { skin: mySkin(), outfit: myOutfit() } : o.it.info;
+        const O = G.outfit, prev = O ? O.override : null; let img = null;
+        try { if (O) O.override = (info && info.outfit) || null; img = G.sprites.get('player', { skin: (info && info.skin) || 'office', dir: 'down', frame: 0 }); } catch (e) { img = null; } finally { if (O) O.override = prev; }
+        if (img) ctx.drawImage(img, r.x + 6, r.y + r.h - img.height - 4);
+        const caught = R.ps[o.it.id] && R.ps[o.it.id].st === 'caught';
+        U.text(ctx, o.it.name, r.x + 28, r.y + 8, { size: 7, color: caught ? '#ff9a7a' : '#fbf6ea' });
+        if (caught) U.text(ctx, 'скручений', r.x + 28, r.y + 20, { size: 7, color: '#ff6050' });
+      } else U.text(ctx, o.it.name, r.x + r.w / 2, r.y + 15, { size: 8, align: 'center', color: '#b4abb2' });
+      if (mine) U.text(ctx, 'твій голос', r.x + r.w - 4, r.y + r.h - 11, { size: 7, align: 'right', color: '#fde98f' });
+    });
+    U.text(ctx, me && me.st === 'out' ? 'Привиди не голосують' : R.myVote ? 'Голос віддано. Чекаємо інших…' : 'Торкнись того, кого виганяємо', W / 2, H - 22, { size: 8, align: 'center', color: 'rgba(255,255,255,0.7)' });
+  }
+  if (G.ui && G.ui.drawHUD) {
+    const dh = G.ui.drawHUD.bind(G.ui);
+    G.ui.drawHUD = function (ctx) { dh(ctx); if (!SK.inGame || !G.player) return; try { hud(ctx); } catch (e) { console.error('stukach hud', e); } };
+  }
+
+  // ═══════════════ Екран «СТУКАЧ» (кімната) ═══════════════
+  if (G.STATES.indexOf('stukach') < 0) G.STATES.push('stukach');
+  function lbBtns() {
+    const cx = VW() / 2;
+    if (!L.sig) return [
+      { id: 'create', label: 'СТВОРИТИ КІМНАТУ', r: { x: cx - 150, y: 150, w: 140, h: 30 } },
+      { id: 'join', label: 'ВВЕСТИ КОД', r: { x: cx + 10, y: 150, w: 140, h: 30 } },
+      { id: 'back', label: 'НАЗАД', r: { x: cx - 50, y: 226, w: 100, h: 20 } },
+    ];
+    const out = [];
+    if (L.host) out.push({ id: 'go', label: 'ПОЧАТИ (' + L.roster.length + '/5)', r: { x: cx - 80, y: 196, w: 160, h: 24 } });
+    out.push({ id: 'leave', label: 'Вийти з кімнати', r: { x: cx - 65, y: 228, w: 130, h: 18 } });
+    return out;
+  }
+  function lbAct(id) {
+    sfx('click');
+    const named = (fn) => { if (!G.online || !G.online.name) G.online && G.online.askName((ok) => { if (ok) fn(); }); else fn(); };
+    if (id === 'back') { G.setState('menu'); return; }
+    if (id === 'create') named(create);
+    else if (id === 'join') named(() => C._askCode((code) => { if (code) join(code); }));
+    else if (id === 'leave') leave();
+    else if (id === 'go') { if (L.roster.length < (TEST2 ? 2 : 3)) toast('Потрібно щонайменше 3 гравці', 2000); else hostStart(); }
+  }
+  G.scenes.stukach = {
+    enter() { L.t = 0; L.focus = 0; if (G.ui) G.ui.reset(); if (SK.inGame) endLocal(); },
+    exit() {},
+    update(dt, realDt) {
+      L.t += realDt || dt;
+      if (document.querySelector('input:focus')) return;
+      const I = G.input, m = I.mouse, bs = lbBtns();
+      if (L.focus >= bs.length) L.focus = 0;
+      if (I.pressed('pause')) { I.consume('pause'); if (L.sig) leave(); else { sfx('click'); G.setState('menu'); } return; }
+      if (I.pressed('left') || I.pressed('up')) L.focus = (L.focus + bs.length - 1) % bs.length;
+      if (I.pressed('right') || I.pressed('down')) L.focus = (L.focus + 1) % bs.length;
+      for (let i = 0; i < bs.length; i++) { const r = bs[i].r; if (m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h) { L.focus = i; if (m.clicked) { lbAct(bs[i].id); return; } } }
+      if (I.pressed('confirm') || I.pressed('attack')) lbAct(bs[L.focus].id);
+    },
+    draw(ctx) {
+      const U = G.ui.gfx, W = VW(), H = VH(), cx = W / 2;
+      U.rect(ctx, '#1c1428', 0, 0, W, H);
+      for (let y = 0; y < H; y += 8) U.rect(ctx, 'rgba(192,138,240,0.035)', 0, y, W, 4);
+      U.text(ctx, 'СТУКАЧ', cx, 10, { size: 27, align: 'center', color: '#c08af0', outline: '#120a18', shadow: true });
+      U.text(ctx, '3–5 друзів. Один із вас таємно здає всіх ТЦК.', cx, 44, { size: 8, align: 'center', color: '#e8dcc8' });
+      if (!C.enabled) { U.text(ctx, 'Онлайн зараз недоступний', cx, 120, { size: 10, align: 'center', color: '#ff9a7a' }); }
+      if (!L.sig) {
+        const rules = ['Втікачі: зробіть свої справи по місту — шкала спільна.', 'Стукач: вдавай, що робиш справи, і тисни «ЗДАТИ» поруч з кимось.', 'Скрученого друга відбивай — постій поруч 2 секунди.', 'Підозрюєш? Біжи до фонтану і тисни «ЗБОРИ» — голосуйте!'];
+        rules.forEach((t, i) => U.text(ctx, t, cx, 66 + i * 14, { size: 7, align: 'center', color: i ? '#b4abb2' : '#93c25b' }));
+      } else {
+        U.text(ctx, 'КОД КІМНАТИ', cx, 60, { size: 8, align: 'center', color: '#b4abb2' });
+        U.text(ctx, L.room.split('').join(' '), cx, 72, { size: 24, align: 'center', color: '#fde98f', outline: '#120a18', shadow: true });
+        const ps = L.roster, cw = 64, x0 = Math.round(cx - (5 * cw) / 2);
+        for (let i = 0; i < 5; i++) {
+          const p = ps[i], x = x0 + i * cw;
+          U.rect(ctx, '#120a18', x + 4, 104, cw - 8, 66); U.rect(ctx, p ? 'rgba(52,36,66,0.95)' : 'rgba(36,26,46,0.6)', x + 5, 105, cw - 10, 64);
+          if (p) {
+            const O = G.outfit, prev = O ? O.override : null; let img = null;
+            try { if (O) O.override = p.outfit || null; img = G.sprites.get('player', { skin: p.skin || 'office', dir: 'down', frame: Math.floor(G.realTime * 5 + i) % 4 }); } catch (e) { img = null; } finally { if (O) O.override = prev; }
+            if (img) ctx.drawImage(img, Math.round(x + cw / 2 - img.width), 152 - img.height * 2, img.width * 2, img.height * 2);
+            let nm = p.name || '?'; while (nm.length > 3 && U.measure(nm, 7) > cw - 12) nm = nm.slice(0, -2) + '.';
+            U.text(ctx, nm, x + cw / 2, 158, { size: 7, align: 'center', color: p.id === L.id ? '#fde98f' : '#e8dcc8' });
+          } else U.text(ctx, '?', x + cw / 2, 124, { size: 18, align: 'center', color: 'rgba(255,255,255,0.18)' });
+        }
+        const st = L.host ? (L.roster.length < (TEST2 ? 2 : 3) ? 'Скинь код друзям — потрібно ще ' + ((TEST2 ? 2 : 3) - L.roster.length) : 'Можна починати!') : L.status === 'in' ? 'Чекаємо, поки хост почне…' : L.status === 'full' ? 'Кімната повна або гра вже йде' : L.status === 'nobody' ? 'Кімнату не знайдено' : 'Підключаємось…';
+        U.text(ctx, st, cx, 178, { size: 8, align: 'center', color: '#93c25b' });
+      }
+      const bs = lbBtns();
+      bs.forEach((b, i) => U.button(ctx, b.r, b.label, i === L.focus, { size: 8 }));
+    },
+  };
 })();
 
 
