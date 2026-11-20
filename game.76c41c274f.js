@@ -1151,6 +1151,8 @@
     const rec = { kind: 'tap', btn: null, cx: t.clientX, cy: t.clientY };
     T.touches[id] = rec;
     if (st === 'play' && G.brawl && G.brawl.grab) { rec.kind = 'none'; pulse('attack'); return; } // Round 22: захват — тап будь-де
+    // гра вдвох: друг обирає перк поверх гри — тап по картці = клік (кожен обирає собі сам)
+    if (st === 'play' && G.coop && G.coop.picking) { I.tap(t.clientX, t.clientY, { type: 'touchstart', code: '' }); I.mouse.down = true; return; }
     if (st === 'play') {
       if (inR(lx, ly, PAUSE(), 6)) { rec.kind = 'pause'; pulse('pause'); return; }
       layout();
@@ -37267,7 +37269,11 @@
     const img = origGet(key, opts);
     const portrait = key === 'portrait' && opts && opts.type === 'player';
     if ((key !== 'player' && !portrait) || !img || (opts && opts.layer === 'glow')) return img;
-    const o = O.current(), k = o.hat + '|' + o.beard + '|' + o.top + '|' + (portrait ? 'P' : (opts && opts.dir) || 'down');
+    let o = O.current();
+    // скін (Спортик, Кур'єр, Боксер…) — це вже повний одяг: верх з гардеробу лише на «Офісному» (інакше зимова куртка ховає скін)
+    const sk = opts && (opts.skin || opts.variant);
+    if (sk && sk !== 'office' && o.top && o.top !== 'top_shirt') o = Object.assign({}, o, { top: 'top_shirt' });
+    const k = o.hat + '|' + o.beard + '|' + o.top + '|' + (portrait ? 'P' : (opts && opts.dir) || 'down');
     let m = cache.get(img);
     if (!m) { m = {}; cache.set(img, m); }
     if (m[k]) return m[k];
