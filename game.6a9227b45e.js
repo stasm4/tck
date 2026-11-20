@@ -37553,7 +37553,12 @@
   try { const raw = localStorage.getItem(LS); if (raw) st = Object.assign(st, JSON.parse(raw)); } catch (e) {}
   if (!st.id) st.id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
   if (!st.v2) { st.v2 = 1; st.sent = 0; st.pend = null; } // таблицю очищено перед релізом — рахуємо відправлене з нуля
-  const persist = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {} };
+  // резервна копія ніку й id у cookie (деякі вбудовані браузери — Telegram, TikTok — стирають localStorage)
+  const CK = 'tck_nick';
+  function ckGet() { try { const m = document.cookie.match(/(?:^|; )tck_nick=([^;]*)/); return m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) { return null; } }
+  function ckSet() { try { if (st.name) document.cookie = CK + '=' + encodeURIComponent(JSON.stringify({ n: st.name, id: st.id })) + ';path=/;max-age=' + 60 * 60 * 24 * 400 + ';SameSite=Lax'; } catch (e) {} }
+  if (!st.name) { const c = ckGet(); if (c && c.n) { st.name = String(c.n).slice(0, 16); if (c.id) st.id = c.id; } }
+  const persist = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {} ckSet(); };
   persist();
 
   // той самий список, що й на сервері (esc_name_ok у online/supabase.sql)
@@ -37619,6 +37624,7 @@
     runTok = null; persist();
     return submitPend();
   }
+  function autoName() { if (!st.name) { st.name = 'Втікач ' + (1000 + Math.floor(Math.random() * 9000)); persist(); } return st.name; }
   function setName(n) {
     const c = cleanName(n);
     if (!c) return false;
@@ -37635,6 +37641,7 @@
   let box = null;
   function askName(done) {
     if (box) return;
+    st.asked = 1; persist();
     box = document.createElement('div');
     box.style.cssText = 'position:fixed;inset:0;z-index:99;display:flex;align-items:center;justify-content:center;background:rgba(12,6,18,.78);font-family:monospace';
     box.innerHTML = '<div style="background:#24142a;border:3px solid #fde98f;box-shadow:0 0 0 3px #120a18;padding:18px 18px 14px;width:min(320px,86vw);color:#fbf6ea;text-align:center">' +
@@ -37661,7 +37668,7 @@
 
   G.online = {
     get enabled() { return enabled; }, get name() { return st.name; }, get device() { return st.id; },
-    get data() { return L; }, cfg: enabled ? { url: SUPA_URL, key: SUPA_KEY } : null, setName, submit, refresh, askName, cleanName,
+    get data() { return L; }, cfg: enabled ? { url: SUPA_URL, key: SUPA_KEY } : null, setName, autoName, get asked() { return !!st.asked; }, submit, refresh, askName, cleanName,
   };
 
   // ── старт забігу ВТЕЧІ: взяти номер забігу на сервері ──
@@ -37703,7 +37710,7 @@
       LD.t = 0; LD.scroll = 0; LD.focus = 0;
       if (G.ui) G.ui.reset();
       if (!enabled) return;
-      if (!st.name) askName(() => {});
+      if (!st.name && !st.asked) { st.asked = 1; persist(); askName(() => {}); }
       if (st.name && st.pend) submitPend();
       else if (Date.now() - L.at > 15000 || L.status !== 'ok') refresh();
     },
@@ -38754,7 +38761,13 @@
     out.push({ id: 'cancel', label: bad ? 'Назад до кімнат' : 'Вийти з кімнати', r: { x: cx - 65, y: H - 30, w: 130, h: 20 } });
     return out;
   }
-  function needName(fn) { if (!G.online || G.online.name) fn(); else G.online.askName((ok) => { if (ok) fn(); }); }
+  // нік питаємо лише раз; відмовився — граєш під автоніком («Втікач 1234»), змінити можна в «Лідерах»
+  function needName(fn) {
+    const O = G.online;
+    if (!O || O.name) { fn(); return; }
+    if (O.asked && O.autoName) { O.autoName(); fn(); return; }
+    O.askName((ok) => { if (!ok && O.autoName) O.autoName(); fn(); });
+  }
   function lbAct(id, b) {
     sfx('click');
     if (id === 'back') { closeLobby(); G.setState('menu'); return; }
