@@ -19093,7 +19093,7 @@
       try { camUpd.call(this, dt); } finally { this.target = tg; }
     } else camUpd.call(this, dt);
     // Round 35: запобіжник — у грі герой завжди в центральній частині кадру (не під кнопками/панелями й не за краєм)
-    if (p && G.state === 'play' && !p.hidden && !p.riding && !(G.cutscene && G.cutscene.active)) {
+    if (p && G.state === 'play' && !p.hidden && !p.riding && !(G.cutscene && G.cutscene.active) && !(tg && tg !== p && tg.kind)) { // гра онлайн: камера стежить за іншим гравцем — не тягнемо до себе
       const z = this.zoom || 1, touch = G.touch && G.touch.active;
       const mx = (G.cfg.VIEW_W / 2) * (touch ? 0.42 : 0.55) / z, my = (G.cfg.VIEW_H / 2) * (touch ? 0.38 : 0.5) / z;
       if (p.x - this.x > mx) this.x = p.x - mx; else if (this.x - p.x > mx) this.x = p.x + mx;
@@ -38327,7 +38327,7 @@
     hostDown = { t: 0, rev: 0 };
     if (G.tck && G.tck.chaseActive && G.tck.endChase) try { G.tck.endChase(false, 'caught'); } catch (e) {}
     if (G.ui && G.ui.bigText) G.ui.bigText('СКРУТИЛИ!', 1200);
-    toast('Тебе скрутили! Чекай — команда може відбити!', 2600); sfx('hit');
+    sfx('hit');
     msgAll(myName() + ' скрутили! Біжи відбий!');
   }
   function allDown() { return !hostUp() && !buddiesUp().length; }
@@ -38362,7 +38362,7 @@
           sfx('pickup'); toast('ТЕБЕ ВІДБИЛИ! Тікай!', 2000); msgAll('ВІДБИЛИ ' + myName().toUpperCase() + '!');
         }
       } else hostDown.rev = Math.max(0, hostDown.rev - dt * 2);
-      if (hostDown && hostDown.t > REV_MAX) { hostDown = null; hostOut = true; toast('Тебе забрали… Дивись, як тікає команда', 3000); msgAll(myName() + ' забрали в бус…'); }
+      if (hostDown && hostDown.t > REV_MAX) { hostDown = null; hostOut = true; msgAll(myName() + ' забрали в бус…'); }
     }
     // забрали хоста — камера на когось із команди
     if (hostOut && G.camera) {
@@ -38375,6 +38375,26 @@
       if (allDownT > 1.6) { ending = true; if (G.ui && G.ui.bigText) G.ui.bigText('УСІХ СКРУТИЛИ!', 1500); G.endRun('caught'); }
     } else allDownT = 0;
   }
+
+  // ── свій герой у грі онлайн: скрутили — лежить на землі, забрали — зник (повезли в бус) ──
+  setTimeout(() => {
+    const PP = G.Player && G.Player.prototype; if (!PP || !PP.draw || PP._coopDraw) return;
+    PP._coopDraw = true;
+    const od = PP.draw;
+    PP.draw = function (ctx) {
+      if (!C.inGame || this !== G.player) return od.call(this, ctx);
+      const out = C.role === 'host' ? hostOut : guestOut;
+      if (out) return;
+      const down = C.role === 'host' ? !!hostDown : guestCaught;
+      if (!down) return od.call(this, ctx);
+      const fx = Math.round(this.x), fy = Math.round(this.y + this.h / 2) - 2;
+      ctx.save(); ctx.translate(fx, fy); ctx.rotate(Math.PI / 2); ctx.translate(-fx, -fy - 3);
+      const inv = this.invuln; this.invuln = 0;
+      try { od.call(this, ctx); } finally { this.invuln = inv; ctx.restore(); }
+      const bc = C.role === 'host' ? (hostDown ? [hostDown.t, hostDown.rev] : null) : myBc;
+      if (bc) revRing(ctx, fx, fy - 18, bc[0], bc[1]);
+    };
+  }, 0);
 
   // ═══════════════ ГІСТЬ ═══════════════
   const mirrors = new Map(), busM = new Map(), avs = new Map(); // avs: 'H' — хост, інакше id гостя
@@ -38480,11 +38500,11 @@
     else if (d.t === 'revive' && p) {
       guestCaught = false; p.caught = false; p.hp = Math.max(1, Math.ceil((p.maxHp || 3) / 2)); p.invuln = 2.5;
       sfx('pickup'); toast('ТЕБЕ ВІДБИЛИ! Тікай!', 2000);
-    } else if (d.t === 'out') { guestOut = true; toast('Тебе забрали в бус… Дивись, як тікає команда', 3200); }
+    } else if (d.t === 'out') { guestOut = true; }
     else if (d.t === 'end') guestEnd(d.stats || {});
   }
   // гість: локальне «скрутили» не закінчує гру — чекаємо порятунку
-  G.events.on('player:caught', () => { if (C.role === 'guest' && C.inGame && !guestCaught) { guestCaught = true; sendTo(hostP(), { t: 'caught' }); toast('Тебе скрутили! Чекай — команда може відбити!', 2600); } });
+  G.events.on('player:caught', () => { if (C.role === 'guest' && C.inGame && !guestCaught) { guestCaught = true; sendTo(hostP(), { t: 'caught' }); } });
   if (G.cutscene && G.cutscene.play) {
     const cp = G.cutscene.play.bind(G.cutscene);
     G.cutscene.play = function (name, done) {
@@ -38714,7 +38734,7 @@
     U.text(ctx, ln, W / 2, ly, { size: 7, align: 'center', color: direct ? '#c8e6a8' : '#ef8a3b' });
     if (C.role === 'host') {
       if (hostDown) banner(ctx, 'СКРУТИЛИ! Чекай — команда може відбити (' + Math.max(0, Math.ceil(REV_MAX - hostDown.t)) + 'с)', true);
-      else if (hostOut) banner(ctx, 'Тебе забрали… Команда ще тікає', true);
+      else if (hostOut) banner(ctx, 'Тебе забрали в бус… Дивись, як тікає команда', true);
       return;
     }
     const s = N.snap, m = s && s.m;
@@ -38728,7 +38748,7 @@
       if (m.g && !m.cl) edgeArrow(ctx, m.g[0], m.g[1], '#8fc7e4', 'ЕВАКУАЦІЯ');
     }
     let msg = null;
-    if (guestOut) msg = 'Тебе забрали… Команда ще тікає';
+    if (guestOut) msg = 'Тебе забрали в бус… Дивись, як тікає команда';
     else if (guestCaught) msg = 'СКРУТИЛИ! Чекай — команда може відбити' + (myBc ? ' (' + Math.max(0, Math.ceil(REV_MAX - myBc[0])) + 'с)' : '');
     else if (N.hostState === 'perk' && !pick) msg = hostName() + ' обирає перк…';
     else if (N.hostState === 'paused') msg = hostName() + ' на паузі';
