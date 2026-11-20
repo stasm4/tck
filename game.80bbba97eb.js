@@ -24391,11 +24391,11 @@
   // Round 11: ГРАТИ (кампанія, ◀ ▶ — місія, E / ☰ — екран місій) · ВТЕЧА · ЩОДЕННА · ПРОКАЧКА · ГАРДЕРОБ · КРАМНИЦЯ · КЕРУВАННЯ
   const MENU_X = 14, MENU_W = 190;
   // Round 21: велика картка ГРАТИ + сітка 2×3 з іконками + рядок КЕРУВАННЯ
-  const MENU_ICON = { heroes: 'person', escape: 'run', daily: 'cal', upgrades: 'fist', wardrobe: 'shirt', shop: 'coin', controls: 'gear', leaders: 'star', coop: 'person' };
-  const MENU_COL = { heroes: '#e5483c', escape: '#f7c948', daily: '#93c25b', upgrades: '#ef8a3b', wardrobe: '#8fc7e4', shop: '#f7c948', controls: '#b4abb2', leaders: '#f7c948', coop: '#93c25b' };
+  const MENU_ICON = { settings: 'gear', heroes: 'person', escape: 'run', daily: 'cal', upgrades: 'fist', wardrobe: 'shirt', shop: 'coin', controls: 'gear', leaders: 'star', coop: 'person' };
+  const MENU_COL = { settings: '#b4abb2', heroes: '#e5483c', escape: '#f7c948', daily: '#93c25b', upgrades: '#ef8a3b', wardrobe: '#8fc7e4', shop: '#f7c948', controls: '#b4abb2', leaders: '#f7c948', coop: '#93c25b' };
   // Round 34: ГРАТИ (сюжет) і РЕЖИМИ — великі картки; знизу — док з 6 іконок (Герої, Гардероб, Крамниця, Прокачка, Лідери, ⚙)
-  const DOCK = ['heroes', 'wardrobe', 'shop', 'upgrades', 'leaders', 'controls'];
-  const DOCK_LABEL = { heroes: 'ГЕРОЇ', wardrobe: 'ГАРДЕРОБ', shop: 'КРАМНИЦЯ', upgrades: 'ПРОКАЧКА', leaders: 'ЛІДЕРИ', controls: 'КЕРУВАННЯ' };
+  const DOCK = ['heroes', 'wardrobe', 'shop', 'upgrades', 'leaders', 'settings'];
+  const DOCK_LABEL = { heroes: 'ГЕРОЇ', wardrobe: 'ГАРДЕРОБ', shop: 'КРАМНИЦЯ', upgrades: 'ПРОКАЧКА', leaders: 'ЛІДЕРИ', controls: 'КЕРУВАННЯ', settings: 'НАЛАШТУВАННЯ' };
   function menuItems() {
     const it = [{ id: 'start', label: 'ГРАТИ', r: { x: MENU_X, y: 42, w: MENU_W - 26, h: 40 } },
       { id: 'modes', label: 'РЕЖИМИ', r: { x: MENU_X, y: 88, w: MENU_W, h: 44 } }];
@@ -24421,6 +24421,7 @@
     else if (id === 'upgrades' && G.scenes.upgrades) { click(); G.setState('upgrades'); }
     else if (id === 'wardrobe') { click(); G.setState('wardrobe'); }
     else if (id === 'controls') { click(); G.setState('controls'); }
+    else if (id === 'settings') { click(); G.setState('settings'); }
     else if (id === 'coop' && G.scenes.coop) { click('pickup'); G.setState('coop'); }
     else if (id === 'leaders' && G.scenes.leaders) { click(); G.setState('leaders'); }
     else if (id === 'missions' && G.scenes.missions) { click(); G.setState('missions'); }
@@ -24649,6 +24650,76 @@
       const b = modesBack();
       U.button(ctx, b, 'НАЗАД', false, { size: 8 });
       if (!isTouch()) U.text(ctx, 'Стрілки + Enter · Esc — назад', VW() - 6, VH() - 12, { size: 7, align: 'right', color: 'rgba(255,255,255,0.5)' });
+    },
+  };
+
+  // ═══════════════ Round 35: «НАЛАШТУВАННЯ» з головного меню: гучність, графіка, керування ═══════════════
+  const ST = { focus: 0 };
+  const stRows = () => {
+    const x = VW() / 2 - 150, w = 300;
+    return [{ id: 'music', label: 'Музика' }, { id: 'sfx', label: 'Звуки' }, { id: 'gfx', label: 'Графіка' }, { id: 'ctrl', label: 'Керування' }, { id: 'back', label: 'Назад' }]
+      .map((r, i) => Object.assign(r, { r: { x, y: 56 + i * 34, w, h: 26 } }));
+  };
+  function stVol(which, d) {
+    const v = (G.audio && G.audio.volume) || { music: 0.7, sfx: 0.8 };
+    const k = Math.max(0, Math.min(1, Math.round(((which === 'music' ? v.music : v.sfx) + d) * 10) / 10));
+    if (G.audio && G.audio.setVolume) G.audio.setVolume(which === 'music' ? k : v.music, which === 'sfx' ? k : v.sfx);
+    if (which === 'sfx' && G.audio && G.audio.sfx) G.audio.sfx('click'); else click();
+  }
+  function stChange(id, d) { if (id === 'music' || id === 'sfx') stVol(id, d * 0.1); else if (id === 'gfx') gfxCycle(d); }
+  function stAct(id) {
+    if (id === 'ctrl') { click(); G._fromSettings = true; G.setState('controls'); }
+    else if (id === 'back') { click(); G.setState('menu'); }
+    else stChange(id, 1);
+  }
+  G.scenes.settings = {
+    enter() { if (ST.focus > 4) ST.focus = 0; G.ui.reset(); },
+    exit() {},
+    drawBg(ctx) { drawMenuBg(ctx, M.t); },
+    update(dt, realDt) {
+      M.t += realDt || dt;
+      const I = G.input, m = I.mouse, rows = stRows(), moved = mouseMoved();
+      if (back()) { I.consume('pause'); click(); G.setState('menu'); return; }
+      if (navUp()) { ST.focus = (ST.focus + rows.length - 1) % rows.length; click(); }
+      if (navDown()) { ST.focus = (ST.focus + 1) % rows.length; click(); }
+      const cur = rows[ST.focus];
+      if (navLeft()) stChange(cur.id, -1);
+      if (navRight()) stChange(cur.id, 1);
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i].r;
+        if (!U.inRect(m.x, m.y, r)) continue;
+        if (moved) ST.focus = i;
+        if (m.clicked) {
+          const id = rows[i].id;
+          if (id === 'music' || id === 'sfx' || id === 'gfx') stChange(id, m.x < r.x + 128 + (r.w - 128) / 2 ? -1 : 1); // ліва половина значення — менше, права — більше
+          else stAct(id);
+          return;
+        }
+      }
+      if (ok()) stAct(cur.id);
+    },
+    draw(ctx) {
+      if (!G._bgDone) drawMenuBg(ctx, M.t);
+      U.rect(ctx, 'rgba(14,8,22,0.66)', 0, 0, VW(), VH());
+      U.text(ctx, 'НАЛАШТУВАННЯ', VW() / 2, 12, { size: 24, align: 'center', color: '#fde98f', outline: '#1a0e20' });
+      const v = (G.audio && G.audio.volume) || { music: 0.7, sfx: 0.8 };
+      stRows().forEach((row, i) => {
+        const r = row.r, f = i === ST.focus;
+        if (row.id === 'ctrl' || row.id === 'back') { U.button(ctx, r, row.id === 'ctrl' ? 'Керування →' : 'Назад', f, { size: 8 }); return; }
+        U.rect(ctx, f ? '#fde98f' : '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+        U.rect(ctx, f ? 'rgba(72,52,86,0.97)' : 'rgba(34,22,44,0.92)', r.x, r.y, r.w, r.h);
+        U.text(ctx, row.label, r.x + 10, r.y + 9, { size: 8, color: f ? '#fde98f' : '#fbf6ea' });
+        // ◀ значення ▶
+        U.tri(ctx, r.x + 128, r.y + 13, 'left', 4, '#fde98f'); U.tri(ctx, r.x + r.w - 14, r.y + 13, 'right', 4, '#fde98f');
+        if (row.id === 'gfx') U.text(ctx, gfxLabel(), r.x + 136 + (r.w - 160) / 2, r.y + 9, { size: 8, align: 'center', color: '#8fc7e4' });
+        else {
+          const k = row.id === 'music' ? v.music : v.sfx, bx = r.x + 138, bw = r.w - 160;
+          U.rect(ctx, '#120a18', bx, r.y + 10, bw, 6); U.rect(ctx, '#93c25b', bx + 1, r.y + 11, Math.round((bw - 2) * k), 4);
+          U.text(ctx, Math.round(k * 100) + '%', bx + bw / 2, r.y + 1, { size: 7, align: 'center', color: '#b4abb2' });
+        }
+      });
+      U.text(ctx, 'Слабкий телефон чи планшет лагає? Постав «Графіка: мінімальна».', VW() / 2, 230, { size: 7, align: 'center', color: '#8fc7e4' });
+      if (!isTouch()) U.text(ctx, '↑↓ — вибір · ←→ — змінити · Esc — назад', VW() / 2, VH() - 12, { size: 7, align: 'center', color: 'rgba(255,255,255,0.5)' });
     },
   };
   S.menu.drawBg = function (ctx) { drawMenuBg(ctx, M.t); }; // Round 21: фон меню — на весь екран (і під вирізом)
@@ -25061,7 +25132,7 @@
   S.controls.update = function () {
     const m = G.input.mouse;
     mouseMoved();
-    if (back() || ok() || (m.clicked && U.inRect(m.x, m.y, ctrlBackR()))) { G.input.consume('pause'); click(); G.setState('menu'); }
+    if (back() || ok() || (m.clicked && U.inRect(m.x, m.y, ctrlBackR()))) { G.input.consume('pause'); click(); G.setState(G._fromSettings ? 'settings' : 'menu'); G._fromSettings = false; }
   };
   S.controls.draw = function (ctx) {
     U.rect(ctx, '#2a1e34', 0, 0, VW(), VH());
