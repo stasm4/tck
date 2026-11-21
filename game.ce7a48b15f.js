@@ -14214,15 +14214,22 @@
     // зменшена копія кадру (для розмиття) і «яскраве» для світіння
     g3.globalCompositeOperation = 'source-over'; g3.imageSmoothingEnabled = true; g3.drawImage(cv, 0, 0, w1, h1);
     g1.globalCompositeOperation = 'source-over'; g1.imageSmoothingEnabled = true; g1.drawImage(bl3, 0, 0);
-    g1.globalCompositeOperation = 'multiply'; g1.drawImage(bl1, 0, 0); g1.drawImage(bl1, 0, 0);
+    g1.globalCompositeOperation = 'multiply'; g1.drawImage(bl1, 0, 0); g1.drawImage(bl1, 0, 0); g1.drawImage(bl1, 0, 0);
+    // герой (і улюбленець поруч) не світиться — лише ліхтарі, вікна, фари, вогонь
+    const pl = G.player, cm0 = G.camera;
+    if (pl && cm0 && cm0.toScreen) {
+      const sp = cm0.toScreen(pl.x, pl.y), k1 = w1 / (G.cfg.VIEW_W || 480), z = cm0.zoom || 1;
+      g1.globalCompositeOperation = 'destination-out'; g1.fillStyle = '#000';
+      g1.beginPath(); g1.ellipse(sp.x * k1, (sp.y - 12 * z) * k1, 22 * z * k1, 26 * z * k1, 0, 0, Math.PI * 2); g1.fill();
+    }
     g2.globalCompositeOperation = 'source-over'; g2.imageSmoothingEnabled = true; g2.clearRect(0, 0, w2, h2); g2.drawImage(bl1, 0, 0, w2, h2);
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = true;
     // 1) контраст і насиченість
     ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = 0.28 + 0.3 * night; ctx.drawImage(cv, 0, 0);
     // 2) світіння
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.08 + 0.5 * night; ctx.drawImage(bl2, 0, 0, W, H);
-    ctx.globalAlpha = 0.05 + 0.3 * night; ctx.drawImage(bl1, 0, 0, W, H);
+    ctx.globalAlpha = 0.08 + 0.3 * night; ctx.drawImage(bl2, 0, 0, W, H);
+    ctx.globalAlpha = 0.05 + 0.16 * night; ctx.drawImage(bl1, 0, 0, W, H);
     // 3) сонячні промені (вдень і на заході)
     if (day > 0.2) {
       ctx.globalCompositeOperation = 'screen';
@@ -14257,7 +14264,7 @@
       f.y += (0.0025 + 0.004 * f.z) * (1 / 60) * 60 * 0.3; f.x += Math.sin(t * 0.7 + f.ph) * 0.0006 - dxc * f.z * 0.004 / 60 * 60; f.y -= dyc * f.z * 0.004;
       if (f.y > 1.08) { f.y = -0.08; f.x = Math.random(); } if (f.x < -0.08) f.x += 1.16; if (f.x > 1.08) f.x -= 1.16;
       const r = (3 + 7 * f.z) * sc, x = f.x * W, y = f.y * H;
-      const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,' + (0.55 * f.z) + ')'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,' + ((0.55 - 0.25 * night) * f.z) + ')'); gr.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.globalAlpha = 0.9; ctx.fillStyle = gr; ctx.fillRect(x - r, y - r, r * 2, r * 2);
     }
     // 7) тон: вдень тепліше, вночі — синій холод
