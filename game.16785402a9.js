@@ -24948,13 +24948,22 @@
     const P = G.progress, r = PROF_R(), lv = levelOf(xpNow()), hov = U.inRect(G.input.mouse.x, G.input.mouse.y, r);
     // профіль
     pill(ctx, r.x, r.y, r.w, r.h, hov ? 'rgba(58,40,72,0.96)' : 'rgba(30,20,40,0.92)');
-    U.rect(ctx, '#120a18', r.x + 2, r.y + 2, 22, 22); U.rect(ctx, '#f7c948', r.x + 3, r.y + 3, 20, 20); U.rect(ctx, '#ffe58a', r.x + 3, r.y + 3, 20, 8);
-    U.text(ctx, String(lv.L), r.x + 13, r.y + 4, { size: lv.L > 9 ? 10 : 14, align: 'center', color: '#5a3a10' });
-    U.text(ctx, 'РІВ', r.x + 13, r.y + 17, { size: 7, align: 'center', color: '#7a5418' });
+    if (G.social) { // аватарка з рамкою + рівень у кутику
+      G.social.drawAvatar(ctx, G.social.avatar, G.social.frame, r.x + 3, r.y + 3, 20);
+      const lt = String(lv.L), lw = Math.max(9, U.measure(lt, 7) + 4);
+      U.rect(ctx, '#120a18', r.x + 23 - lw, r.y + 17, lw + 2, 10); U.rect(ctx, '#f7c948', r.x + 24 - lw, r.y + 18, lw, 8);
+      U.text(ctx, lt, r.x + 24 - lw / 2, r.y + 18, { size: 7, align: 'center', color: '#5a3a10' });
+    } else {
+      U.rect(ctx, '#120a18', r.x + 2, r.y + 2, 22, 22); U.rect(ctx, '#f7c948', r.x + 3, r.y + 3, 20, 20); U.rect(ctx, '#ffe58a', r.x + 3, r.y + 3, 20, 8);
+      U.text(ctx, String(lv.L), r.x + 13, r.y + 4, { size: lv.L > 9 ? 10 : 14, align: 'center', color: '#5a3a10' });
+      U.text(ctx, 'РІВ', r.x + 13, r.y + 17, { size: 7, align: 'center', color: '#7a5418' });
+    }
     const nm = (G.online && G.online.name) || '';
     if (nm) U.text(ctx, nm, r.x + 30, r.y + 3, { size: 10, color: '#fbf6ea', shadow: true });
     else U.text(ctx, 'Тисни — введи нік', r.x + 30, r.y + 4, { size: 8, color: Math.sin(G.realTime * 4) > 0 ? '#fde98f' : '#c8b878' });
     U.text(ctx, lv.cur + '/' + lv.need, r.x + r.w - 5, r.y + 4, { size: 7, align: 'right', color: '#b4abb2' });
+    const inc = G.social ? G.social.incoming : 0;
+    if (inc) { const on = Math.sin(G.realTime * 6) > -0.3, t = String(Math.min(inc, 9)); U.rect(ctx, '#120a18', r.x + r.w - 6, r.y - 4, 11, 11); U.rect(ctx, on ? '#ff4a3a' : '#c8302a', r.x + r.w - 5, r.y - 3, 9, 9); U.text(ctx, t, r.x + r.w - 0.5, r.y - 2, { size: 7, align: 'center', color: '#fff8e0' }); }
     const bw = r.w - 36, k = lv.cur / lv.need;
     U.rect(ctx, '#120a18', r.x + 30, r.y + 17, bw, 5); U.rect(ctx, '#2a2030', r.x + 31, r.y + 18, bw - 2, 3);
     U.rect(ctx, '#7fd0ff', r.x + 31, r.y + 18, Math.round((bw - 2) * k), 3);
@@ -25075,7 +25084,7 @@
     if (M.pop) { if (mm.clicked || back() || ok()) { G.input.consume && G.input.consume('pause'); M.pop = null; click(); } return; }
     heroUpdate(realDt || dt);
     if (mm.clicked) {
-      if (U.inRect(mm.x, mm.y, PROF_R()) && G.online && G.online.askName) { click(); G.online.askName(() => {}); return; }
+      if (U.inRect(mm.x, mm.y, PROF_R())) { click(); if (G.scenes.profile) G.setState('profile'); else if (G.online && G.online.askName) G.online.askName(() => {}); return; }
       if (G.scenes.pass && U.inRect(mm.x, mm.y, PASS_R())) { click('pickup'); G.setState('pass'); return; }
       for (const b of RBTN()) if (U.inRect(mm.x, mm.y, b.r)) { click(); if (b.id === 'pass' && G.scenes.pass) G.setState('pass'); else M.pop = b.id; return; }
       if (U.inRect(mm.x, mm.y, LOOK_R())) { activate('wardrobe'); return; }
@@ -39346,7 +39355,7 @@
   G.sprites.get = function (key, opts) {
     const img = origGet(key, opts);
     const portrait = key === 'portrait' && opts && opts.type === 'player';
-    if ((key !== 'player' && !portrait) || !img || (opts && opts.layer === 'glow')) return img;
+    if ((key !== 'player' && !portrait) || !img || (opts && (opts.layer === 'glow' || opts.bare))) return img; // bare — без одягу з гардеробу (аватарки профілю)
     let o = O.current();
     // скін (Спортик, Кур'єр, Боксер…) — це вже повний одяг: верх з гардеробу лише на «Офісному» (інакше зимова куртка ховає скін)
     const sk = opts && (opts.skin || opts.variant);
@@ -39463,6 +39472,7 @@
     if (!c) return false;
     const had = !!st.name;
     st.name = c; persist();
+    if (G.events) G.events.emit('online:name', c);
     if (!enabled) return true;
     if (st.pend) submitPend();
     else if (had) api('/rest/v1/rpc/set_name', { p_device: st.id, p_name: c }).then(refresh).catch(() => refresh());
@@ -39501,7 +39511,7 @@
 
   G.online = {
     get enabled() { return enabled; }, get name() { return st.name; }, get device() { return st.id; },
-    get data() { return L; }, cfg: enabled ? { url: SUPA_URL, key: SUPA_KEY } : null, setName, autoName, get asked() { return !!st.asked; }, submit, refresh, askName, cleanName,
+    get data() { return L; }, cfg: enabled ? { url: SUPA_URL, key: SUPA_KEY } : null, setName, autoName, get asked() { return !!st.asked; }, submit, refresh, askName, cleanName, _api: api,
   };
 
   // ── старт забігу ВТЕЧІ: взяти номер забігу на сервері ──
@@ -40896,6 +40906,472 @@
     if (!d || !C.role) return;
     if (d.to === 'menu' && C.role && !C.inGame && d.from === 'result') G.setState('coop');
   });
+})();
+
+
+/* ===== 89_social.js ===== */
+// ═══════════════════════════ 89_social — профіль гравця: ID, аватарка, рамка, друзі ═══════════════════════════
+// Сервер: online/friends.sql (таблиці tck_players / tck_friends, функції tck_hello/find/add/answer/unfriend/friends).
+// G.social.pid             → свій публічний ID (6 цифр) або null, поки сервер не відповів
+// G.social.avatar / frame  → 'skin:office' | 'pet:patron' і id рамки
+// G.social.drawAvatar(ctx, av, frame, x, y, size)
+// G.social.incoming        → скільки нових запитів у друзі (червоний значок у меню)
+// Сцена 'profile': вкладки ПРОФІЛЬ (аватарка, рамка, ID, нік) і ДРУЗІ (пошук за ID або ніком, запити, список).
+// Посилання ?add=123456 відкриває пошук цього гравця.
+(function () {
+  'use strict';
+  const LS = 'tck_social';
+  let st = { pid: null, av: null, fr: 'blue' };
+  try { const r = localStorage.getItem(LS); if (r) st = Object.assign(st, JSON.parse(r)); } catch (e) {}
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {} };
+  let pendingAdd = null;
+  try { const m = /[?&]add=#?(\d{6})/.exec(location.search || ''); if (m) pendingAdd = m[1]; } catch (e) {}
+
+  const ON = () => G.online && G.online.enabled && G.online._api;
+  const api = (fn, body) => G.online._api('/rest/v1/rpc/' + fn, body);
+  const dev = () => G.online.device;
+  const sfx = (n) => { if (G.audio && G.audio.sfx) G.audio.sfx(n || 'click'); };
+  const toast = (t, ms) => { if (G.ui && G.ui.toast) G.ui.toast(t, ms || 1800); };
+  const lvl = () => (G.ui && G.ui.level ? G.ui.level().L : 1);
+
+  // ── рамки: відкриваються рівнем або преміумом «Білого квитка» ──
+  const FRAMES = [
+    { id: 'none', name: 'Без рамки', L: 1, c: ['#3a2a46', '#3a2a46'] },
+    { id: 'blue', name: 'Небо', L: 1, c: ['#3f7fae', '#8fc7e4'] },
+    { id: 'flag', name: 'Прапор', L: 3, c: ['#2a5fb4', '#f7d248'], flag: true },
+    { id: 'bronze', name: 'Бронза', L: 5, c: ['#8a4e26', '#d08a4a'] },
+    { id: 'silver', name: 'Срібло', L: 10, c: ['#8a8a9a', '#e8e8f4'] },
+    { id: 'gold', name: 'Золото', L: 20, c: ['#b8861a', '#ffe070'] },
+    { id: 'fire', name: 'Вогонь', L: 30, c: ['#c8302a', '#ff9a2a'], anim: 'fire' },
+    { id: 'ticket', name: 'Білий квиток', prem: true, c: ['#f7c948', '#fff4c0'], anim: 'rainbow' },
+  ];
+  const frameDef = (id) => FRAMES.find((f) => f.id === id) || FRAMES[1];
+  function frameOpen(f) { return f.prem ? !!(G.pass && G.pass.premium) : lvl() >= f.L; }
+  function frameCond(f) { return f.prem ? 'Преміум «Білого квитка»' : 'Рівень ' + f.L; }
+
+  // ── аватарки: відкриті скіни (голова) і улюбленці ──
+  function avatarList() {
+    const out = [], P = G.progress;
+    if (P && P.skins) for (const s of P.skins) out.push({ id: 'skin:' + s.id, name: s.unlocked ? s.realName : s.name, open: s.unlocked, cond: s.cond });
+    const PS = G.pass, own = PS && PS.pets ? PS.pets : [];
+    for (const id of ['patron', 'cat', 'pigeon']) {
+      const nm = { patron: 'Пес Патрон', cat: 'Кіт Бублик', pigeon: 'Голуб Валера' }[id];
+      out.push({ id: 'pet:' + id, name: nm, open: own.indexOf(id) >= 0, cond: 'Улюбленець із преміуму «Білого квитка»' });
+    }
+    return out;
+  }
+  function defAvatar() { const P = G.progress; return 'skin:' + ((P && P.equipped) || 'office'); }
+  function myAvatar() {
+    const a = st.av || defAvatar(), it = avatarList().find((x) => x.id === a);
+    return it && it.open ? a : defAvatar();
+  }
+  function myFrame() { const f = frameDef(st.fr); return frameOpen(f) ? f.id : 'blue'; }
+
+  // голова зі спрайта гравця: 14×14 навколо обличчя (з шапкою, якщо є)
+  const headCache = new Map();
+  function headImg(skin) {
+    if (headCache.has(skin)) return headCache.get(skin);
+    const U = G.ui.gfx, img = U.spr('player', { skin, dir: 'down', frame: 0, bare: true }) || U.person('player', skin, 'down', 0);
+    if (!img) return null;
+    let c = null;
+    try {
+      const w = img.width, h = img.height, t = G.util.makeCanvas(w, h), x = t.getContext('2d'); x.drawImage(img, 0, 0);
+      const d = x.getImageData(0, 0, w, h).data;
+      let y0 = -1, xs = 0, xn = 0;
+      for (let y = 0; y < h && (y0 < 0 || y < y0 + 8); y++) for (let xx = 0; xx < w; xx++) if (d[(y * w + xx) * 4 + 3] > 40) { if (y0 < 0) y0 = y; xs += xx; xn++; }
+      if (y0 < 0) y0 = 0;
+      const cx = xn ? Math.round(xs / xn) : w >> 1, S = 15;
+      c = G.util.makeCanvas(S, S); c.getContext('2d').drawImage(img, cx - (S >> 1), Math.max(0, y0 - 1), S, S, 0, 0, S, S);
+    } catch (e) { c = img; }
+    headCache.set(skin, c);
+    return c;
+  }
+  G.events.on('outfit:change', () => headCache.clear());
+  G.events.on('online:name', () => { if (ON()) helloSoon(); });
+
+  // аватарка в рамці: квадрат size×size з лівим верхнім кутом (x, y)
+  function drawAvatar(ctx, av, fr, x, y, size) {
+    const U = G.ui.gfx, f = frameDef(fr || 'blue'), t = G.realTime, b = size >= 40 ? 4 : size >= 24 ? 3 : size >= 18 ? 2 : 1;
+    x = Math.round(x); y = Math.round(y);
+    U.rect(ctx, '#120a18', x - 1, y - 1, size + 2, size + 2);
+    if (f.anim === 'rainbow') { const H = ['#ff5a5a', '#ffb03a', '#ffe070', '#7fd05a', '#5ab0ff', '#b07aff']; U.rect(ctx, H[Math.floor(t * 8) % H.length], x, y, size, size); }
+    else if (f.anim === 'fire') U.rect(ctx, Math.sin(t * 9) > 0 ? f.c[1] : f.c[0], x, y, size, size);
+    else if (f.flag) { U.rect(ctx, f.c[0], x, y, size, size >> 1); U.rect(ctx, f.c[1], x, y + (size >> 1), size, size - (size >> 1)); }
+    else { U.rect(ctx, f.c[0], x, y, size, size); U.rect(ctx, f.c[1], x, y, size, b); U.rect(ctx, f.c[1], x, y, b, size); }
+    const ix = x + b, iy = y + b, is = size - b * 2;
+    // тло всередині
+    U.rect(ctx, '#2a3a5a', ix, iy, is, is); U.rect(ctx, '#3a5280', ix, iy, is, Math.round(is * 0.55));
+    U.rect(ctx, 'rgba(255,255,255,0.08)', ix, iy, is, 2);
+    ctx.save(); ctx.beginPath(); ctx.rect(ix, iy, is, is); ctx.clip(); ctx.imageSmoothingEnabled = false;
+    const [kind, id] = String(av || 'skin:office').split(':');
+    if (kind === 'pet' && G.pass && G.pass.petImg) {
+      const im = G.pass.petImg(id, 0, false);
+      if (im) { const k = Math.max(1, Math.floor(is / Math.max(im.width, im.height) * 1.1)) || is / im.width; const w = im.width * k, h = im.height * k; ctx.drawImage(im, Math.round(ix + (is - w) / 2), Math.round(iy + is - h + k), w, h); }
+    } else {
+      const im = headImg(id || 'office');
+      if (im) { let k = is / im.width; if (k >= 2) k = Math.floor(k); const w = im.width * k; ctx.drawImage(im, Math.round(ix + (is - w) / 2), Math.round(iy + is - w + Math.max(1, k)), w, w); }
+    }
+    ctx.restore();
+    if (f.anim === 'rainbow' && size >= 24) { // іскра по периметру
+      const p = (t * 0.6) % 1, per = size * 4, d = p * per; let sx, sy;
+      if (d < size) { sx = x + d; sy = y; } else if (d < size * 2) { sx = x + size - 1; sy = y + d - size; } else if (d < size * 3) { sx = x + size * 3 - d; sy = y + size - 1; } else { sx = x; sy = y + size * 4 - d; }
+      U.rect(ctx, '#ffffff', sx - 1, sy - 1, 3, 3);
+    }
+  }
+
+  // ── сервер ──
+  const S = { status: 'idle', err: '', friends: [], fAt: 0, hAt: 0, search: null, busy: {}, nosql: false };
+  function hello(force) {
+    if (!ON()) return Promise.resolve(null);
+    if (!force && Date.now() - S.hAt < 60000 && st.pid) return Promise.resolve(st.pid);
+    S.hAt = Date.now();
+    const name = G.online.name || G.online.autoName();
+    return api('tck_hello', { p_device: dev(), p_name: name, p_avatar: myAvatar(), p_frame: myFrame(), p_level: lvl() })
+      .then((pid) => { S.nosql = false; if (pid) { st.pid = pid; save(); } return st.pid; })
+      .catch((e) => { if (/404/.test(String(e && e.message))) S.nosql = true; S.hAt = 0; return st.pid; });
+  }
+  let helloT = null;
+  function helloSoon() { clearTimeout(helloT); helloT = setTimeout(() => hello(true), 1200); }
+  function loadFriends() {
+    if (!ON()) return Promise.resolve();
+    S.status = 'load';
+    return hello().then(() => api('tck_friends', { p_device: dev() })).then((rows) => {
+      S.friends = Array.isArray(rows) ? rows : []; S.status = 'ok'; S.fAt = Date.now();
+    }).catch((e) => { S.status = 'err'; S.err = String(e && e.message || e); if (/404/.test(S.err)) S.nosql = true; });
+  }
+  function find(q) {
+    q = String(q || '').trim().replace(/^[#№]\s*/, '');
+    if (q.length < 2) { toast('Введи ID (6 цифр) або хоча б 2 букви ніку'); return; }
+    S.search = { q, rows: null, status: 'load' }; LS_.scroll = 0;
+    hello().then(() => api('tck_find', { p_device: dev(), p_q: q })).then((rows) => {
+      if (!S.search || S.search.q !== q) return;
+      S.search.rows = Array.isArray(rows) ? rows : []; S.search.status = 'ok';
+    }).catch((e) => { if (S.search) { S.search.status = 'err'; S.search.rows = []; } if (/404/.test(String(e && e.message))) S.nosql = true; });
+  }
+  function setRel(pid, rel) {
+    for (const r of S.friends) if (r.pid === pid) r.rel = rel;
+    if (S.search && S.search.rows) for (const r of S.search.rows) if (r.pid === pid) r.rel = rel;
+  }
+  function add(row) {
+    if (S.busy[row.pid]) return; S.busy[row.pid] = 1; sfx();
+    api('tck_add', { p_device: dev(), p_pid: row.pid }).then((r) => {
+      const M = { sent: 'Запит надіслано: ' + row.name, friends: 'Тепер ви друзі з ' + row.name + '!', already: 'Вже надіслано', self: 'Це ти :)', none: 'Гравця не знайдено', limit: 'Забагато запитів — спробуй завтра' };
+      toast(M[r] || 'Готово');
+      if (r === 'sent') setRel(row.pid, 'out'); else if (r === 'friends') { setRel(row.pid, 'friend'); sfx('pickup'); }
+      return loadFriends();
+    }).catch(() => toast('Немає зв\'язку')).then(() => { delete S.busy[row.pid]; });
+  }
+  function answer(row, ok) {
+    if (S.busy[row.pid]) return; S.busy[row.pid] = 1; sfx();
+    api('tck_answer', { p_device: dev(), p_pid: row.pid, p_ok: ok }).then(() => {
+      if (ok) { toast('Тепер ви друзі з ' + row.name + '!'); setRel(row.pid, 'friend'); sfx('pickup'); }
+      else { S.friends = S.friends.filter((r) => r.pid !== row.pid); setRel(row.pid, ''); }
+      return loadFriends();
+    }).catch(() => toast('Немає зв\'язку')).then(() => { delete S.busy[row.pid]; });
+  }
+  function unfriend(row) {
+    if (S.busy[row.pid]) return; S.busy[row.pid] = 1; sfx();
+    api('tck_unfriend', { p_device: dev(), p_pid: row.pid }).then(() => {
+      toast(row.rel === 'out' ? 'Запит скасовано' : row.name + ' більше не в друзях');
+      S.friends = S.friends.filter((r) => r.pid !== row.pid); setRel(row.pid, '');
+    }).catch(() => toast('Немає зв\'язку')).then(() => { delete S.busy[row.pid]; LS_.confirm = null; });
+  }
+  const incoming = () => S.friends.filter((r) => r.rel === 'in').length;
+  // фонове оновлення: у меню раз на 90 с (значок запитів), у профілі — раз на 25 с
+  let pollT = 0;
+  G.events.on('state:change', (d) => {
+    if (!d || !ON()) return;
+    if (d.to === 'menu') {
+      hello().then(() => { if (Date.now() - S.fAt > 60000) loadFriends(); });
+      if (pendingAdd) { const q = pendingAdd; pendingAdd = null; setTimeout(() => { if (G.state === 'menu' && G.scenes.profile) { LS_.tab = 'friends'; G.setState('profile'); find(q); } }, 600); }
+    }
+  });
+
+  // ── HTML-поле (пошук) — як у виборі ніку: на телефоні відкривається клавіатура ──
+  let box = null;
+  function askText(title, hint, ph, done) {
+    if (box) return;
+    box = document.createElement('div');
+    box.style.cssText = 'position:fixed;inset:0;z-index:99;display:flex;align-items:center;justify-content:center;background:rgba(12,6,18,.78);font-family:monospace';
+    box.innerHTML = '<div style="background:#24142a;border:3px solid #8fc7e4;box-shadow:0 0 0 3px #120a18;padding:18px 18px 14px;width:min(320px,86vw);color:#fbf6ea;text-align:center">' +
+      '<div class="t" style="color:#8fc7e4;font-size:18px;font-weight:bold;margin-bottom:6px"></div>' +
+      '<div class="h" style="font-size:12px;color:#b4abb2;margin-bottom:10px"></div>' +
+      '<input maxlength="16" autocomplete="off" style="width:100%;box-sizing:border-box;font:16px monospace;padding:8px;background:#120a18;color:#fbf6ea;border:2px solid #fde98f;outline:none" />' +
+      '<div style="display:flex;gap:8px;margin-top:12px"><button class="c" style="flex:1;font:bold 14px monospace;padding:9px;background:#3a2a46;color:#e8dcc8;border:2px solid #120a18">Скасувати</button>' +
+      '<button class="o" style="flex:1;font:bold 14px monospace;padding:9px;background:#93c25b;color:#1a0e20;border:2px solid #120a18">ЗНАЙТИ</button></div></div>';
+    box.querySelector('.t').textContent = title; box.querySelector('.h').textContent = hint;
+    document.body.appendChild(box);
+    const inp = box.querySelector('input'); inp.placeholder = ph || '';
+    const close = () => { if (box) { box.remove(); box = null; } };
+    const ok = () => { const v = inp.value; close(); done(v); };
+    box.querySelector('.o').onclick = ok;
+    box.querySelector('.c').onclick = close;
+    inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') ok(); if (e.key === 'Escape') close(); });
+    ['keyup', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click'].forEach((t) => box.addEventListener(t, (e) => e.stopPropagation()));
+    setTimeout(() => inp.focus(), 50);
+  }
+  function link() { return 'https://stasm4.github.io/tck/?add=' + st.pid; }
+  function copyId() {
+    if (!st.pid) { toast('ID ще не отримано — перевір інтернет'); return; }
+    const txt = String(st.pid);
+    sfx();
+    try { navigator.clipboard.writeText(txt).then(() => toast('ID ' + txt + ' скопійовано'), () => toast('Твій ID: ' + txt, 3000)); } catch (e) { toast('Твій ID: ' + txt, 3000); }
+  }
+  function share() {
+    if (!st.pid) { toast('ID ще не отримано — перевір інтернет'); return; }
+    sfx();
+    const text = 'Додай мене в друзі в «Бусифікації»! Мій ID: ' + st.pid;
+    try { if (navigator.share) { navigator.share({ title: 'Бусифікація', text, url: link() }).catch(() => {}); return; } } catch (e) {}
+    try { navigator.clipboard.writeText(text + ' ' + link()).then(() => toast('Посилання скопійовано — кинь другу'), () => toast('Мій ID: ' + st.pid, 3000)); } catch (e) { toast('Мій ID: ' + st.pid, 3000); }
+  }
+
+  // ═══════════════════════════ Сцена ПРОФІЛЬ ═══════════════════════════
+  if (G.STATES.indexOf('profile') < 0) G.STATES.push('profile');
+  const VW = () => G.cfg.VIEW_W, VH = () => G.cfg.VIEW_H;
+  const LS_ = { tab: 'me', scroll: 0, drag: null, confirm: null, t: 0, hits: [] };
+  const TAB_R = (k) => ({ x: 14 + k * 104, y: 30, w: 100, h: 18 });
+  const BACK_R = () => ({ x: VW() - 94, y: VH() - 26, w: 80, h: 20 });
+  const CARD_R = () => ({ x: 14, y: 54, w: 150, h: VH() - 54 - 32 });
+  const PICK_R = () => ({ x: 172, y: 54, w: VW() - 172 - 14, h: VH() - 54 - 32 });
+  const LIST_R = () => ({ x: 14, y: 76, w: VW() - 28, h: VH() - 76 - 32 });
+  const ROW = 26;
+  const hit = (r, fn, o) => LS_.hits.push(Object.assign({ r, fn }, o || {}));
+
+  function act(id) {
+    if (id === 'back') { sfx(); G.setState('menu'); }
+    else if (id === 'me' || id === 'friends') { if (LS_.tab !== id) { sfx(); LS_.tab = id; LS_.scroll = 0; LS_.confirm = null; if (id === 'friends') loadFriends(); } }
+  }
+  G.scenes.profile = {
+    enter() {
+      LS_.t = 0; LS_.scroll = 0; LS_.confirm = null;
+      if (G.ui) G.ui.reset();
+      if (ON()) { hello(true); loadFriends(); }
+      pollT = 0;
+    },
+    exit() { if (box) { box.remove(); box = null; } },
+    update(dt, realDt) {
+      const d = realDt || dt; LS_.t += d;
+      if (box) return;
+      const I = G.input, m = I.mouse;
+      if (I.pressed('pause')) { I.consume('pause'); act('back'); return; }
+      if (I.pressed('left')) act('me');
+      if (I.pressed('right')) act('friends');
+      pollT += d; if (pollT > 25 && ON()) { pollT = 0; loadFriends(); }
+      // прокрутка списку друзів
+      if (LS_.tab === 'friends') {
+        const lr = LIST_R(), n = listRows().length, maxS = Math.max(0, n * ROW - lr.h + 6);
+        const inL = U().inRect(m.x, m.y, lr);
+        if (m.down && (LS_.drag || inL)) {
+          if (!LS_.drag) LS_.drag = { y: m.y, s: LS_.scroll, moved: 0 };
+          LS_.drag.moved = Math.max(LS_.drag.moved, Math.abs(m.y - LS_.drag.y));
+          LS_.scroll = Math.max(0, Math.min(maxS, LS_.drag.s - (m.y - LS_.drag.y)));
+        } else if (!m.down) LS_.dragEnd = LS_.drag, LS_.drag = null;
+        if (m.wheel) LS_.scroll = Math.max(0, Math.min(maxS, LS_.scroll + (m.wheel > 0 ? ROW * 2 : -ROW * 2)));
+        if (I.pressed('down')) LS_.scroll = Math.min(maxS, LS_.scroll + ROW * 2);
+        if (I.pressed('up')) LS_.scroll = Math.max(0, LS_.scroll - ROW * 2);
+      }
+      if (m.clicked) {
+        if (LS_.dragEnd && LS_.dragEnd.moved > 6) { LS_.dragEnd = null; return; }
+        for (let i = LS_.hits.length - 1; i >= 0; i--) { const h = LS_.hits[i]; if (U().inRect(m.x, m.y, h.r)) { h.fn(); return; } }
+        LS_.confirm = null;
+      }
+      if (I.pressed('confirm') && LS_.tab === 'friends' && !S.search) openSearch();
+    },
+    draw(ctx) {
+      const u = U(), W = VW(), H = VH();
+      LS_.hits = [];
+      u.rect(ctx, '#1c1830', 0, 0, W, H);
+      for (let y = 0; y < H; y += 8) u.rect(ctx, 'rgba(143,199,228,0.03)', 0, y, W, 4);
+      u.icon(ctx, 'person', 14, 10, 2);
+      u.text(ctx, 'ПРОФІЛЬ', 32, 8, { size: 18, color: '#fde98f', shadow: true });
+      if (st.pid) u.text(ctx, 'Твій ID: ' + st.pid, W - 14, 12, { size: 9, align: 'right', color: '#8fc7e4', shadow: true });
+      // вкладки
+      const n = incoming();
+      [['me', 'ПРОФІЛЬ'], ['friends', 'ДРУЗІ']].forEach(([id, label], k) => {
+        const r = TAB_R(k), on = LS_.tab === id;
+        u.rect(ctx, '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+        u.rect(ctx, on ? '#3f7fae' : 'rgba(58,46,68,0.95)', r.x, r.y, r.w, r.h);
+        if (on) u.rect(ctx, '#8fc7e4', r.x, r.y + r.h - 2, r.w, 2);
+        u.text(ctx, label + (id === 'friends' && S.friends.length ? ' (' + S.friends.filter((f) => f.rel === 'friend').length + ')' : ''), r.x + r.w / 2, r.y + 4, { size: 8, align: 'center', color: on ? '#fff8e0' : '#b4abb2' });
+        if (id === 'friends' && n) badge(ctx, r.x + r.w - 4, r.y - 4, n);
+        hit(r, () => act(id));
+      });
+      if (LS_.tab === 'me') drawMe(ctx); else drawFriends(ctx);
+      const br = BACK_R(); u.button(ctx, br, 'Назад', false, { size: 8 }); hit(br, () => act('back'));
+      G.ui.drawOverlay && G.ui.drawOverlay(ctx);
+    },
+  };
+  function U() { return G.ui.gfx; }
+  function badge(ctx, x, y, n) {
+    const u = U(), t = String(Math.min(n, 9)) + (n > 9 ? '+' : ''), w = Math.max(9, u.measure(t, 7) + 5);
+    u.rect(ctx, '#120a18', x - 1, y - 1, w + 2, 11); u.rect(ctx, Math.sin(G.realTime * 6) > -0.3 ? '#ff4a3a' : '#c8302a', x, y, w, 9);
+    u.text(ctx, t, x + w / 2, y + 1, { size: 7, align: 'center', color: '#fff8e0' });
+  }
+  function smallBtn(ctx, r, label, col, fn) {
+    const u = U(), hov = u.inRect(G.input.mouse.x, G.input.mouse.y, r);
+    u.rect(ctx, '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2); u.rect(ctx, col, r.x, r.y, r.w, r.h);
+    u.rect(ctx, hov ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)', r.x, r.y, r.w, 1);
+    u.text(ctx, label, r.x + r.w / 2, r.y + Math.round((r.h - u.lineH(7)) / 2) + 1, { size: 7, align: 'center', color: '#fff8e0', shadow: true });
+    hit(r, fn);
+  }
+  function serverNote(ctx, r) {
+    const u = U(), cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    if (!G.online || !G.online.enabled) { u.text(ctx, 'СКОРО', cx, cy - 8, { size: 10, align: 'center', color: '#fde98f' }); u.text(ctx, 'Друзі запрацюють з наступним оновленням', cx, cy + 8, { size: 8, align: 'center', color: '#b4abb2' }); return true; }
+    if (S.nosql) { u.text(ctx, 'СЕРВЕР ДРУЗІВ ОНОВЛЮЄТЬСЯ', cx, cy - 8, { size: 9, align: 'center', color: '#fde98f' }); u.text(ctx, 'Зазирни трохи пізніше', cx, cy + 8, { size: 8, align: 'center', color: '#b4abb2' }); return true; }
+    return false;
+  }
+
+  // ── вкладка ПРОФІЛЬ ──
+  function drawMe(ctx) {
+    const u = U(), c = CARD_R(), av = myAvatar(), fr = myFrame(), L = G.ui.level ? G.ui.level() : { L: 1, cur: 0, need: 100 };
+    u.panel(ctx, c.x, c.y, c.w, c.h, { fill: 'rgba(30,26,52,0.94)' });
+    const AS = 60, ax = c.x + (c.w - AS) / 2, ay = c.y + 8;
+    if (frameDef(fr).anim === 'rainbow' && G.pass && G.pass.legendFx) G.pass.legendFx(ctx, ax + AS / 2, ay + AS / 2, 44, G.realTime);
+    drawAvatar(ctx, av, fr, ax, ay, AS);
+    // рівень — значок у куті аватарки
+    const lt = String(L.L), lw = Math.max(14, u.measure(lt, 8) + 6);
+    u.rect(ctx, '#120a18', ax + AS - lw + 3, ay + AS - 9, lw + 2, 13); u.rect(ctx, '#f7c948', ax + AS - lw + 4, ay + AS - 8, lw, 11);
+    u.text(ctx, lt, ax + AS - lw / 2 + 4, ay + AS - 7, { size: 8, align: 'center', color: '#5a3a10' });
+    let y = ay + AS + 8;
+    const nm = (G.online && G.online.name) || '—';
+    u.text(ctx, nm, c.x + c.w / 2, y, { size: 10, align: 'center', color: '#fbf6ea', shadow: true }); y += 14;
+    u.text(ctx, st.pid ? 'ID: ' + st.pid : (S.nosql || !ON() ? 'ID: —' : 'ID: …'), c.x + c.w / 2, y, { size: 10, align: 'center', color: '#fde98f', shadow: true }); y += 13;
+    u.text(ctx, 'рівень ' + L.L + ' · ' + L.cur + '/' + L.need, c.x + c.w / 2, y, { size: 7, align: 'center', color: '#b4abb2' }); y += 13;
+    const bw = c.w - 16;
+    smallBtn(ctx, { x: c.x + 8, y, w: (bw - 4) / 2, h: 15 }, 'КОПІЮВАТИ ID', '#3f7fae', copyId);
+    smallBtn(ctx, { x: c.x + 8 + (bw + 4) / 2, y, w: (bw - 4) / 2, h: 15 }, 'ПОДІЛИТИСЯ', '#5e9846', share); y += 20;
+    smallBtn(ctx, { x: c.x + 8, y, w: bw, h: 15 }, 'ЗМІНИТИ НІК', '#6a4a86', () => { sfx(); if (G.online && G.online.askName) G.online.askName((ok) => { if (ok) hello(true); }); });
+    y += 20;
+    if (y + 10 < c.y + c.h) u.text(ctx, 'Скинь ID другу — і грайте разом', c.x + c.w / 2, Math.min(c.y + c.h - 11, y + 2), { size: 7, align: 'center', color: '#7a7280' });
+
+    // вибір аватарки й рамки
+    const p = PICK_R();
+    u.panel(ctx, p.x, p.y, p.w, p.h, { fill: 'rgba(30,26,52,0.94)' });
+    const T = 30, G2 = 4, cols = Math.max(1, Math.floor((p.w - 12 + G2) / (T + G2)));
+    let yy = p.y + 6;
+    u.text(ctx, 'АВАТАРКА', p.x + 8, yy, { size: 8, color: '#8fc7e4' }); yy += 12;
+    const list = avatarList(), m = G.input.mouse;
+    let tip = null;
+    list.forEach((it, i) => {
+      const x = p.x + 8 + (i % cols) * (T + G2), ty = yy + Math.floor(i / cols) * (T + G2), r = { x, y: ty, w: T, h: T };
+      if (it.open) drawAvatar(ctx, it.id, 'none', x, ty, T);
+      else { ctx.save(); ctx.globalAlpha = 0.35; drawAvatar(ctx, it.id, 'none', x, ty, T); ctx.restore(); lock(ctx, x + T - 9, ty + T - 10); }
+      if (it.id === av) { u.rect(ctx, '#fde98f', x - 2, ty - 2, T + 4, 2); u.rect(ctx, '#fde98f', x - 2, ty + T, T + 4, 2); u.rect(ctx, '#fde98f', x - 2, ty, 2, T); u.rect(ctx, '#fde98f', x + T, ty, 2, T); }
+      if (u.inRect(m.x, m.y, r)) tip = it.open ? it.name : it.name + ' — ' + it.cond;
+      hit(r, () => {
+        if (!it.open) { toast(it.cond || 'Ще закрито', 2400); return; }
+        if (st.av !== it.id) { st.av = it.id; save(); sfx('pickup'); helloSoon(); }
+      });
+    });
+    yy += Math.ceil(list.length / cols) * (T + G2) + 6;
+    u.text(ctx, 'РАМКА · ' + frameDef(fr).name, p.x + 8, yy, { size: 8, color: '#8fc7e4' }); yy += 12;
+    FRAMES.forEach((f, i) => {
+      const x = p.x + 8 + (i % cols) * (T + G2), ty = yy + Math.floor(i / cols) * (T + G2 + 8), r = { x, y: ty, w: T, h: T }, open = frameOpen(f);
+      if (open) drawAvatar(ctx, av, f.id, x, ty, T);
+      else { ctx.save(); ctx.globalAlpha = 0.4; drawAvatar(ctx, av, f.id, x, ty, T); ctx.restore(); lock(ctx, x + T - 9, ty + T - 10); }
+      if (f.id === fr) { u.rect(ctx, '#fde98f', x - 2, ty - 2, T + 4, 2); u.rect(ctx, '#fde98f', x - 2, ty + T, T + 4, 2); u.rect(ctx, '#fde98f', x - 2, ty, 2, T); u.rect(ctx, '#fde98f', x + T, ty, 2, T); }
+      if (!open) u.text(ctx, f.prem ? 'ПРЕМ' : 'РІВ ' + f.L, x + T / 2, ty + T + 2, { size: 6, align: 'center', color: '#ff9a7a' });
+      if (u.inRect(m.x, m.y, r)) tip = f.name + (open ? '' : ' — ' + frameCond(f));
+      hit(r, () => {
+        if (!open) { toast(f.name + ': ' + frameCond(f), 2400); return; }
+        if (st.fr !== f.id) { st.fr = f.id; save(); sfx('pickup'); helloSoon(); }
+      });
+    });
+    if (tip && !(typeof window !== 'undefined' && 'ontouchstart' in window)) {
+      const tw = u.measure(tip, 7) + 10, tx = Math.min(p.x + p.w - tw - 4, Math.max(p.x + 4, m.x - tw / 2)), tyy = p.y + p.h - 16;
+      u.rect(ctx, '#120a18', tx - 1, tyy - 1, tw + 2, 13); u.rect(ctx, 'rgba(36,20,42,0.97)', tx, tyy, tw, 11);
+      u.text(ctx, tip, tx + 5, tyy + 2, { size: 7, color: '#fbf6ea' });
+    }
+  }
+  function lock(ctx, x, y) {
+    const u = U();
+    u.rect(ctx, '#120a18', x - 1, y + 2, 9, 7); u.rect(ctx, '#b4abb2', x, y + 3, 7, 5);
+    u.rect(ctx, '#120a18', x + 1, y - 1, 5, 4); u.rect(ctx, '#1c1830', x + 2, y, 3, 3);
+  }
+
+  // ── вкладка ДРУЗІ ──
+  function openSearch() { sfx(); askText('ЗНАЙТИ ДРУГА', 'Введи ID (6 цифр) або нік гравця', 'напр. 482715 або Андрій', (v) => find(v)); }
+  function listRows() {
+    if (S.search) {
+      const out = [{ hdr: 'ПОШУК «' + S.search.q + '»', close: true }];
+      if (S.search.status === 'load') out.push({ msg: 'Шукаю…' });
+      else if (!S.search.rows || !S.search.rows.length) out.push({ msg: S.search.status === 'err' ? 'Немає зв\'язку — спробуй ще раз' : 'Нікого не знайдено. Перевір ID або нік' });
+      else for (const r of S.search.rows) out.push({ row: r, from: 'search' });
+      return out;
+    }
+    const inc = S.friends.filter((r) => r.rel === 'in'), fr = S.friends.filter((r) => r.rel === 'friend'), outg = S.friends.filter((r) => r.rel === 'out');
+    const out = [];
+    if (inc.length) { out.push({ hdr: 'ЗАПИТИ В ДРУЗІ (' + inc.length + ')', hot: true }); for (const r of inc) out.push({ row: r }); }
+    out.push({ hdr: 'ДРУЗІ (' + fr.length + ')' + (fr.some((r) => r.online) ? ' · у грі: ' + fr.filter((r) => r.online).length : '') });
+    if (!fr.length) out.push({ msg: S.status === 'load' && !S.fAt ? 'Завантаження…' : S.status === 'err' && !S.fAt ? 'Немає зв\'язку' : 'Поки нікого. Знайди друга або скинь йому свій ID' });
+    for (const r of fr) out.push({ row: r });
+    if (outg.length) { out.push({ hdr: 'НАДІСЛАНІ ЗАПИТИ (' + outg.length + ')' }); for (const r of outg) out.push({ row: r }); }
+    return out;
+  }
+  function ago(min) {
+    if (min == null) return '';
+    if (min < 60) return 'був ' + Math.max(1, min) + ' хв тому';
+    if (min < 60 * 24) return 'був ' + Math.floor(min / 60) + ' год тому';
+    const d = Math.floor(min / 1440); return 'був ' + d + (d === 1 ? ' день' : d < 5 ? ' дні' : ' днів') + ' тому';
+  }
+  function drawFriends(ctx) {
+    const u = U(), W = VW();
+    // рядок пошуку
+    const sr = { x: 14, y: 54, w: W - 28 - 84, h: 17 }, hov = u.inRect(G.input.mouse.x, G.input.mouse.y, sr);
+    u.rect(ctx, '#120a18', sr.x - 1, sr.y - 1, sr.w + 2, sr.h + 2); u.rect(ctx, hov ? '#2a2246' : '#1a1430', sr.x, sr.y, sr.w, sr.h);
+    u.rect(ctx, '#8fc7e4', sr.x, sr.y + sr.h - 1, sr.w, 1);
+    // лупа
+    ctx.save(); ctx.strokeStyle = '#8fc7e4'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(sr.x + 9, sr.y + 7.5, 4, 0, Math.PI * 2); ctx.moveTo(sr.x + 12, sr.y + 11); ctx.lineTo(sr.x + 15, sr.y + 14); ctx.stroke(); ctx.restore();
+    u.text(ctx, 'Знайти друга за ID або ніком…', sr.x + 20, sr.y + 4, { size: 8, color: '#7a8aa8' });
+    hit(sr, openSearch);
+    smallBtn(ctx, { x: W - 14 - 78, y: 54, w: 78, h: 17 }, 'МІЙ ID: ' + (st.pid || '—'), '#3f7fae', share);
+    const lr = LIST_R();
+    u.panel(ctx, lr.x, lr.y, lr.w, lr.h, { fill: 'rgba(30,26,52,0.94)' });
+    if (serverNote(ctx, lr)) return;
+    const rows = listRows(), top = lr.y + 3, bottom = lr.y + lr.h - 3;
+    ctx.save(); ctx.beginPath(); ctx.rect(lr.x, top, lr.w, bottom - top); ctx.clip();
+    rows.forEach((it, i) => {
+      const y = top + i * ROW - LS_.scroll;
+      if (y < top - ROW || y > bottom) return;
+      const vis = (r) => r.y + r.h > top && r.y < bottom;
+      if (it.hdr) {
+        u.text(ctx, it.hdr, lr.x + 10, y + 12, { size: 8, color: it.hot ? '#ff9a7a' : '#8fc7e4' });
+        u.rect(ctx, 'rgba(143,199,228,0.2)', lr.x + 8, y + 23, lr.w - 16, 1);
+        if (it.close) { const cr = { x: lr.x + lr.w - 70, y: y + 8, w: 60, h: 14 }; if (vis(cr)) smallBtn(ctx, cr, 'X ЗАКРИТИ', '#6a4a56', () => { sfx(); S.search = null; LS_.scroll = 0; }); }
+        return;
+      }
+      if (it.msg) { u.text(ctx, it.msg, lr.x + lr.w / 2, y + 8, { size: 8, align: 'center', color: '#b4abb2' }); return; }
+      const r = it.row;
+      if (i % 2) u.rect(ctx, 'rgba(255,255,255,0.03)', lr.x + 3, y, lr.w - 6, ROW - 1);
+      drawAvatar(ctx, r.avatar, r.frame, lr.x + 8, y + 2, 21);
+      if (r.online) { u.rect(ctx, '#120a18', lr.x + 25, y + 17, 7, 7); u.rect(ctx, '#5ee05a', lr.x + 26, y + 18, 5, 5); }
+      u.text(ctx, r.name, lr.x + 36, y + 3, { size: 9, color: r.rel === 'me' ? '#93c25b' : '#fbf6ea', shadow: true });
+      const sub = 'ID ' + r.pid + ' · рів ' + r.level + (r.rel === 'friend' || r.rel === 'out' || r.rel === 'in' ? ' · ' + (r.online ? 'у грі' : ago(r.ago)) : r.online ? ' · у грі' : '');
+      u.text(ctx, sub, lr.x + 36, y + 15, { size: 7, color: r.online ? '#93c25b' : '#7a7280' });
+      // дії
+      const R = (k, w) => ({ x: lr.x + lr.w - 8 - w - k, y: y + 5, w, h: 15 });
+      const busy = !!S.busy[r.pid];
+      if (busy) { u.text(ctx, '…', lr.x + lr.w - 20, y + 8, { size: 8, color: '#b4abb2' }); return; }
+      if (r.rel === 'me') u.text(ctx, 'це ти', lr.x + lr.w - 10, y + 8, { size: 7, align: 'right', color: '#93c25b' });
+      else if (r.rel === 'in') { const a = R(52, 56), b = R(0, 48); if (vis(a)) smallBtn(ctx, a, 'ПРИЙНЯТИ', '#5e9846', () => answer(r, true)); if (vis(b)) smallBtn(ctx, b, 'НІ', '#6a4a56', () => answer(r, false)); }
+      else if (r.rel === 'friend') {
+        if (LS_.confirm === r.pid) { const a = R(0, 92); if (vis(a)) smallBtn(ctx, a, 'ТОЧНО ВИДАЛИТИ?', '#c8302a', () => unfriend(r)); }
+        else if (it.from === 'search') u.text(ctx, 'у друзях', lr.x + lr.w - 10, y + 8, { size: 7, align: 'right', color: '#93c25b' });
+        else { const a = R(0, 18); if (vis(a)) smallBtn(ctx, a, 'X', '#4a3a56', () => { sfx(); LS_.confirm = r.pid; }); }
+      } else if (r.rel === 'out') { const a = R(0, 74); if (vis(a)) smallBtn(ctx, a, it.from === 'search' ? 'НАДІСЛАНО' : 'СКАСУВАТИ', '#4a3a56', () => { if (it.from !== 'search') unfriend(r); }); }
+      else { const a = R(0, 74); if (vis(a)) smallBtn(ctx, a, '+ ДОДАТИ', '#5e9846', () => add(r)); }
+    });
+    ctx.restore();
+    const maxS = Math.max(0, rows.length * ROW - lr.h + 6);
+    if (maxS > 0) { const k = LS_.scroll / maxS, th = Math.max(16, lr.h * lr.h / (rows.length * ROW)); u.rect(ctx, 'rgba(143,199,228,0.35)', lr.x + lr.w - 4, lr.y + 2 + (lr.h - 4 - th) * k, 2, th); }
+  }
+
+  G.social = {
+    get pid() { return st.pid; }, get avatar() { return myAvatar(); }, get frame() { return myFrame(); },
+    get incoming() { return incoming(); }, get friends() { return S.friends.slice(); }, get nosql() { return S.nosql; },
+    drawAvatar, hello, loadFriends, find, FRAMES, avatarList,
+    _state: S, _st: st,
+  };
 })();
 
 
