@@ -2675,34 +2675,70 @@
     // ═══ Скіни сезонного пасу «Білий квиток» — яскраві, з деталями ═══
     // ЛЕГЕНДАРНИЙ: оливковий світшот з тризубом, коротке темне волосся, борода-щетина по щелепі, густі брови, карго, берці, золотий контур
     president: Object.assign({}, ANDRIY, {
-      hairStyle: 'short', hair: '#2a201b', blush: null, brows: '#17110e', outlineC: '#5a3a06',
-      shirt: '#5b6438', shirtS: '#454c2a', sleeve: '#5b6438', pants: '#59563c', pantsS: '#46432e', shoes: '#1c1816',
+      hairStyle: 'none', blush: null, brows: false, eyes: 'none', outlineC: '#6a4608',
+      shirt: '#5f6b3a', shirtS: '#48522c', sleeve: '#5f6b3a', pants: '#4e4b35', pantsS: '#3c3a28', shoes: '#16130f', belt: '#1e1c1a', buckle: '#9a9a9a',
+      // голова повністю вручну: коротка стрижка, рівна лінія волосся, густі брови, чіткі очі, охайна борода по щелепі, губи
       head(b, g) {
-        const { hx, hy, dir } = g, B = '#3a2c24', BL = '#4e3c30';
-        if (dir === 'up') return;
-        if (dir === 'down') {
-          for (let c = 1; c <= 8; c++) b.p(hx + c, hy + 7, (c === 4 || c === 5) ? BL : B);
-          for (let c = 2; c <= 7; c++) b.p(hx + c, hy + 8, B);
-          b.p(hx + 0, hy + 5, B); b.p(hx + 9, hy + 5, B); b.p(hx + 0, hy + 6, B); b.p(hx + 9, hy + 6, B); b.p(hx + 1, hy + 6, BL); b.p(hx + 8, hy + 6, BL);
-          b.p(hx + 4, hy + 7, '#8a5a48'); b.p(hx + 5, hy + 7, '#8a5a48'); // губи
-          b.hl(hx + 1, hy + 4, 2, '#17110e'); b.hl(hx + 7, hy + 4, 2, '#17110e'); // густі брови
-          b.p(hx + 3, hy + 2, '#3c2e26'); // проділ / пасмо
-        } else {
-          for (let c = 4; c <= 8; c++) b.p(hx + c, hy + 7, B); for (let c = 3; c <= 7; c++) b.p(hx + c, hy + 8, B);
-          b.p(hx + 4, hy + 6, B); b.p(hx + 8, hy + 7, '#8a5a48'); b.hl(hx + 6, hy + 4, 3, '#17110e');
+        const { hx, hy, dir } = g;
+        const H = '#2a201b', HL = '#46362c', HD = '#1a1411', S = P.skin, SS = P.skinS, SD = '#c8865e', BR = '#17110e', EY = '#1a1418', BD = '#3a2c24', BDL = '#56443a', LIP = '#9a5a48';
+        const put = (c, r, col) => { if (inHead(c, r)) b.p(hx + c, hy + r, col); };
+        if (dir === 'up') {
+          for (let r = 0; r < 9; r++) for (let c = 0; c < 10; c++) put(c, r, r <= 6 ? (r === 1 && c >= 3 && c <= 5 ? HL : r >= 5 ? HD : H) : SS);
+          put(0, 5, SS); put(9, 5, SS); put(0, 6, SD); put(9, 6, SD);
+          return;
         }
+        if (dir === 'down') {
+          for (let r = 0; r < 9; r++) for (let c = 0; c < 10; c++) {
+            let col = S;
+            if (r <= 2) col = (r === 1 && c >= 3 && c <= 5) ? HL : (r === 2 && (c === 0 || c === 9)) ? HD : H;
+            else if (r === 3 && (c <= 1 || c >= 8)) col = H;
+            else if (r === 4 && (c === 0 || c === 9)) col = SS;
+            else if (c === 9 || (r === 8 && c >= 7)) col = SS;
+            put(c, r, col);
+          }
+          // брови — густі, трохи «домиком»
+          put(2, 4, '#5a4034'); put(7, 4, '#5a4034'); // легкі брови
+          // очі (як у всіх героїв гри — по 2 пікселі) + ніс
+          put(2, 5, EY); put(2, 6, EY); put(7, 5, EY); put(7, 6, EY);
+          put(5, 6, SD);
+          // борода: бакенбарди → щелепа → підборіддя, губи видно
+          put(0, 5, SS); put(9, 5, SS); put(0, 6, BDL); put(9, 6, BDL); // вуха, тонкі бакенбарди
+          for (let c = 0; c <= 9; c++) put(c, 7, c === 4 || c === 5 ? LIP : BD);
+          for (let c = 1; c <= 8; c++) put(c, 8, c === 4 || c === 5 ? BDL : BD);
+          return;
+        }
+        // профіль (праворуч)
+        for (let r = 0; r < 9; r++) for (let c = 0; c < 10; c++) {
+          let col = S;
+          if (r <= 2) col = r === 1 && c >= 4 && c <= 6 ? HL : H;
+          else if (c <= 3 && r <= 4) col = H;
+          else if (c <= 3 && r <= 6) col = c <= 2 ? HD : SS;
+          else if (r === 3 && c <= 5) col = H;
+          else if (r >= 6 && c <= 2) col = SS;
+          put(c, r, col);
+        }
+        put(4, 5, SD); put(4, 6, SS); // вухо
+        put(7, 4, '#5a4034');
+        put(7, 5, EY); put(7, 6, EY); // око
+        put(5, 6, BDL); // бакенбард
+        for (let c = 4; c <= 9; c++) put(c, 7, c === 9 ? LIP : BD);
+        for (let c = 4; c <= 8; c++) put(c, 8, BD);
       },
       torso(b, g) {
-        const { cx, ty, dir, tx, tw, th } = g, Y = '#ffd23a', YD = '#c89a18';
+        const { cx, ty, dir, tx, tw, th } = g, Y = '#ffd23a', YD = '#b8860e', K = '#2a2416';
         if (dir === 'down') {
-          b.hl(cx - 2, ty, 4, '#3e4526'); b.p(cx - 3, ty, '#3e4526'); b.p(cx + 2, ty, '#3e4526'); // круглий комір
-          b.pat(cx - 2, ty + 1, ['#.#.#', '#.#.#', '#####', '..#..'], { '#': Y }); b.p(cx, ty + 1, YD);
+          b.hl(cx - 2, ty, 4, '#3a4222'); b.p(cx - 3, ty, '#4a5430'); b.p(cx + 2, ty, '#4a5430'); // круглий комір
+          // тризуб із темною облямівкою
+          b.pat(cx - 3, ty, ['...#...', '.#.#.#.', '.#.#.#.', '.#####.', '...#...'], { '#': Y }); b.p(cx, ty + 4, YD); // тризуб: високий середній зубець
+          b.hl(tx, ty + th - 2, tw, '#4a5430');
         }
-        if (dir === 'up') b.hl(tx + 1, ty, tw - 2, '#3e4526');
-        if (dir === 'right') { b.p(tx + tw - 2, ty + 2, Y); b.p(tx + tw - 2, ty + 3, YD); }
-        b.hl(tx, ty + th - 1, tw, '#353a22');
+        if (dir === 'up') { b.hl(tx + 1, ty, tw - 2, '#3a4222'); b.hl(tx, ty + th - 2, tw, '#4a5430'); }
+        if (dir === 'right') { b.vl(tx + tw - 1, ty + 1, 2, YD); b.p(tx + 1, ty + 1, '#2a5fb4'); b.p(tx + 1, ty + 2, '#ffd23a'); } // нашивка-прапор на плечі
       },
-      arms(b, g) { for (const h of [g.handL, g.handR]) if (h && g.frame < 4) b.p(h.x, h.y - 1, '#454c2a'); },
+      arms(b, g) {
+        if (g.dir === 'down' && g.handR && g.frame < 4) { b.p(g.handR.x, g.handR.y - 3, '#2a5fb4'); b.p(g.handR.x, g.handR.y - 2, '#ffd23a'); } // прапор на рукаві
+        if (g.dir === 'down' && g.handL && g.frame < 4) b.p(g.handL.x, g.handL.y - 1, '#48522c');
+      },
     }),
     // Козак Мамай: оселедець, довгі вуса, синій жупан із золотою облямівкою, червоний пояс, червоні шаровари, жовті чоботи
     kozak: Object.assign({}, ANDRIY, {
@@ -24636,6 +24672,8 @@
     g.addColorStop(0, 'rgba(255,220,150,0.18)'); g.addColorStop(1, 'rgba(255,220,150,0)');
     ctx.fillStyle = g; ctx.fillRect(p.cx - 110, p.feet - 180, 220, 190);
     ctx.restore();
+    const legend = G.pass && G.pass.isLegend && G.pass.isLegend(heroSkin());
+    if (legend) G.pass.legendFx(ctx, p.cx, p.feet - 62, 86, M.t);
     if (G.pass && G.pass.pet && G.hero3d && G.hero3d.drawPet) { // улюбленець — теж 3D, поруч на подіумі, крутиться разом із героєм
       const ph = Math.abs(Math.sin(M.t * 3.2)) * (Math.sin(M.t * 0.7) > 0.3 ? 4 : 0);
       ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(p.cx - 40, p.feet + 3, 14, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
@@ -24645,7 +24683,11 @@
     if (!ok3) { const img = U.spr('player', { skin: heroSkin(), dir: 'down', frame: 0 }); if (img) U.drawScaled(ctx, img, p.cx - img.width * 2, p.feet - img.height * 4, 4); }
     // підпис
     const P = G.progress, sk = P && P.skins ? P.skins.find((k) => k.id === heroSkin()) : null;
-    U.text(ctx, sk ? sk.name : '', p.cx, p.feet + 14, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
+    if (legend) {
+      const hc = ['#ffe070', '#fff4c0', '#ffc830'][Math.floor(M.t * 5) % 3];
+      U.text(ctx, '★ ' + (sk ? sk.name : '') + ' ★', p.cx, p.feet + 3, { size: 8, align: 'center', color: hc, outline: '#3a2000' });
+      U.text(ctx, 'ЛЕГЕНДАРНИЙ', p.cx, p.feet + 14, { size: 7, align: 'center', color: '#ffb020', outline: '#3a2000' });
+    } else U.text(ctx, sk ? sk.name : '', p.cx, p.feet + 14, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
     const lr = LOOK_R(), lh = U.inRect(G.input.mouse.x, G.input.mouse.y, lr);
     pill(ctx, lr.x, lr.y, lr.w, lr.h, lh ? '#3f7fae' : '#2d5f86');
     U.icon(ctx, 'shirt', lr.x + 5, lr.y + 4);
@@ -25360,6 +25402,7 @@
     for (let x = 320; x < 462; x += 8) U.rect(ctx, 'rgba(255,255,255,0.04)', x, 56, 4, 136);
     const pdir = dirs[Math.floor(t * 1.6) % 4], pfr = 1 + Math.floor(t * 6) % 3;
     const big = isSkins ? U.person('player', it.id, pdir, have ? pfr : 0) : wdFigure(eq, { [tabId]: it.id }, pdir, pfr);
+    if (isSkins && G.pass && G.pass.isLegend && G.pass.isLegend(it.id)) { ctx.save(); ctx.beginPath(); ctx.rect(320, 56, 142, 136); ctx.clip(); G.pass.legendFx(ctx, 391, 130, 80, t); ctx.restore(); U.text(ctx, 'ЛЕГЕНДАРНИЙ', 391, 60, { size: 8, align: 'center', color: ['#ffe070', '#fff4c0', '#ffc830'][Math.floor(t * 5) % 3], outline: '#3a2000' }); }
     if (big) {
       const sc = 4, pic = isSkins && !have ? U.silhouette(big, '#4a4550') : big;
       if (G.drawShadow) G.drawShadow(ctx, 391, 186, 26, 0.4);
@@ -30607,7 +30650,56 @@
   });
   G.events.on('run:end', () => { if (petE) petE.alive = false; petE = null; });
 
+  // ── ЛЕГЕНДАРНИЙ скін: золоте сяйво, промені й іскри ──
+  const LEGEND = { president: 1 };
+  // промені + іскри навколо точки (меню, гардероб, пас)
+  function legendFx(ctx, cx, cy, R, t) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, R);
+    g.addColorStop(0, 'rgba(255,214,90,0.45)'); g.addColorStop(0.5, 'rgba(255,170,40,0.16)'); g.addColorStop(1, 'rgba(255,170,40,0)');
+    ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+    for (let i = 0; i < 10; i++) { // промені, що повільно обертаються
+      const a = t * 0.35 + i * Math.PI / 5, w = 0.11;
+      ctx.fillStyle = 'rgba(255,220,120,' + (0.17 + 0.07 * Math.sin(t * 2 + i)) + ')';
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a - w) * R * 1.2, cy + Math.sin(a - w) * R * 1.2); ctx.lineTo(cx + Math.cos(a + w) * R * 1.2, cy + Math.sin(a + w) * R * 1.2); ctx.fill();
+    }
+    for (let i = 0; i < 14; i++) { // іскри
+      const ph = (t * 0.45 + i * 0.137) % 1, ang = i * 2.39 + t * 0.2, rr = R * (0.35 + 0.6 * ((i * 0.31) % 1));
+      const x = cx + Math.cos(ang) * rr, y = cy + Math.sin(ang) * rr * 0.8 - ph * 18, al = Math.sin(ph * Math.PI);
+      ctx.fillStyle = 'rgba(255,240,170,' + al + ')'; ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+      if (i % 4 === 0) { ctx.fillRect(Math.round(x) - 1, Math.round(y), 3, 1); ctx.fillRect(Math.round(x), Math.round(y) - 1, 1, 3); }
+    }
+    ctx.restore();
+  }
+  // у грі: золоте коло під ногами й іскри, що піднімаються
+  setTimeout(() => {
+    const PP = G.Player && G.Player.prototype; if (!PP || !PP.draw || PP._legendDraw) return;
+    PP._legendDraw = true;
+    const od = PP.draw;
+    PP.draw = function (ctx) {
+      if (!LEGEND[this.skin] || this.hidden || this.inMetro) return od.call(this, ctx);
+      const t = G.realTime, x = Math.round(this.x), y = Math.round(this.y + (this.h || 6) / 2), pu = 0.5 + 0.5 * Math.sin(t * 3);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const gr = ctx.createRadialGradient(x, y, 1, x, y, 14);
+      gr.addColorStop(0, 'rgba(255,210,80,' + (0.35 + 0.2 * pu) + ')'); gr.addColorStop(1, 'rgba(255,170,40,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(x, y, 14, 5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,224,120,' + (0.25 + 0.25 * pu) + ')'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(x, y, 9 + pu * 2, 3 + pu * 0.7, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+      const r = od.call(this, ctx);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 7; i++) {
+        const ph = (t * 0.7 + i / 7) % 1, sx = x + Math.sin(i * 2.3 + t * 1.3) * 7, sy = y - 2 - ph * 30, al = Math.sin(ph * Math.PI) * 0.9;
+        ctx.fillStyle = 'rgba(255,236,150,' + al + ')'; ctx.fillRect(Math.round(sx), Math.round(sy), 1, 1);
+        if (i === 0 && ph > 0.3 && ph < 0.6) { ctx.fillRect(Math.round(sx) - 1, Math.round(sy), 3, 1); ctx.fillRect(Math.round(sx), Math.round(sy) - 1, 1, 3); }
+      }
+      ctx.restore();
+      return r;
+    };
+  }, 0);
+
   G.pass = {
+    legendFx, isLegend: (id) => !!LEGEND[id],
     SEASON, MAXL, LV_XP, PETS, REW,
     get level() { return level(); }, get xp() { return st.xp; }, get cur() { return lvCur(); },
     get canClaim() { return canClaim(); }, get pet() { return st.pet; }, get pets() { return st.pets.slice(); }, PET_LVL: { patron: 1, cat: 10, pigeon: 20 },
@@ -30670,6 +30762,7 @@
     u.rect(ctx, bg, x, y, CW, RH);
     if (tr === 'p') u.rect(ctx, 'rgba(247,201,72,0.10)', x, y, CW, 2);
     if (special && !got) { ctx.save(); ctx.globalAlpha = 0.12 + 0.08 * pulse; u.rect(ctx, leg ? '#f7c948' : '#c08af0', x, y, CW, RH); ctx.restore(); }
+    if (leg) { ctx.save(); ctx.beginPath(); ctx.rect(x, y, CW, RH); ctx.clip(); legendFx(ctx, x + CW / 2, y + 22, 30, G.realTime); ctx.restore(); }
     ctx.save(); if (!open || locked) ctx.globalAlpha = 0.55;
     rewPreview(ctx, r, x + CW / 2, y + 22);
     ctx.restore();
