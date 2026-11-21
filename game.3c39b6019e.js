@@ -14199,27 +14199,74 @@
     grade(ctx);
   }
 
-  // ── «ультра»: світіння (bloom) яскравих місць, віньєтка, тепло вдень / холод уночі ──
-  let bl1 = null, bl2 = null;
+  // ── «ультра»: кінематографічна постобробка ──
+  // контраст/насиченість (soft-light самим кадром), світіння яскравого (bloom), сонячні промені вдень, серпанок,
+  // ефект мініатюри (розмиті верх і низ — tilt-shift), великі розмиті сніжинки на передньому плані, тон і віньєтка
+  let bl1 = null, bl2 = null, bl3 = null;
+  const flakes = [];
+  for (let i = 0; i < 26; i++) flakes.push({ x: Math.random(), y: Math.random(), z: 0.4 + Math.random() * 0.6, ph: Math.random() * 6.28 });
+  let lastCam = null;
   function ultraPost(ctx) {
     const cv = ctx.canvas; if (!cv || !cv.width) return;
     const W = cv.width, H = cv.height, w1 = Math.max(8, Math.round(W / 4)), h1 = Math.max(8, Math.round(H / 4)), w2 = Math.max(4, w1 >> 1), h2 = Math.max(4, h1 >> 1);
-    if (!bl1 || bl1.width !== w1 || bl1.height !== h1) { bl1 = G.util.makeCanvas(w1, h1); bl2 = G.util.makeCanvas(w2, h2); }
-    const g1 = bl1.getContext('2d'), g2 = bl2.getContext('2d'), S = sun(), night = S.night || 0;
-    g1.globalCompositeOperation = 'source-over'; g1.imageSmoothingEnabled = true; g1.drawImage(cv, 0, 0, w1, h1);
-    g1.globalCompositeOperation = 'multiply'; g1.drawImage(bl1, 0, 0); g1.drawImage(bl1, 0, 0); // лишаємо яскраве («поріг»)
+    if (!bl1 || bl1.width !== w1 || bl1.height !== h1) { bl1 = G.util.makeCanvas(w1, h1); bl2 = G.util.makeCanvas(w2, h2); bl3 = G.util.makeCanvas(w1, h1); }
+    const g1 = bl1.getContext('2d'), g2 = bl2.getContext('2d'), g3 = bl3.getContext('2d'), S = sun(), night = S.night || 0, day = 1 - night, t = G.realTime || 0;
+    // зменшена копія кадру (для розмиття) і «яскраве» для світіння
+    g3.globalCompositeOperation = 'source-over'; g3.imageSmoothingEnabled = true; g3.drawImage(cv, 0, 0, w1, h1);
+    g1.globalCompositeOperation = 'source-over'; g1.imageSmoothingEnabled = true; g1.drawImage(bl3, 0, 0);
+    g1.globalCompositeOperation = 'multiply'; g1.drawImage(bl1, 0, 0); g1.drawImage(bl1, 0, 0);
     g2.globalCompositeOperation = 'source-over'; g2.imageSmoothingEnabled = true; g2.clearRect(0, 0, w2, h2); g2.drawImage(bl1, 0, 0, w2, h2);
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = true;
+    // 1) контраст і насиченість
+    ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = 0.28 + 0.3 * night; ctx.drawImage(cv, 0, 0);
+    // 2) світіння
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.16 + 0.34 * night; ctx.drawImage(bl2, 0, 0, W, H);
-    ctx.globalAlpha = 0.10 + 0.18 * night; ctx.drawImage(bl1, 0, 0, W, H);
-    // тон: вдень трохи тепліше, вночі — холодніше
-    ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = 0.22;
-    ctx.fillStyle = night > 0.5 ? '#3a5aa8' : (S.warm > 0.4 ? '#ffb070' : '#ffe0b0'); ctx.fillRect(0, 0, W, H);
-    // віньєтка
+    ctx.globalAlpha = 0.08 + 0.5 * night; ctx.drawImage(bl2, 0, 0, W, H);
+    ctx.globalAlpha = 0.05 + 0.3 * night; ctx.drawImage(bl1, 0, 0, W, H);
+    // 3) сонячні промені (вдень і на заході)
+    if (day > 0.2) {
+      ctx.globalCompositeOperation = 'screen';
+      const warm = S.warm || 0, col = warm > 0.4 ? '255,190,120' : '255,240,200';
+      for (let k = 0; k < 5; k++) {
+        const x0 = W * (-0.1 + k * 0.28 + 0.05 * Math.sin(t * 0.13 + k)), wd = W * (0.06 + 0.04 * ((k * 37) % 3));
+        const gr = ctx.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, 'rgba(' + col + ',' + (0.09 * day) + ')'); gr.addColorStop(1, 'rgba(' + col + ',0)');
+        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 0.4 + k * 1.7);
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0 + wd, 0); ctx.lineTo(x0 + wd + H * 0.55, H); ctx.lineTo(x0 + H * 0.55, H); ctx.fill();
+      }
+    }
+    // 4) серпанок угорі (повітряна перспектива)
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(8,4,18,' + (0.32 + 0.12 * night) + ')');
+    const hz = ctx.createLinearGradient(0, 0, 0, H * 0.45);
+    hz.addColorStop(0, night > 0.5 ? 'rgba(40,50,90,0.28)' : 'rgba(150,170,210,0.16)'); hz.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H * 0.45);
+    // 5) ефект мініатюри: верх і низ розмиті смугами
+    const band = H * 0.24, N = 10;
+    for (let k = 0; k < N; k++) {
+      const a = 1 - k / N, y0 = (k / N) * band, hgt = band / N + 1, sy = y0 / H * h1, sh = hgt / H * h1;
+      ctx.globalAlpha = a * 0.95;
+      ctx.drawImage(bl3, 0, sy, w1, sh, 0, y0, W, hgt);
+      ctx.drawImage(bl3, 0, h1 - (y0 + hgt) / H * h1, w1, sh, 0, H - y0 - hgt, W, hgt);
+    }
+    // 6) великі розмиті сніжинки на передньому плані (паралакс від руху камери)
+    const cam = G.camera || { x: 0, y: 0 };
+    if (lastCam == null) lastCam = { x: cam.x, y: cam.y };
+    const dxc = cam.x - lastCam.x, dyc = cam.y - lastCam.y; lastCam = { x: cam.x, y: cam.y };
+    const sc = W / (G.cfg.VIEW_W || 480);
+    ctx.globalCompositeOperation = 'source-over';
+    for (const f of flakes) {
+      f.y += (0.0025 + 0.004 * f.z) * (1 / 60) * 60 * 0.3; f.x += Math.sin(t * 0.7 + f.ph) * 0.0006 - dxc * f.z * 0.004 / 60 * 60; f.y -= dyc * f.z * 0.004;
+      if (f.y > 1.08) { f.y = -0.08; f.x = Math.random(); } if (f.x < -0.08) f.x += 1.16; if (f.x > 1.08) f.x -= 1.16;
+      const r = (3 + 7 * f.z) * sc, x = f.x * W, y = f.y * H;
+      const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,' + (0.55 * f.z) + ')'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.globalAlpha = 0.9; ctx.fillStyle = gr; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    // 7) тон: вдень тепліше, вночі — синій холод
+    ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = night > 0.5 ? 0.3 : 0.18;
+    ctx.fillStyle = night > 0.5 ? '#2a4aa8' : (S.warm > 0.4 ? '#ff9a50' : '#ffd8a0'); ctx.fillRect(0, 0, W, H);
+    // 8) віньєтка
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.7);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(8,4,18,' + (0.42 + 0.12 * night) + ')');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
