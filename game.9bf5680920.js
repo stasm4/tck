@@ -23958,7 +23958,7 @@
     r.push(Object.assign({ tag: 'touch_pause' }, t.pause), Object.assign({ tag: 'touch_buttons' }, t.cluster), { x: t.stick.x - sr, y: t.stick.y - sr, w: sr * 2, h: sr * 2, tag: 'touch_stick' });
   }
   function toastArea() {
-    if (G.state === 'menu') return { x0: 4, x1: VW() - 6, y0: 176, y1: 248, cx: 206 + Math.round((VW() - 212) / 2) };
+    if (G.state === 'menu') return { x0: 206, x1: VW() - 98, y0: 30, y1: 70, cx: 206 + Math.round((VW() - 304) / 2) }; // Round 40: над головою 3D-героя, між профілем і кнопками праворуч
     if (inHud()) return { x0: 2, x1: VW() - 2, y0: 6, y1: isTouch() ? 172 : 200, cx: VW() / 2 };
     return { x0: 4, x1: VW() - 4, y0: 8, y1: VH() - 30, cx: VW() / 2 };
   }
@@ -24134,11 +24134,11 @@
   }
   // Round 16 (B13): у меню картка «НОВИЙ СКІН» — у вільній зоні праворуч унизу (не на лого / календарі)
   function fxPos(w, h) {
-    if (G.state === 'menu') return { x: Math.min(206 + Math.round((VW() - 212) / 2), Math.round(VW() - 4 - w / 2)), y: 176 + Math.round(h / 2) + 4 };
+    if (G.state === 'menu') return { x: Math.min(Math.round((MENU_X + MENU_W + 16 + VW() - 8) / 2), Math.round(VW() - 4 - w / 2)), y: 236 - Math.round(h / 2) };
     return { x: Math.round(VW() / 2), y: 78 };
   }
   function menuBusy() {
-    const r = [{ x: 12, y: 44, w: 186, h: 178, tag: 'menu_buttons' }];
+    const r = [{ x: 4, y: 2, w: 200, h: 222, tag: 'menu_buttons' }, { x: VW() - 100, y: 2, w: 96, h: 70, tag: 'top_right' }];
     if (fx) r.push({ x: 180, y: 176, w: VW() - 182, h: 62, tag: 'fx' });
     if (M.loginPop > 0) r.push(Object.assign({ tag: 'login' }, LOGIN_POP_R()));
     return r;
@@ -24419,9 +24419,9 @@
 
   const M = { focus: 0, t: 0, day: 1, items: [] };
   // Round 16 (B13): спливаюча нагорода за вхід і тости меню — у вільній зоні праворуч під «Завданнями дня»
-  const LOGIN_POP_R = () => ({ x: 206 + Math.round((VW() - 212) / 2) - 105, y: 176, w: 210, h: 34 });
+  const LOGIN_POP_R = () => { const x0 = MENU_X + MENU_W + 16, x1 = VW() - 8; return { x: Math.round((x0 + x1) / 2) - 105, y: 232, w: 210, h: 34 }; };
   // Round 11: ГРАТИ (кампанія, ◀ ▶ — місія, E / ☰ — екран місій) · ВТЕЧА · ЩОДЕННА · ПРОКАЧКА · ГАРДЕРОБ · КРАМНИЦЯ · КЕРУВАННЯ
-  const MENU_X = 14, MENU_W = 190;
+  const MENU_X = 14, MENU_W = 190, MY0 = 56;
   // Round 21: велика картка ГРАТИ + сітка 2×3 з іконками + рядок КЕРУВАННЯ
   const MENU_ICON = { settings: 'gear', heroes: 'person', escape: 'run', daily: 'cal', upgrades: 'fist', wardrobe: 'shirt', shop: 'coin', controls: 'gear', leaders: 'star', coop: 'person' };
   const MENU_COL = { settings: '#b4abb2', heroes: '#e5483c', escape: '#f7c948', daily: '#93c25b', upgrades: '#ef8a3b', wardrobe: '#8fc7e4', shop: '#f7c948', controls: '#b4abb2', leaders: '#f7c948', coop: '#93c25b' };
@@ -24429,13 +24429,117 @@
   const DOCK = ['heroes', 'wardrobe', 'shop', 'upgrades', 'leaders', 'settings'];
   const DOCK_LABEL = { heroes: 'ГЕРОЇ', wardrobe: 'ГАРДЕРОБ', shop: 'КРАМНИЦЯ', upgrades: 'ПРОКАЧКА', leaders: 'ЛІДЕРИ', controls: 'КЕРУВАННЯ', settings: 'НАЛАШТУВАННЯ' };
   function menuItems() {
-    const it = [{ id: 'start', label: 'ГРАТИ', r: { x: MENU_X, y: 42, w: MENU_W - 26, h: 40 } },
-      { id: 'modes', label: 'РЕЖИМИ', r: { x: MENU_X, y: 88, w: MENU_W, h: 44 } }];
+    const it = [{ id: 'start', label: 'ГРАТИ', r: { x: MENU_X, y: MY0, w: MENU_W - 26, h: 40 } },
+      { id: 'modes', label: 'РЕЖИМИ', r: { x: MENU_X, y: MY0 + 46, w: MENU_W, h: 44 } }];
     const cw = Math.floor((MENU_W - 8) / 3);
-    DOCK.forEach((id, k) => it.push({ id, label: DOCK_LABEL[id], dock: k, r: { x: MENU_X + (k % 3) * (cw + 4), y: 140 + Math.floor(k / 3) * 36, w: cw, h: 32 } }));
+    DOCK.forEach((id, k) => it.push({ id, label: DOCK_LABEL[id], dock: k, r: { x: MENU_X + (k % 3) * (cw + 4), y: MY0 + 98 + Math.floor(k / 3) * 36, w: cw, h: 32 } }));
     return it;
   }
-  const missionsBtn = () => ({ x: MENU_X + MENU_W - 22, y: 42, w: 22, h: 40 });
+  const missionsBtn = () => ({ x: MENU_X + MENU_W - 22, y: MY0, w: 22, h: 40 });
+  // ═══ Round 40: нове головне меню — профіль (нік, рівень, досвід) зліва вгорі, гроші справа вгорі, 3D-герой праворуч ═══
+  // рівень гравця — з усього, що зроблено: зірки місій, забіги, перемоги, втечі, досягнення, зароблені гривні
+  function xpNow() {
+    const P = G.progress; if (!P) return 0;
+    const c = P.counters || {}, ach = (P.achievements || []).filter((a) => a.got).length;
+    return Math.round((P.totalStars || 0) * 60 + (c.runs || 0) * 15 + (c.wins || 0) * 20 + (P.escapes || 0) * 8 + ach * 40 + (P.earned || 0) / 20);
+  }
+  function levelOf(xp) { // рівень L → L+1 коштує 100·L досвіду
+    let L = 1, need = 100, left = xp;
+    while (left >= need && L < 99) { left -= need; L++; need = 100 * L; }
+    return { L, cur: Math.floor(left), need };
+  }
+  G.ui.level = () => levelOf(xpNow());
+  const PROF_R = () => ({ x: 8, y: 4, w: 178, h: 26 });
+  const POD = () => { const x0 = MENU_X + MENU_W + 16, x1 = VW() - 8; return { cx: Math.round((x0 + x1) / 2), feet: 214, x0, x1 }; };
+  const HERO_R = () => { const p = POD(); return { x: p.cx - 64, y: 78, w: 128, h: 150 }; };
+  const RBTN = () => { const w = 84, x = VW() - 8 - w; return [{ id: 'login', r: { x, y: 30, w, h: 17 } }, { id: 'tasks', r: { x, y: 51, w, h: 17 } }]; };
+  const H3 = { ang: 0.2, vel: 0, drag: null, idle: 0, jump: 0, jumpV: 0, lastLvl: 0 };
+  function heroSkin() { const P = G.progress; return (G.heroes && G.heroes.skinFor && G.heroes.cur ? G.heroes.skinFor(G.heroes.cur) : null) || (P && P.equipped) || 'office'; }
+  function heroUpdate(dt) {
+    const m = G.input.mouse, R = HERO_R();
+    if (m.down && !H3.drag && U.inRect(m.x, m.y, R) && !M.pop) H3.drag = { x: m.x, moved: 0 };
+    if (H3.drag) {
+      if (!m.down) { if (H3.drag.moved < 3 && H3.jump <= 0) { H3.jumpV = 150; H3.jump = 0.001; click('pickup'); } H3.drag = null; }
+      else { const dx = m.x - H3.drag.x; H3.drag.x = m.x; H3.drag.moved += Math.abs(dx); H3.ang += dx * 0.035; H3.vel = dx * 0.035 / Math.max(dt, 1 / 120); H3.idle = 0; }
+    } else {
+      H3.ang += H3.vel * dt; H3.vel *= Math.pow(0.04, dt); H3.idle += dt;
+      if (H3.idle > 2.5 && Math.abs(H3.vel) < 0.3) { // сам потроху повертається обличчям і хитається
+        const want = 0.12 + Math.sin(M.t * 0.6) * 0.32;
+        let d = want - (H3.ang % (Math.PI * 2)); while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+        H3.ang += d * Math.min(1, dt * 1.5);
+      }
+      if (H3.idle > 6 && H3.jump <= 0 && Math.random() < dt * 0.25) { H3.jumpV = 110; H3.jump = 0.001; }
+    }
+    if (H3.jump > 0) { H3.jump += H3.jumpV * dt; H3.jumpV -= 520 * dt; if (H3.jump <= 0) { H3.jump = 0; H3.jumpV = 0; } }
+  }
+  function drawHero3d(ctx) {
+    const p = POD(), s = 5;
+    // подіум
+    const breathe = Math.sin(M.t * 2.2);
+    const lift = Math.max(0, H3.jump) + (H3.jump > 0 ? 0 : Math.max(0, breathe) * 1.5);
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(p.cx, p.feet + 4, 62, 13, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2a1e36'; ctx.beginPath(); ctx.ellipse(p.cx, p.feet + 2, 58, 12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4a3658'; ctx.beginPath(); ctx.ellipse(p.cx, p.feet - 1, 58, 11, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(253,233,143,' + (0.35 + 0.25 * Math.sin(M.t * 3)) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(p.cx, p.feet - 1, 52, 9, 0, 0, Math.PI * 2); ctx.stroke();
+    const sh = Math.max(0.35, 1 - lift / 60);
+    ctx.fillStyle = 'rgba(0,0,0,' + (0.4 * sh) + ')'; ctx.beginPath(); ctx.ellipse(p.cx, p.feet, 24 * sh, 5 * sh, 0, 0, Math.PI * 2); ctx.fill();
+    // світло ззаду
+    const g = ctx.createRadialGradient(p.cx, p.feet - 70, 10, p.cx, p.feet - 70, 110);
+    g.addColorStop(0, 'rgba(255,220,150,0.18)'); g.addColorStop(1, 'rgba(255,220,150,0)');
+    ctx.fillStyle = g; ctx.fillRect(p.cx - 110, p.feet - 180, 220, 190);
+    ctx.restore();
+    const ok3 = G.hero3d && G.hero3d.draw(ctx, p.cx, p.feet, s, H3.ang, { skin: heroSkin(), lift: Math.round(lift) });
+    if (!ok3) { const img = U.spr('player', { skin: heroSkin(), dir: 'down', frame: 0 }); if (img) U.drawScaled(ctx, img, p.cx - img.width * 2, p.feet - img.height * 4, 4); }
+    // підпис
+    const P = G.progress, sk = P && P.skins ? P.skins.find((k) => k.id === heroSkin()) : null;
+    U.text(ctx, sk ? sk.name : '', p.cx, p.feet + 14, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
+    if (H3.idle > 1.5 && M.t < 20) U.text(ctx, isTouch() ? '← потягни, щоб покрутити →' : '← потягни мишкою →', p.cx, p.feet + 25, { size: 7, align: 'center', color: 'rgba(255,255,255,0.45)' });
+  }
+  function pill(ctx, x, y, w, h, fill) { U.rect(ctx, 'rgba(0,0,0,0.35)', x + 1, y + 2, w, h); U.rect(ctx, '#120a18', x - 1, y - 1, w + 2, h + 2); U.rect(ctx, fill, x, y, w, h); U.rect(ctx, 'rgba(255,255,255,0.18)', x, y, w, 1); }
+  function drawTopBar(ctx) {
+    const P = G.progress, r = PROF_R(), lv = levelOf(xpNow()), hov = U.inRect(G.input.mouse.x, G.input.mouse.y, r);
+    // профіль
+    pill(ctx, r.x, r.y, r.w, r.h, hov ? 'rgba(58,40,72,0.96)' : 'rgba(30,20,40,0.92)');
+    U.rect(ctx, '#120a18', r.x + 2, r.y + 2, 22, 22); U.rect(ctx, '#f7c948', r.x + 3, r.y + 3, 20, 20); U.rect(ctx, '#ffe58a', r.x + 3, r.y + 3, 20, 8);
+    U.text(ctx, String(lv.L), r.x + 13, r.y + 4, { size: lv.L > 9 ? 10 : 14, align: 'center', color: '#5a3a10' });
+    U.text(ctx, 'РІВ', r.x + 13, r.y + 17, { size: 7, align: 'center', color: '#7a5418' });
+    const nm = (G.online && G.online.name) || '';
+    if (nm) U.text(ctx, nm, r.x + 30, r.y + 3, { size: 10, color: '#fbf6ea', shadow: true });
+    else U.text(ctx, 'Тисни — введи нік', r.x + 30, r.y + 4, { size: 8, color: Math.sin(G.realTime * 4) > 0 ? '#fde98f' : '#c8b878' });
+    U.text(ctx, lv.cur + '/' + lv.need, r.x + r.w - 5, r.y + 4, { size: 7, align: 'right', color: '#b4abb2' });
+    const bw = r.w - 36, k = lv.cur / lv.need;
+    U.rect(ctx, '#120a18', r.x + 30, r.y + 17, bw, 5); U.rect(ctx, '#2a2030', r.x + 31, r.y + 18, bw - 2, 3);
+    U.rect(ctx, '#7fd0ff', r.x + 31, r.y + 18, Math.round((bw - 2) * k), 3);
+    // гроші й зірки справа вгорі
+    const money = (P ? P.money : 0).toLocaleString('uk-UA').replace(/\u00a0|,/g, ' ') + ' грн';
+    const mw = U.measure(money, 10) + 26, mx = VW() - 8 - mw;
+    pill(ctx, mx, 6, mw, 18, 'rgba(30,20,40,0.92)');
+    U.icon(ctx, 'coin', mx + 5, 9, 1.5);
+    U.text(ctx, money, mx + 19, 9, { size: 10, color: '#f7c948', shadow: true });
+    if (P && P.maxStars) {
+      const st = '★ ' + P.totalStars + '/' + P.maxStars, sw = U.measure(st, 8) + 12, sx = mx - 6 - sw;
+      pill(ctx, sx, 7, sw, 16, 'rgba(30,20,40,0.92)');
+      U.text(ctx, st, sx + sw / 2, 10, { size: 8, align: 'center', color: '#fde98f' });
+    }
+    // кнопки праворуч: нагорода за вхід / завдання дня
+    const chal = P && P.challenges ? P.challenges() : [], done = chal.filter((c) => c.done).length;
+    const L = P && P.login;
+    RBTN().forEach((b) => {
+      const r2 = b.r, h2 = U.inRect(G.input.mouse.x, G.input.mouse.y, r2);
+      pill(ctx, r2.x, r2.y, r2.w, r2.h, h2 ? 'rgba(72,52,86,0.97)' : 'rgba(30,20,40,0.9)');
+      if (b.id === 'login') { U.icon(ctx, 'cal', r2.x + 4, r2.y + 4); U.text(ctx, 'ЗА ВХІД · ' + (L ? L.day : 1) + '/7', r2.x + 15, r2.y + 4, { size: 7, color: '#fde98f' }); }
+      else { U.icon(ctx, 'check', r2.x + 4, r2.y + 5); U.text(ctx, 'ЗАВДАННЯ ' + done + '/' + (chal.length || 3), r2.x + 15, r2.y + 4, { size: 7, color: done >= (chal.length || 3) ? '#93c25b' : '#fbf6ea' }); }
+    });
+  }
+  function drawPop(ctx) {
+    if (!M.pop) return;
+    ctx.save(); ctx.globalAlpha = 0.6; U.rect(ctx, '#0c0612', 0, 0, VW(), VH()); ctx.restore();
+    const w = Math.min(300, VW() - 40), x = Math.round(VW() / 2 - w / 2);
+    if (M.pop === 'login') { U.text(ctx, 'НАГОРОДА ЗА ВХІД', VW() / 2, 62, { size: 14, align: 'center', color: '#fde98f', outline: '#120a18' }); drawLoginPanel(ctx, x, 84, w); U.text(ctx, 'Заходь щодня — 7-й день найбільший', VW() / 2, 136, { size: 8, align: 'center', color: '#b4abb2' }); }
+    else { U.text(ctx, 'ЗАВДАННЯ ДНЯ', VW() / 2, 52, { size: 14, align: 'center', color: '#fde98f', outline: '#120a18' }); if (G.modes && G.modes.drawChallenges) G.modes.drawChallenges(ctx, x, 76, w, 70); }
+    U.text(ctx, isTouch() ? 'Торкнись, щоб закрити' : 'Клік або Esc — закрити', VW() / 2, VH() - 26, { size: 8, align: 'center', color: 'rgba(255,255,255,0.6)' });
+  }
   function changeDay(d) {
     const maxDay = G.progress ? G.progress.maxDay || 1 : 1;
     const n = G.util.clamp(M.day + d, 1, maxDay);
@@ -24469,9 +24573,23 @@
     G.ui.reset();
     const P = G.progress;
     if (P && P.loginFresh && P.login) { P.loginFresh = false; M.loginPop = 3.2; } else M.loginPop = 0;
+    M.pop = null; H3.idle = 0;
+    try {
+      const L = levelOf(xpNow()).L, was = +(localStorage.getItem('tck_lvl') || 0);
+      if (was && L > was) { G.ui.toast('НОВИЙ РІВЕНЬ ' + L + '!', 2600); click('unlock'); }
+      localStorage.setItem('tck_lvl', String(L));
+    } catch (e) { /* */ }
   };
   S.menu.update = function (dt, realDt) {
     M.t += realDt;
+    const mm = G.input.mouse;
+    if (M.pop) { if (mm.clicked || back() || ok()) { G.input.consume && G.input.consume('pause'); M.pop = null; click(); } return; }
+    heroUpdate(realDt || dt);
+    if (mm.clicked) {
+      if (U.inRect(mm.x, mm.y, PROF_R()) && G.online && G.online.askName) { click(); G.online.askName(() => {}); return; }
+      for (const b of RBTN()) if (U.inRect(mm.x, mm.y, b.r)) { click(); M.pop = b.id; return; }
+      if (U.inRect(mm.x, mm.y, HERO_R())) return; // тап по герою — стрибок (heroUpdate)
+    }
     if (M.loginPop > 0 && !fx) M.loginPop -= realDt;
     M.items = menuItems();
     const n = M.items.length;
@@ -24754,10 +24872,11 @@
   S.menu.drawBg = function (ctx) { drawMenuBg(ctx, M.t); }; // Round 21: фон меню — на весь екран (і під вирізом)
   S.menu.draw = function (ctx) {
     if (!G._bgDone) drawMenuBg(ctx, M.t);
-    const bob = Math.round(Math.sin(M.t * 2) * 1.5);
     const pulse = Math.sin(M.t * 4) > -0.6;
-    U.text(ctx, 'БУСИФІКАЦІЯ', VW() / 2 + 2, 10 + bob + 2, { size: 24, align: 'center', color: '#1a0e20' });
-    U.text(ctx, 'БУСИФІКАЦІЯ', VW() / 2, 10 + bob, { size: 24, align: 'center', color: pulse ? '#ff5a4a' : '#d8443a', outline: '#1a0e20' });
+    U.text(ctx, 'БУСИФІКАЦІЯ', MENU_X + MENU_W / 2 + 1, 35, { size: 16, align: 'center', color: '#1a0e20' });
+    U.text(ctx, 'БУСИФІКАЦІЯ', MENU_X + MENU_W / 2, 34, { size: 16, align: 'center', color: pulse ? '#ff5a4a' : '#d8443a', outline: '#1a0e20' });
+    drawHero3d(ctx);
+    drawTopBar(ctx);
     const P = G.progress;
     const bd = (P && P.badges) ? P.badges() : {};
     const camp = (G.missions && G.missions.CAMPAIGN) || 15;
@@ -24829,16 +24948,6 @@
         U.rect(ctx, '#fff8e0', bx + 3, by + 1, 1, 3); U.rect(ctx, '#fff8e0', bx + 3, by + 5, 1, 1);
       }
     }
-    // права колонка: нагорода за вхід і завдання дня (компактно, праворуч — у центрі видно місто)
-    const pw = Math.min(250, VW() - 232), px = VW() - pw - 10;
-    const y = drawLoginPanel(ctx, px, 44, pw);
-    if (G.modes && G.modes.drawChallenges) G.modes.drawChallenges(ctx, px, y, pw, 60);
-    // нижній рядок
-    const esc = P ? P.escapes : 0;
-    const info = 'Втеч: ' + esc + (P && P.maxStars ? '   ★ ' + P.totalStars + '/' + P.maxStars + '   ' + P.money + ' грн' : '');
-    const iw = U.measure(info, 8) + 16;
-    U.panel(ctx, VW() / 2 - iw / 2, 251, iw, 16);
-    U.text(ctx, info, VW() / 2, 254, { size: 8, align: 'center', color: '#fde98f' });
     if (!isTouch()) U.text(ctx, 'Стрілки + Enter', VW() - 4, VH() - 11, { size: 8, align: 'right', color: 'rgba(255,255,255,0.5)' });
     // спливаюча нагорода за вхід
     if (M.loginPop > 0 && P && P.login && !fx) {
@@ -24851,6 +24960,7 @@
       U.text(ctx, L.day === 7 ? '+ енергетик у рюкзак!' : 'Завтра: +' + P.LOGIN_REWARDS[L.day % 7] + ' грн', x + 26, yy + 20, { size: 8, color: '#b4abb2' });
       ctx.restore();
     }
+    drawPop(ctx);
     G.ui.drawOverlay(ctx);
   };
 
@@ -29768,6 +29878,84 @@
     if (G.dialog && G.dialog.active) G.dialog.close();
     G.cutscene.play('caught', () => { if (G.endRun) G.endRun('caught'); });
   });
+})();
+
+
+/* ===== 74_hero3d.js ===== */
+// ═══════════════════════════ 74_hero3d — 3D-герой у меню (воксельний, з тих самих пікселів гри) ═══════════════════════════
+// Модель будується з 4 спрайтів героя (спереду / ззаду / зліва / справа) з поточним скіном і одягом (шапка, борода, кофта —
+// їх уже накладає G.sprites.get через 86_outfit): воксель є, якщо піксель непрозорий і спереду, і збоку («оболонка»).
+// Колір кожної грані — з відповідного спрайта, бокові грані трохи темніші. Обертання навколо вертикальної осі.
+// G.hero3d.draw(ctx, cx, feetY, scale, angle, {skin, frame, bob}) — намалювати; G.hero3d.model(skin, frame) — кеш моделі.
+(function () {
+  'use strict';
+  const cache = new Map();
+  const DZ = 0.6; // глибина тіла: профільний спрайт ширший за справжню товщину (руки, ніс) — стискаємо
+  const shade = (c, k) => 'rgb(' + Math.round(c[0] * k) + ',' + Math.round(c[1] * k) + ',' + Math.round(c[2] * k) + ')';
+  function px(cv) {
+    if (!cv || !cv.width) return null;
+    let d = null;
+    try { d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; } catch (e) { return null; }
+    return { w: cv.width, h: cv.height, d, at(x, y) { if (x < 0 || y < 0 || x >= this.w || y >= this.h) return null; const i = (y * this.w + x) * 4; return this.d[i + 3] > 40 ? [this.d[i], this.d[i + 1], this.d[i + 2]] : null; } };
+  }
+  function build(skin, frame) {
+    const get = (dir) => { try { return px(G.sprites.get('player', { skin, dir, frame })); } catch (e) { return null; } };
+    const F = get('down'), B = get('up'), Lf = get('left'), R = get('right');
+    if (!F || !R) return null;
+    const W = F.w, H = F.h, D = R.w;
+    const solid = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < W && y < H && z < D && !!F.at(x, y) && !!R.at(z, y);
+    const faces = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (!F.at(x, y)) continue;
+      for (let z = 0; z < D; z++) {
+        if (!R.at(z, y)) continue;
+        const X = x - (W - 1) / 2, Z = (z - (D - 1) / 2) * DZ;
+        // +z — спереду (обличчям до камери при куті 0), −z — спина; +x / −x — боки
+        if (!solid(x, y, z + 1)) faces.push({ n: 0, X, Y: y, Z, c: F.at(x, y) });
+        if (!solid(x, y, z - 1)) { const c = (B && B.at(W - 1 - x, y)) || F.at(x, y); faces.push({ n: 1, X, Y: y, Z, c }); }
+        if (!solid(x + 1, y, z)) { const c = (Lf && Lf.at(D - 1 - z, y)) || R.at(z, y); faces.push({ n: 2, X, Y: y, Z, c }); }
+        if (!solid(x - 1, y, z)) faces.push({ n: 3, X, Y: y, Z, c: R.at(z, y) });
+      }
+    }
+    // найнижчий непрозорий рядок — ноги
+    let foot = H - 1;
+    for (let y = H - 1; y >= 0; y--) { let any = false; for (let x = 0; x < W; x++) if (F.at(x, y)) { any = true; break; } if (any) { foot = y; break; } }
+    for (const f of faces) f.col = [shade(f.c, 1), shade(f.c, 0.93), shade(f.c, 0.8), shade(f.c, 0.8)][f.n];
+    return { faces, H, foot };
+  }
+  function model(skin, frame) {
+    let key = skin + '|' + (frame || 0);
+    try { key += '|' + JSON.stringify(G.progress && G.progress.outfit ? G.progress.outfit() : null); } catch (e) { /* */ }
+    let m = cache.get(key);
+    if (m === undefined) { m = build(skin, frame || 0); if (cache.size > 24) cache.clear(); cache.set(key, m); }
+    return m;
+  }
+  function draw(ctx, cx, feetY, s, ang, o) {
+    o = o || {};
+    const m = model(o.skin || 'office', o.frame || 0);
+    if (!m) return false;
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    const vis = [ca > 0.02, ca < -0.02, sa > 0.02, sa < -0.02];
+    const list = [];
+    for (const f of m.faces) {
+      if (!vis[f.n]) continue;
+      let X = f.X, Z = f.Z, w;
+      if (f.n === 0) Z += 0.5 * DZ; else if (f.n === 1) Z -= 0.5 * DZ; else if (f.n === 2) X += 0.5; else X -= 0.5;
+      const sx = X * ca - Z * sa, depth = X * sa + Z * ca;
+      w = (f.n < 2 ? Math.abs(ca) : Math.abs(sa) * DZ) * s;
+      list.push({ sx, depth, w, y: f.Y, col: f.col });
+    }
+    list.sort((a, b) => a.depth - b.depth);
+    const top = feetY - (m.foot + 1) * s - (o.lift || 0);
+    for (const f of list) {
+      ctx.fillStyle = f.col;
+      const x = cx + f.sx * s - f.w / 2;
+      ctx.fillRect(Math.floor(x), Math.round(top + f.y * s), Math.ceil(f.w + 0.6), s);
+    }
+    return true;
+  }
+  G.hero3d = { draw, model, clear() { cache.clear(); } };
+  G.events && G.events.on && G.events.on('outfit:change', () => cache.clear());
 })();
 
 
