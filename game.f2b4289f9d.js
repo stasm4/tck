@@ -592,6 +592,9 @@
         const sh = (typeof screen !== 'undefined' && screen && screen.height) || window.innerHeight || 720;
         const small = Math.min(sw, sh) < 500;
         const hwc = nav.hardwareConcurrency || 4, mem = nav.deviceMemory || 4;
+        // iPhone / iPad: Safari ховає справжні ядра й пам'ять (а сучасні — дуже швидкі) → одразу нормальна графіка без режиму 30 к/с
+        const ua = String(nav.userAgent || ''), ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && (nav.maxTouchPoints || 0) > 1);
+        if (ios) return 'medium';
         if (hwc <= 2 || mem <= 1) return (touch || small) ? 'min' : 'medium';
         // Round 35: сенсорні пристрої стартують обережно — монітор підніме якість, якщо кадри встигають
         if (touch || small) return (hwc <= 4 || mem <= 2) ? 'min' : (hwc >= 8 && mem >= 6) ? 'medium' : 'low';
@@ -30778,19 +30781,29 @@
     const od = PP.draw;
     PP.draw = function (ctx) {
       if (!LEGEND[this.skin] || this.hidden || this.inMetro) return od.call(this, ctx);
-      const t = G.realTime, x = Math.round(this.x), y = Math.round(this.y + (this.h || 6) / 2), pu = 0.5 + 0.5 * Math.sin(t * 3);
-      ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      const gr = ctx.createRadialGradient(x, y, 1, x, y, 14);
-      gr.addColorStop(0, 'rgba(255,210,80,' + (0.35 + 0.2 * pu) + ')'); gr.addColorStop(1, 'rgba(255,170,40,0)');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(x, y, 14, 5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,224,120,' + (0.25 + 0.25 * pu) + ')'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(x, y, 9 + pu * 2, 3 + pu * 0.7, 0, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
+      const t = G.realTime, x = this.x, yb = this.y + (this.h || 6) / 2, yc = yb - 13, pu = 0.5 + 0.5 * Math.sin(t * 3);
+      // зірочки на орбіті навколо героя: позаду — до нього, спереду — після
+      const orbit = (front) => {
+        for (let i = 0; i < 3; i++) {
+          const a = t * 2.2 + i * Math.PI * 2 / 3, sn = Math.sin(a);
+          if ((sn >= 0) !== front) continue;
+          const ox = x + Math.cos(a) * 12, oy = yc + sn * 4 + Math.sin(t * 3 + i) * 1.5;
+          ctx.fillStyle = front ? '#fff4b0' : 'rgba(255,214,90,0.7)';
+          ctx.fillRect(Math.round(ox), Math.round(oy), 1, 1);
+          if (front) { ctx.fillStyle = 'rgba(255,214,90,0.85)'; ctx.fillRect(Math.round(ox) - 1, Math.round(oy), 3, 1); ctx.fillRect(Math.round(ox), Math.round(oy) - 1, 1, 3); }
+        }
+      };
+      orbit(false);
+      // золоте сяйво по контуру самої фігури
+      ctx.save(); ctx.shadowColor = 'rgba(255,200,60,' + (0.7 + 0.3 * pu) + ')'; ctx.shadowBlur = 4 + 3 * pu; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
       const r = od.call(this, ctx);
+      ctx.restore();
+      orbit(true);
+      // кілька іскор угору
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < 7; i++) {
-        const ph = (t * 0.7 + i / 7) % 1, sx = x + Math.sin(i * 2.3 + t * 1.3) * 7, sy = y - 2 - ph * 30, al = Math.sin(ph * Math.PI) * 0.9;
+      for (let i = 0; i < 4; i++) {
+        const ph = (t * 0.6 + i / 4) % 1, sx = x + Math.sin(i * 2.3 + t) * 6, sy = yb - 6 - ph * 26, al = Math.sin(ph * Math.PI) * 0.8;
         ctx.fillStyle = 'rgba(255,236,150,' + al + ')'; ctx.fillRect(Math.round(sx), Math.round(sy), 1, 1);
-        if (i === 0 && ph > 0.3 && ph < 0.6) { ctx.fillRect(Math.round(sx) - 1, Math.round(sy), 3, 1); ctx.fillRect(Math.round(sx), Math.round(sy) - 1, 1, 3); }
       }
       ctx.restore();
       return r;
