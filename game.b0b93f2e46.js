@@ -24656,7 +24656,7 @@
     if (H3.jump > 0) { H3.jump += H3.jumpV * dt; H3.jumpV -= 520 * dt; if (H3.jump <= 0) { H3.jump = 0; H3.jumpV = 0; } }
   }
   function drawHero3d(ctx) {
-    const p = POD(), s = 4;
+    const p = POD(), s = 4.5;
     // подіум
     const breathe = Math.sin(M.t * 2.2);
     const lift = Math.max(0, H3.jump) + (H3.jump > 0 ? 0 : Math.max(0, breathe) * 1.5);
@@ -24677,9 +24677,9 @@
     if (G.pass && G.pass.pet && G.hero3d && G.hero3d.drawPet) { // улюбленець — теж 3D, поруч на подіумі, крутиться разом із героєм
       const ph = Math.abs(Math.sin(M.t * 3.2)) * (Math.sin(M.t * 0.7) > 0.3 ? 4 : 0);
       ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(p.cx - 40, p.feet + 3, 14, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      if (!(G.hero3d.drawPetSmooth ? G.hero3d.drawPetSmooth(ctx, G.pass.pet, p.cx - 40, p.feet + 3, 3, H3.ang, Math.round(ph)) : G.hero3d.drawPet(ctx, G.pass.pet, p.cx - 40, p.feet + 4, 3, H3.ang, Math.round(ph)))) G.pass.drawPet(ctx, G.pass.pet, p.cx - 40, p.feet + 3 - ph, 3, 0, false);
+      if (!G.hero3d.drawPet(ctx, G.pass.pet, p.cx - 40, p.feet + 4, 3, H3.ang, Math.round(ph))) G.pass.drawPet(ctx, G.pass.pet, p.cx - 40, p.feet + 3 - ph, 3, 0, false);
     }
-    const ok3 = G.hero3d && (G.hero3d.drawSmooth ? G.hero3d.drawSmooth(ctx, p.cx, p.feet, s, H3.ang, { skin: heroSkin(), lift: Math.round(lift) }) : G.hero3d.draw(ctx, p.cx, p.feet, s, H3.ang, { skin: heroSkin(), lift: Math.round(lift) }));
+    const ok3 = G.hero3d && G.hero3d.draw(ctx, p.cx, p.feet, s, H3.ang, { skin: heroSkin(), lift: Math.round(lift) });
     if (!ok3) { const img = U.spr('player', { skin: heroSkin(), dir: 'down', frame: 0 }); if (img) U.drawScaled(ctx, img, p.cx - img.width * 2, p.feet - img.height * 4, 4); }
     // підпис
     const P = G.progress, sk = P && P.skins ? P.skins.find((k) => k.id === heroSkin()) : null;
@@ -30213,7 +30213,14 @@
         if (lum < 46 || (r > g && g > bb && lum < 95 && r - bb > 40)) cut[y * w + x] = 1; // темний або коричнево-золотий контур
       }
     }
-    return { w, h, at(x, y) { if (x < 0 || y < 0 || x >= w || y >= h) return null; if (cut && cut[y * w + x]) return null; const i = (y * w + x) * 4; return d[i + 3] > 40 ? [d[i], d[i + 1], d[i + 2]] : null; } };
+    if (strip) { // зрізаний контур → у канвас → Scale2x
+      const c2 = G.util.makeCanvas(w, h), x2 = c2.getContext('2d'), id = x2.createImageData(w, h);
+      for (let k = 0; k < w * h; k++) { if (cut[k] || d[k * 4 + 3] <= 40) continue; id.data[k * 4] = d[k * 4]; id.data[k * 4 + 1] = d[k * 4 + 1]; id.data[k * 4 + 2] = d[k * 4 + 2]; id.data[k * 4 + 3] = 255; }
+      x2.putImageData(id, 0, 0);
+      const up = scale2x(c2), ud = up.getContext('2d').getImageData(0, 0, up.width, up.height).data, W2 = up.width, H2 = up.height;
+      return { w: W2, h: H2, up: 2, at(x, y) { if (x < 0 || y < 0 || x >= W2 || y >= H2) return null; const i = (y * W2 + x) * 4; return ud[i + 3] > 40 ? [ud[i], ud[i + 1], ud[i + 2]] : null; } };
+    }
+    return { w, h, at(x, y) { if (x < 0 || y < 0 || x >= w || y >= h) return null; const i = (y * w + x) * 4; return d[i + 3] > 40 ? [d[i], d[i + 1], d[i + 2]] : null; } };
   }
   function build(skin) {
     const get = (dir) => { try { return px(G.sprites.get('player', { skin, dir, frame: 0 }), true); } catch (e) { return null; } };
@@ -30240,7 +30247,7 @@
     for (let y = H - 1; y >= 0; y--) { let any = false; for (let x = 0; x < W; x++) if (F.at(x, y)) { any = true; break; } if (any) { foot = y; break; } }
     let top = 0;
     for (let y = 0; y < H; y++) { let any = false; for (let x = 0; x < W; x++) if (F.at(x, y)) { any = true; break; } if (any) { top = y; break; } }
-    return { faces, W, H, D, foot, top, dz: DZ };
+    return { faces, W, H, D, foot, top, dz: DZ, up: F.up || 1 };
   }
   function outfitKey() { try { return JSON.stringify(G.progress && G.progress.outfit ? G.progress.outfit() : null); } catch (e) { return ''; } }
   function model(skin) {
@@ -30288,7 +30295,7 @@
     for (const f of list) {
       bx.fillStyle = f.fill; bx.beginPath();
       for (let i = 0; i < 4; i++) { // трохи більша грань — без щілин між вокселями
-        const qx = ox + (f.cx + (f.Q[i][0] - f.cx) * 1.08) * s, qy = oy + (f.cy + (f.Q[i][1] - f.cy) * 1.08) * s;
+        const qx = ox + (f.cx + (f.Q[i][0] - f.cx) * 1.12) * s, qy = oy + (f.cy + (f.Q[i][1] - f.cy) * 1.12) * s;
         if (i) bx.lineTo(qx, qy); else bx.moveTo(qx, qy);
       }
       bx.closePath(); bx.fill();
@@ -30297,7 +30304,7 @@
     const out = G.util.makeCanvas(cw, chh), o = out.getContext('2d');
     const sil = G.util.makeCanvas(cw, chh), sx = sil.getContext('2d');
     sx.drawImage(body, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = '#140b1c'; sx.fillRect(0, 0, cw, chh);
-    const t = Math.max(1, Math.round(s * 0.4));
+    const t = Math.max(1, Math.round(s * (s < 3 ? 0.6 : 0.4)));
     for (const [dx, dy] of [[-t, 0], [t, 0], [0, -t], [0, t], [-t, -t], [t, -t], [-t, t], [t, t]]) o.drawImage(sil, dx, dy);
     o.drawImage(body, 0, 0);
     // контурне світло по правому краю (rim light)
@@ -30311,7 +30318,7 @@
     let k = Math.round(((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2) * STEPS) % STEPS;
     const fk = key + '|' + s + '|' + k;
     let fr = frames.get(fk);
-    if (!fr) { fr = renderFrame(m, k, s); if (frames.size > STEPS * 3) frames.clear(); frames.set(fk, fr); }
+    if (!fr) { fr = renderFrame(m, k, s / (m.up || 1)); if (frames.size > STEPS * 3) frames.clear(); frames.set(fk, fr); }
     ctx.drawImage(fr.cv, Math.round(cx - fr.ox), Math.round(feetY - fr.footY - (o.lift || 0)));
     return true;
   }
