@@ -23970,7 +23970,7 @@
     r.push(Object.assign({ tag: 'touch_pause' }, t.pause), Object.assign({ tag: 'touch_buttons' }, t.cluster), { x: t.stick.x - sr, y: t.stick.y - sr, w: sr * 2, h: sr * 2, tag: 'touch_stick' });
   }
   function toastArea() {
-    if (G.state === 'menu') return { x0: 206, x1: VW() - 98, y0: 30, y1: 70, cx: 206 + Math.round((VW() - 304) / 2) }; // Round 40: над головою 3D-героя, між профілем і кнопками праворуч
+    if (G.state === 'menu') return { x0: 206, x1: VW() - 6, y0: 70, y1: 110, cx: 206 + Math.round((VW() - 212) / 2) }; // Round 41: під банером пасу
     if (G.state === 'pass') return { x0: 100, x1: VW() - 140, y0: 226, y1: VH() - 4, cx: VW() / 2 }; // пас: тости під стрічкою нагород
     if (inHud()) return { x0: 2, x1: VW() - 2, y0: 6, y1: isTouch() ? 172 : 200, cx: VW() / 2 };
     return { x0: 4, x1: VW() - 4, y0: 8, y1: VH() - 30, cx: VW() / 2 };
@@ -24465,7 +24465,9 @@
   const PROF_R = () => ({ x: 8, y: 4, w: 178, h: 26 });
   const POD = () => { const x0 = MENU_X + MENU_W + 16, x1 = VW() - 8; return { cx: Math.round((x0 + x1) / 2), feet: 200, x0, x1 }; };
   const HERO_R = () => { const p = POD(); return { x: p.cx - 64, y: 72, w: 128, h: 140 }; };
-  const RBTN = () => { const w = 84, x = VW() - 8 - w; return [{ id: 'login', r: { x, y: 30, w, h: 17 } }, { id: 'pass', r: { x: x - 16, y: 51, w: w + 16, h: 20 } }]; };
+  const RBTN = () => { const w = 84, x = VW() - 8 - w; return [{ id: 'login', r: { x, y: 30, w, h: 17 } }]; };
+  // великий банер сезонного пасу — між лого і кнопками праворуч, одразу кидається в око
+  const PASS_R = () => { const x0 = MENU_X + MENU_W + 10, x1 = VW() - 8 - 84 - 6; return { x: x0, y: 27, w: x1 - x0, h: 38 }; };
   const LOOK_R = () => { const p = POD(), w = 96; return { x: p.cx - w / 2, y: p.feet + 25, w, h: 15 }; };
   const H3 = { ang: 0.2, vel: 0, drag: null, idle: 0, jump: 0, jumpV: 0, lastLvl: 0 };
   function heroSkin() { const P = G.progress; return (G.heroes && G.heroes.skinFor && G.heroes.cur ? G.heroes.skinFor(G.heroes.cur) : null) || (P && P.equipped) || 'office'; }
@@ -24487,7 +24489,7 @@
     if (H3.jump > 0) { H3.jump += H3.jumpV * dt; H3.jumpV -= 520 * dt; if (H3.jump <= 0) { H3.jump = 0; H3.jumpV = 0; } }
   }
   function drawHero3d(ctx) {
-    const p = POD(), s = 5;
+    const p = POD(), s = 4.5;
     // подіум
     const breathe = Math.sin(M.t * 2.2);
     const lift = Math.max(0, H3.jump) + (H3.jump > 0 ? 0 : Math.max(0, breathe) * 1.5);
@@ -24503,8 +24505,12 @@
     g.addColorStop(0, 'rgba(255,220,150,0.18)'); g.addColorStop(1, 'rgba(255,220,150,0)');
     ctx.fillStyle = g; ctx.fillRect(p.cx - 110, p.feet - 180, 220, 190);
     ctx.restore();
+    if (G.pass && G.pass.pet && G.hero3d && G.hero3d.drawPet) { // улюбленець — теж 3D, поруч на подіумі, крутиться разом із героєм
+      const ph = Math.abs(Math.sin(M.t * 3.2)) * (Math.sin(M.t * 0.7) > 0.3 ? 4 : 0);
+      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(p.cx - 40, p.feet + 3, 14, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      if (!G.hero3d.drawPet(ctx, G.pass.pet, p.cx - 40, p.feet + 4, 3, H3.ang, Math.round(ph))) G.pass.drawPet(ctx, G.pass.pet, p.cx - 40, p.feet + 3 - ph, 3, 0, false);
+    }
     const ok3 = G.hero3d && G.hero3d.draw(ctx, p.cx, p.feet, s, H3.ang, { skin: heroSkin(), lift: Math.round(lift) });
-    if (G.pass && G.pass.pet) { const ph = Math.abs(Math.sin(M.t * 3.2)) * (Math.sin(M.t * 0.7) > 0.3 ? 4 : 0); G.pass.drawPet(ctx, G.pass.pet, p.cx - 38, p.feet + 3 - ph, 3, ph > 1 ? Math.floor(M.t * 8) % 2 : 0, false); }
     if (!ok3) { const img = U.spr('player', { skin: heroSkin(), dir: 'down', frame: 0 }); if (img) U.drawScaled(ctx, img, p.cx - img.width * 2, p.feet - img.height * 4, 4); }
     // підпис
     const P = G.progress, sk = P && P.skins ? P.skins.find((k) => k.id === heroSkin()) : null;
@@ -24513,7 +24519,7 @@
     pill(ctx, lr.x, lr.y, lr.w, lr.h, lh ? '#3f7fae' : '#2d5f86');
     U.icon(ctx, 'shirt', lr.x + 5, lr.y + 4);
     U.text(ctx, 'ЗМІНИТИ ОБРАЗ', lr.x + lr.w / 2 + 6, lr.y + 4, { size: 7, align: 'center', color: '#fff8e0' });
-    if (H3.idle > 1.5 && M.t < 20) U.text(ctx, isTouch() ? '« крути пальцем »' : '« крути мишкою »', p.cx, 62, { size: 7, align: 'center', color: 'rgba(255,255,255,0.55)' });
+    if (H3.idle > 1.5 && M.t < 20) U.text(ctx, isTouch() ? '« крути пальцем »' : '« крути мишкою »', p.cx, p.feet + 43, { size: 7, align: 'center', color: 'rgba(255,255,255,0.55)' });
   }
   function pill(ctx, x, y, w, h, fill) { U.rect(ctx, 'rgba(0,0,0,0.35)', x + 1, y + 2, w, h); U.rect(ctx, '#120a18', x - 1, y - 1, w + 2, h + 2); U.rect(ctx, fill, x, y, w, h); U.rect(ctx, 'rgba(255,255,255,0.18)', x, y, w, 1); }
   function drawTopBar(ctx) {
@@ -24541,6 +24547,7 @@
       pill(ctx, sx, 7, sw, 16, 'rgba(30,20,40,0.92)');
       U.text(ctx, st, sx + sw / 2, 10, { size: 8, align: 'center', color: '#fde98f' });
     }
+    drawPassBanner(ctx);
     // кнопки праворуч: нагорода за вхід / завдання дня
     const chal = P && P.challenges ? P.challenges() : [], done = chal.filter((c) => c.done).length;
     const L = P && P.login;
@@ -24559,6 +24566,38 @@
         if (PS && PS.canClaim) { const on = Math.sin(G.realTime * 6) > -0.3, bx = r2.x + r2.w - 6, by = r2.y - 4; U.rect(ctx, '#1a0e20', bx - 1, by - 1, 9, 9); U.rect(ctx, on ? '#ff4a3a' : '#c8302a', bx, by, 7, 7); U.rect(ctx, '#fff8e0', bx + 3, by + 1, 1, 3); U.rect(ctx, '#fff8e0', bx + 3, by + 5, 1, 1); }
       }
     });
+  }
+  function drawPassBanner(ctx) {
+    const PS = G.pass; if (!PS) return;
+    const r = PASS_R(), t = G.realTime, hov = U.inRect(G.input.mouse.x, G.input.mouse.y, r), pulse = 0.5 + 0.5 * Math.sin(t * 4);
+    // світіння навколо
+    ctx.save(); ctx.globalAlpha = 0.25 + 0.25 * pulse; U.rect(ctx, '#ffe070', r.x - 3, r.y - 3, r.w + 6, r.h + 6); ctx.restore();
+    U.rect(ctx, '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+    U.rect(ctx, '#c88a18', r.x, r.y, r.w, r.h); U.rect(ctx, hov ? '#ffe070' : '#f7c948', r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+    U.rect(ctx, 'rgba(255,255,255,0.35)', r.x + 1, r.y + 1, r.w - 2, Math.round(r.h / 2) - 4);
+    ctx.save(); ctx.beginPath(); ctx.rect(r.x + 1, r.y + 1, r.w - 2, r.h - 2); ctx.clip();
+    for (let k = -2; k < r.w / 14 + 2; k++) { const sx = r.x + k * 14 + ((t * 12) % 14); ctx.fillStyle = 'rgba(200,120,20,0.12)'; ctx.beginPath(); ctx.moveTo(sx, r.y + r.h); ctx.lineTo(sx + 6, r.y + r.h); ctx.lineTo(sx + 6 + r.h * 0.6, r.y); ctx.lineTo(sx + r.h * 0.6, r.y); ctx.fill(); }
+    const shx = ((t * 110) % (r.w + 80)) - 40; ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.moveTo(r.x + shx, r.y + r.h); ctx.lineTo(r.x + shx + 8, r.y + r.h); ctx.lineTo(r.x + shx + 20, r.y); ctx.lineTo(r.x + shx + 12, r.y); ctx.fill();
+    ctx.restore();
+    // квиток
+    const tx = r.x + 6, ty = r.y + 8;
+    U.rect(ctx, '#120a18', tx - 1, ty - 1, 26, 22); U.rect(ctx, '#fbf6ea', tx, ty, 24, 20); U.rect(ctx, '#e8dcc8', tx, ty + 14, 24, 6);
+    for (let k = 0; k < 3; k++) U.rect(ctx, '#c8302a', tx + 4 + k * 6, ty + 4, 3, 2);
+    U.rect(ctx, '#2a5fb4', tx + 4, ty + 9, 16, 2); U.rect(ctx, '#f7d248', tx + 4, ty + 11, 16, 2);
+    // текст
+    U.text(ctx, 'БІЛИЙ КВИТОК', tx + 31, r.y + 5, { size: 10, color: '#3a1a00' });
+    U.text(ctx, 'СЕЗОН 1 · ' + PS.SEASON.name, tx + 31, r.y + 18, { size: 7, color: '#7a3a00' });
+    U.text(ctx, 'рівень ' + PS.level + (PS.premium ? ' ★' : '') + (PS.canClaim ? ' · забери!' : ''), tx + 31, r.y + 27, { size: 7, color: PS.canClaim ? '#b01810' : '#5a3a10' });
+    // прев'ю: легендарний скін і пес — справа
+    const sk = G.sprites.rawGet ? G.sprites.rawGet('player', { skin: 'president', dir: 'down', frame: 0 }) : null;
+    if (r.w > 150) {
+      if (sk) { const bob = Math.round(Math.sin(t * 3) * 1); ctx.drawImage(sk, r.x + r.w - 24, r.y + r.h - sk.height - 1 + bob); }
+      PS.drawPet(ctx, 'patron', r.x + r.w - 40, r.y + r.h - 2 - Math.abs(Math.sin(t * 5)) * 2, 1, Math.floor(t * 6) % 2, false);
+    }
+    // значок
+    const bt = PS.canClaim ? 'ЗАБЕРИ!' : 'НОВЕ', bw = U.measure(bt, 7) + 6, on = Math.sin(t * 6) > -0.3;
+    U.rect(ctx, '#1a0e20', r.x + r.w - bw - 3, r.y - 6, bw + 2, 11); U.rect(ctx, on ? '#ff4a3a' : '#c8302a', r.x + r.w - bw - 2, r.y - 5, bw, 9);
+    U.text(ctx, bt, r.x + r.w - bw + 1, r.y - 4, { size: 7, color: '#fff8e0' });
   }
   function drawPop(ctx) {
     if (!M.pop) return;
@@ -24615,6 +24654,7 @@
     heroUpdate(realDt || dt);
     if (mm.clicked) {
       if (U.inRect(mm.x, mm.y, PROF_R()) && G.online && G.online.askName) { click(); G.online.askName(() => {}); return; }
+      if (G.scenes.pass && U.inRect(mm.x, mm.y, PASS_R())) { click('pickup'); G.setState('pass'); return; }
       for (const b of RBTN()) if (U.inRect(mm.x, mm.y, b.r)) { click(); if (b.id === 'pass' && G.scenes.pass) G.setState('pass'); else M.pop = b.id; return; }
       if (U.inRect(mm.x, mm.y, LOOK_R())) { activate('wardrobe'); return; }
       if (U.inRect(mm.x, mm.y, HERO_R())) return; // тап по герою — стрибок (heroUpdate)
@@ -29957,7 +29997,7 @@
     for (let y = H - 1; y >= 0; y--) { let any = false; for (let x = 0; x < W; x++) if (F.at(x, y)) { any = true; break; } if (any) { foot = y; break; } }
     let top = 0;
     for (let y = 0; y < H; y++) { let any = false; for (let x = 0; x < W; x++) if (F.at(x, y)) { any = true; break; } if (any) { top = y; break; } }
-    return { faces, W, H, D, foot, top };
+    return { faces, W, H, D, foot, top, dz: DZ };
   }
   function outfitKey() { try { return JSON.stringify(G.progress && G.progress.outfit ? G.progress.outfit() : null); } catch (e) { return ''; } }
   function model(skin) {
@@ -29978,7 +30018,7 @@
       const nd = nzr * cp - ny * sp;            // до камери
       if (nd <= 0.01) continue;
       // кути грані
-      const { X, Y, Z } = f, hz = 0.5 * DZ;
+      const { X, Y, Z } = f, hz = 0.5 * (m.dz || DZ);
       let P;
       if (f.n === 0) P = [[X - 0.5, Y - 0.5, Z + hz], [X + 0.5, Y - 0.5, Z + hz], [X + 0.5, Y + 0.5, Z + hz], [X - 0.5, Y + 0.5, Z + hz]];
       else if (f.n === 1) P = [[X - 0.5, Y - 0.5, Z - hz], [X + 0.5, Y - 0.5, Z - hz], [X + 0.5, Y + 0.5, Z - hz], [X - 0.5, Y + 0.5, Z - hz]];
@@ -30032,7 +30072,45 @@
     ctx.drawImage(fr.cv, Math.round(cx - fr.ox), Math.round(feetY - fr.footY - (o.lift || 0)));
     return true;
   }
-  G.hero3d = { draw, model: (skin) => model(skin).m, clear() { models.clear(); frames.clear(); } };
+  // ── улюбленець: профіль (дивиться праворуч) → «видавлена» модель товщиною T, як фігурка з кубиків ──
+  function buildPet(id) {
+    const cv = G.pass && G.pass.petRaw ? G.pass.petRaw(id) : null, F = px(cv);
+    if (!F) return null;
+    const W = F.w, H = F.h, T = id === 'pigeon' ? 4 : 5;
+    const sol = (x, y) => !!F.at(x, y);
+    const faces = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const c = F.at(x, y); if (!c) continue;
+      const thin = y >= H - 3 && !sol(x, y - 2); // лапи тонші за тулуб
+      const z0 = thin ? 1 : 0, z1 = thin ? T - 2 : T - 1;
+      for (let z = z0; z <= z1; z++) {
+        const X = x - (W - 1) / 2, Z = z - (T - 1) / 2, Y = y;
+        const dk = [c[0] * 0.86, c[1] * 0.86, c[2] * 0.86];
+        if (z === z1) faces.push({ n: 0, X, Y, Z, c });
+        if (z === z0) faces.push({ n: 1, X, Y, Z, c });
+        if (!sol(x + 1, y)) faces.push({ n: 2, X, Y, Z, c: dk });
+        if (!sol(x - 1, y)) faces.push({ n: 3, X, Y, Z, c: dk });
+        if (!sol(x, y - 1)) faces.push({ n: 4, X, Y, Z, c });
+      }
+    }
+    let foot = H - 1, top = 0;
+    for (let y = H - 1; y >= 0; y--) { let any = false; for (let x = 0; x < W; x++) if (sol(x, y)) { any = true; break; } if (any) { foot = y; break; } }
+    for (let y = 0; y < H; y++) { let any = false; for (let x = 0; x < W; x++) if (sol(x, y)) { any = true; break; } if (any) { top = y; break; } }
+    return { faces, W, H, D: T, foot, top, dz: 1 };
+  }
+  function drawPet(ctx, id, cx, feetY, s, ang, lift) {
+    const key = 'pet:' + id;
+    let m = models.get(key);
+    if (m === undefined) { m = buildPet(id); models.set(key, m); }
+    if (!m) return false;
+    const k = Math.round(((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2) * STEPS) % STEPS;
+    const fk = key + '|' + s + '|' + k;
+    let fr = frames.get(fk);
+    if (!fr) { fr = renderFrame(m, k, s); frames.set(fk, fr); }
+    ctx.drawImage(fr.cv, Math.round(cx - fr.ox), Math.round(feetY - fr.footY - (lift || 0)));
+    return true;
+  }
+  G.hero3d = { drawPet, draw, model: (skin) => model(skin).m, clear() { models.clear(); frames.clear(); } };
   if (G.events && G.events.on) G.events.on('outfit:change', () => { models.clear(); frames.clear(); });
 })();
 
@@ -30054,7 +30132,7 @@
   let st = { s: SEASON.id, xp: 0, got: [], gotP: [], prem: false, wk: { key: '', list: [] }, pets: [], pet: null };
   try { const r = JSON.parse(localStorage.getItem(LS) || 'null'); if (r && r.s === SEASON.id) st = Object.assign(st, r); } catch (e) { /* */ }
   if (!Array.isArray(st.gotP)) st.gotP = [];
-  try { if (new URLSearchParams(location.search).get('dev') === 'vsi2026') st.prem = true; } catch (e) { /* */ } // тест: преміум лише на цьому пристрої
+  try { if (new URLSearchParams(location.search).get('dev') === 'vsi2026') { st.prem = true; st.xp = Math.max(st.xp, 400 * 29 + 1); } } catch (e) { /* */ } // тест: преміум лише на цьому пристрої
   const PREM_PRICE = 149; // грн — оплата з'явиться у версії для Google Play
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) { /* */ } };
   const sfx = (n) => { try { G.audio && G.audio.sfx && G.audio.sfx(n); } catch (e) { /* */ } };
@@ -30188,6 +30266,15 @@
     }
     petCache.set(key, c);
     return c;
+  }
+  // сирий спрайт без контуру (для 3D-моделі в меню)
+  const rawCache = new Map();
+  function petRaw(id) {
+    if (rawCache.has(id)) return rawCache.get(id);
+    const d = PETS[id]; if (!d) return null;
+    const rows = d.fr[0], h = rows.length, w = rows[0].length, c = G.util.makeCanvas(w, h), x = c.getContext('2d');
+    for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { const ch = rows[yy][xx]; if (ch !== '.') { x.fillStyle = d.pal[ch] || '#f0f'; x.fillRect(xx, yy, 1, 1); } }
+    rawCache.set(id, c); return c;
   }
   function drawPet(ctx, id, x, y, sc, fr, left) {
     const im = petImg(id, fr || 0, left); if (!im) return;
@@ -30337,7 +30424,7 @@
     get canClaim() { return canClaim(); }, get pet() { return st.pet; }, get pets() { return st.pets.slice(); },
     got: (L, tr) => gotList(tr).indexOf(L) >= 0, get premium() { return !!st.prem; }, PREM_PRICE, FREE, PREM,
     setPet(id) { st.pet = id && st.pets.indexOf(id) >= 0 ? id : null; save(); },
-    claim, claimAll, weekly, addXp, drawPet, daysLeft, weekDaysLeft, rewName,
+    claim, claimAll, weekly, addXp, drawPet, petRaw, daysLeft, weekDaysLeft, rewName,
     _reset() { st = { s: SEASON.id, xp: 0, got: [], gotP: [], prem: false, wk: { key: '', list: [] }, pets: [], pet: null }; save(); },
     _setPremium(v) { st.prem = !!v; save(); },
   };
@@ -31454,6 +31541,10 @@
           D.done = D.done || {}; D.stars = D.stars || {};
           for (let n = 1; n <= 30; n++) { D.done[n] = 1; D.stars[n] = Math.max(D.stars[n] || 0, 3); }
           D.maxDay = Math.max(D.maxDay || 1, 30);
+          // і весь гардероб: усі скіни (крім легендарного — його забирають у пасі) та весь одяг
+          for (const sk of SKINS) if (sk.kind !== 'pass' && D.unlocked.indexOf(sk.id) < 0) D.unlocked.push(sk.id);
+          D.acc = D.acc || { own: [] }; D.acc.own = D.acc.own || [];
+          for (const a of ACC) if (a.price > 0 && D.acc.own.indexOf(a.id) < 0) D.acc.own.push(a.id);
           r.migrated = true;
           if (history.replaceState) history.replaceState(null, '', location.pathname);
         }
