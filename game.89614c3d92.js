@@ -24656,7 +24656,7 @@
     if (H3.jump > 0) { H3.jump += H3.jumpV * dt; H3.jumpV -= 520 * dt; if (H3.jump <= 0) { H3.jump = 0; H3.jumpV = 0; } }
   }
   function drawHero3d(ctx) {
-    const p = POD(), s = 4.5;
+    const p = POD(), s = 4;
     // подіум
     const breathe = Math.sin(M.t * 2.2);
     const lift = Math.max(0, H3.jump) + (H3.jump > 0 ? 0 : Math.max(0, breathe) * 1.5);
@@ -24677,9 +24677,9 @@
     if (G.pass && G.pass.pet && G.hero3d && G.hero3d.drawPet) { // улюбленець — теж 3D, поруч на подіумі, крутиться разом із героєм
       const ph = Math.abs(Math.sin(M.t * 3.2)) * (Math.sin(M.t * 0.7) > 0.3 ? 4 : 0);
       ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(p.cx - 40, p.feet + 3, 14, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      if (!G.hero3d.drawPet(ctx, G.pass.pet, p.cx - 40, p.feet + 4, 3, H3.ang, Math.round(ph))) G.pass.drawPet(ctx, G.pass.pet, p.cx - 40, p.feet + 3 - ph, 3, 0, false);
+      if (!(G.hero3d.drawPetSmooth ? G.hero3d.drawPetSmooth(ctx, G.pass.pet, p.cx - 40, p.feet + 3, 3, H3.ang, Math.round(ph)) : G.hero3d.drawPet(ctx, G.pass.pet, p.cx - 40, p.feet + 4, 3, H3.ang, Math.round(ph)))) G.pass.drawPet(ctx, G.pass.pet, p.cx - 40, p.feet + 3 - ph, 3, 0, false);
     }
-    const ok3 = G.hero3d && G.hero3d.draw(ctx, p.cx, p.feet, s, H3.ang, { skin: heroSkin(), lift: Math.round(lift) });
+    const ok3 = G.hero3d && (G.hero3d.drawSmooth ? G.hero3d.drawSmooth(ctx, p.cx, p.feet, s, H3.ang, { skin: heroSkin(), lift: Math.round(lift) }) : G.hero3d.draw(ctx, p.cx, p.feet, s, H3.ang, { skin: heroSkin(), lift: Math.round(lift) }));
     if (!ok3) { const img = U.spr('player', { skin: heroSkin(), dir: 'down', frame: 0 }); if (img) U.drawScaled(ctx, img, p.cx - img.width * 2, p.feet - img.height * 4, 4); }
     // підпис
     const P = G.progress, sk = P && P.skins ? P.skins.find((k) => k.id === heroSkin()) : null;
@@ -30353,8 +30353,67 @@
     ctx.drawImage(fr.cv, Math.round(cx - fr.ox), Math.round(feetY - fr.footY - (lift || 0)));
     return true;
   }
-  G.hero3d = { drawPet, draw, model: (skin) => model(skin).m, clear() { models.clear(); frames.clear(); } };
-  if (G.events && G.events.on) G.events.on('outfit:change', () => { models.clear(); frames.clear(); });
+  // ── «Гладкий» герой для меню: 2D-спрайт зі згладжуванням піксель-арту (Scale2x ×2 = ×4) + поворот «карткою» (як Paper Mario) ──
+  function scale2x(src) {
+    const w = src.width, h = src.height, sd = src.getContext('2d').getImageData(0, 0, w, h).data;
+    const out = G.util.makeCanvas(w * 2, h * 2), oc = out.getContext('2d'), od = oc.createImageData(w * 2, h * 2), o = od.data;
+    const at = (x, y) => { x = Math.max(0, Math.min(w - 1, x)); y = Math.max(0, Math.min(h - 1, y)); return (y * w + x) * 4; };
+    const eq = (i, j) => sd[i] === sd[j] && sd[i + 1] === sd[j + 1] && sd[i + 2] === sd[j + 2] && sd[i + 3] === sd[j + 3];
+    const put = (x, y, i) => { const k = (y * w * 2 + x) * 4; o[k] = sd[i]; o[k + 1] = sd[i + 1]; o[k + 2] = sd[i + 2]; o[k + 3] = sd[i + 3]; };
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const P = at(x, y), A = at(x, y - 1), B = at(x + 1, y), C = at(x - 1, y), D = at(x, y + 1);
+      put(x * 2, y * 2, eq(C, A) && !eq(C, D) && !eq(A, B) ? A : P);
+      put(x * 2 + 1, y * 2, eq(A, B) && !eq(A, C) && !eq(B, D) ? B : P);
+      put(x * 2, y * 2 + 1, eq(D, C) && !eq(D, B) && !eq(C, A) ? C : P);
+      put(x * 2 + 1, y * 2 + 1, eq(B, D) && !eq(B, A) && !eq(D, C) ? D : P);
+    }
+    oc.putImageData(od, 0, 0);
+    return out;
+  }
+  const smooth = new Map();
+  function smoothImg(skin, dir) {
+    const key = skin + '|' + dir + '|' + outfitKey();
+    let c = smooth.get(key);
+    if (c) return c;
+    let img = null; try { img = G.sprites.get('player', { skin, dir, frame: 0 }); } catch (e) { img = null; }
+    if (!img || !img.width) return null;
+    c = scale2x(scale2x(img));
+    // об'єм: світло зліва-згори, тінь справа-знизу (лише по самій фігурі)
+    const x = c.getContext('2d'), g1 = x.createLinearGradient(0, 0, c.width, c.height);
+    g1.addColorStop(0, 'rgba(255,240,210,0.16)'); g1.addColorStop(0.45, 'rgba(255,255,255,0)'); g1.addColorStop(1, 'rgba(20,10,40,0.22)');
+    x.globalCompositeOperation = 'source-atop'; x.fillStyle = g1; x.fillRect(0, 0, c.width, c.height); x.globalCompositeOperation = 'source-over';
+    if (smooth.size > 40) smooth.clear();
+    smooth.set(key, c);
+    return c;
+  }
+  // ang: 0 — обличчям, далі поворот; на межах секторів картка звужується й «перевертається» на інший бік
+  function drawSmooth(ctx, cx, feetY, sc, ang, o) {
+    o = o || {};
+    const TAU = Math.PI * 2, a = ((ang % TAU) + TAU) % TAU, sector = Math.round(a / (Math.PI / 2)) % 4;
+    const dir = ['down', 'right', 'up', 'left'][sector];
+    const img = smoothImg(o.skin || 'office', dir);
+    if (!img) return false;
+    const off = a - sector * Math.PI / 2, rel = Math.abs(Math.atan2(Math.sin(off), Math.cos(off)));
+    const f = 0.18 + 0.82 * Math.cos(Math.min(Math.PI / 2, rel * 2)); // 1 у центрі сектора → 0.18 на межі
+    const k = sc / 4, w = img.width * k * f, h = img.height * k;
+    ctx.save(); ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(img, Math.round(cx - w / 2), Math.round(feetY - h - (o.lift || 0) + 2 * k), w, h);
+    ctx.restore();
+    return true;
+  }
+  function drawPetSmooth(ctx, id, cx, feetY, sc, ang, lift) {
+    const key = 'pet:' + id;
+    let c = smooth.get(key);
+    if (!c) { const im = G.pass && G.pass.petImg ? G.pass.petImg(id, 0, false) : null; if (!im) return false; c = scale2x(scale2x(im)); smooth.set(key, c); }
+    const ca = Math.cos(ang), f = Math.max(0.18, Math.abs(ca)), k = sc / 4, w = c.width * k * f, h = c.height * k;
+    ctx.save(); ctx.imageSmoothingEnabled = true;
+    ctx.translate(Math.round(cx), 0); if (ca < 0) ctx.scale(-1, 1);
+    ctx.drawImage(c, Math.round(-w / 2), Math.round(feetY - h - (lift || 0) + k), w, h);
+    ctx.restore();
+    return true;
+  }
+  G.hero3d = { drawPet, drawSmooth, drawPetSmooth, draw, model: (skin) => model(skin).m, clear() { models.clear(); frames.clear(); } };
+  if (G.events && G.events.on) G.events.on('outfit:change', () => { models.clear(); frames.clear(); smooth.clear(); });
 })();
 
 
@@ -30731,7 +30790,7 @@
     get canClaim() { return canClaim(); }, get pet() { return st.pet; }, get pets() { return st.pets.slice(); }, PET_LVL: { patron: 1, cat: 10, pigeon: 20 },
     got: (L, tr) => gotList(tr).indexOf(L) >= 0, get premium() { return !!st.prem; }, PREM_PRICE, FREE, PREM,
     setPet(id) { st.pet = id && st.pets.indexOf(id) >= 0 ? id : null; save(); },
-    claim, claimAll, weekly, addXp, drawPet, petRaw, daysLeft, weekDaysLeft, rewName,
+    claim, claimAll, weekly, addXp, drawPet, petRaw, petImg, daysLeft, weekDaysLeft, rewName,
     _reset() { st = { s: SEASON.id, xp: 0, got: [], gotP: [], prem: false, wk: { key: '', list: [] }, pets: [], pet: null }; save(); },
     _setPremium(v) { st.prem = !!v; save(); },
   };
