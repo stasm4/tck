@@ -24451,8 +24451,9 @@
   G.ui.level = () => levelOf(xpNow());
   const PROF_R = () => ({ x: 8, y: 4, w: 178, h: 26 });
   const POD = () => { const x0 = MENU_X + MENU_W + 16, x1 = VW() - 8; return { cx: Math.round((x0 + x1) / 2), feet: 214, x0, x1 }; };
-  const HERO_R = () => { const p = POD(); return { x: p.cx - 64, y: 78, w: 128, h: 150 }; };
+  const HERO_R = () => { const p = POD(); return { x: p.cx - 64, y: 84, w: 128, h: 140 }; };
   const RBTN = () => { const w = 84, x = VW() - 8 - w; return [{ id: 'login', r: { x, y: 30, w, h: 17 } }, { id: 'tasks', r: { x, y: 51, w, h: 17 } }]; };
+  const LOOK_R = () => { const p = POD(), w = 96; return { x: p.cx - w / 2, y: p.feet + 27, w, h: 16 }; };
   const H3 = { ang: 0.2, vel: 0, drag: null, idle: 0, jump: 0, jumpV: 0, lastLvl: 0 };
   function heroSkin() { const P = G.progress; return (G.heroes && G.heroes.skinFor && G.heroes.cur ? G.heroes.skinFor(G.heroes.cur) : null) || (P && P.equipped) || 'office'; }
   function heroUpdate(dt) {
@@ -24494,7 +24495,11 @@
     // підпис
     const P = G.progress, sk = P && P.skins ? P.skins.find((k) => k.id === heroSkin()) : null;
     U.text(ctx, sk ? sk.name : '', p.cx, p.feet + 14, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
-    if (H3.idle > 1.5 && M.t < 20) U.text(ctx, isTouch() ? '← потягни, щоб покрутити →' : '← потягни мишкою →', p.cx, p.feet + 25, { size: 7, align: 'center', color: 'rgba(255,255,255,0.45)' });
+    const lr = LOOK_R(), lh = U.inRect(G.input.mouse.x, G.input.mouse.y, lr);
+    pill(ctx, lr.x, lr.y, lr.w, lr.h, lh ? '#3f7fae' : '#2d5f86');
+    U.icon(ctx, 'shirt', lr.x + 5, lr.y + 4);
+    U.text(ctx, 'ЗМІНИТИ ОБРАЗ', lr.x + lr.w / 2 + 6, lr.y + 4, { size: 7, align: 'center', color: '#fff8e0' });
+    if (H3.idle > 1.5 && M.t < 20) U.text(ctx, isTouch() ? '← покрути пальцем →' : '← покрути мишкою →', p.cx, 76, { size: 7, align: 'center', color: 'rgba(255,255,255,0.55)' });
   }
   function pill(ctx, x, y, w, h, fill) { U.rect(ctx, 'rgba(0,0,0,0.35)', x + 1, y + 2, w, h); U.rect(ctx, '#120a18', x - 1, y - 1, w + 2, h + 2); U.rect(ctx, fill, x, y, w, h); U.rect(ctx, 'rgba(255,255,255,0.18)', x, y, w, 1); }
   function drawTopBar(ctx) {
@@ -24528,7 +24533,7 @@
     RBTN().forEach((b) => {
       const r2 = b.r, h2 = U.inRect(G.input.mouse.x, G.input.mouse.y, r2);
       pill(ctx, r2.x, r2.y, r2.w, r2.h, h2 ? 'rgba(72,52,86,0.97)' : 'rgba(30,20,40,0.9)');
-      if (b.id === 'login') { U.icon(ctx, 'cal', r2.x + 4, r2.y + 4); U.text(ctx, 'ЗА ВХІД · ' + (L ? L.day : 1) + '/7', r2.x + 15, r2.y + 4, { size: 7, color: '#fde98f' }); }
+      if (b.id === 'login') { U.icon(ctx, 'cal', r2.x + 4, r2.y + 4); U.text(ctx, 'БОНУС ДНЯ ' + (L ? L.day : 1) + '/7', r2.x + 15, r2.y + 4, { size: 7, color: '#fde98f' }); }
       else { U.icon(ctx, 'check', r2.x + 4, r2.y + 5); U.text(ctx, 'ЗАВДАННЯ ' + done + '/' + (chal.length || 3), r2.x + 15, r2.y + 4, { size: 7, color: done >= (chal.length || 3) ? '#93c25b' : '#fbf6ea' }); }
     });
   }
@@ -24588,6 +24593,7 @@
     if (mm.clicked) {
       if (U.inRect(mm.x, mm.y, PROF_R()) && G.online && G.online.askName) { click(); G.online.askName(() => {}); return; }
       for (const b of RBTN()) if (U.inRect(mm.x, mm.y, b.r)) { click(); M.pop = b.id; return; }
+      if (U.inRect(mm.x, mm.y, LOOK_R())) { activate('wardrobe'); return; }
       if (U.inRect(mm.x, mm.y, HERO_R())) return; // тап по герою — стрибок (heroUpdate)
     }
     if (M.loginPop > 0 && !fx) M.loginPop -= realDt;
@@ -24649,7 +24655,7 @@
     // бус: їде справа наліво, потім пауза
     const period = 16, ph = t % period;
     const bx = VW() + 80 - ph * 55;
-    if (bx > -100) U.drawBus(ctx, bx, roadY, 2, 'left', t);
+    if (bx > -100 && G.state !== 'menu') U.drawBus(ctx, bx, roadY, 2, 'left', t); // у головному меню — без буса (не їде під героєм)
   }
   function badge(ctx, x, y, t) {
     const blink = Math.sin(G.realTime * 6) > -0.3;
@@ -29885,77 +29891,123 @@
 // ═══════════════════════════ 74_hero3d — 3D-герой у меню (воксельний, з тих самих пікселів гри) ═══════════════════════════
 // Модель будується з 4 спрайтів героя (спереду / ззаду / зліва / справа) з поточним скіном і одягом (шапка, борода, кофта —
 // їх уже накладає G.sprites.get через 86_outfit): воксель є, якщо піксель непрозорий і спереду, і збоку («оболонка»).
-// Колір кожної грані — з відповідного спрайта, бокові грані трохи темніші. Обертання навколо вертикальної осі.
-// G.hero3d.draw(ctx, cx, feetY, scale, angle, {skin, frame, bob}) — намалювати; G.hero3d.model(skin, frame) — кеш моделі.
+// Рендер: камера трохи згори (видно верх шапки й плечі), світло зліва-згори (грані світлі/темні), темний контур як у грі.
+// Кадри кешуються на 64 кути повороту — на телефоні обертання без лагів.
+// G.hero3d.draw(ctx, cx, feetY, scale, angle, {skin, lift}) — намалювати (true — вдалося); G.hero3d.clear() — скинути кеш.
 (function () {
   'use strict';
-  const cache = new Map();
-  const DZ = 0.6; // глибина тіла: профільний спрайт ширший за справжню товщину (руки, ніс) — стискаємо
-  const shade = (c, k) => 'rgb(' + Math.round(c[0] * k) + ',' + Math.round(c[1] * k) + ',' + Math.round(c[2] * k) + ')';
+  const DZ = 0.62;          // глибина тіла: профільний спрайт ширший за справжню товщину (руки, ніс) — стискаємо
+  const PITCH = 0.28;       // нахил камери (рад): трохи згори
+  const STEPS = 64;         // кадрів на повний оберт
+  const LIGHT = (() => { const v = [-0.45, -0.75, 0.55], l = Math.hypot(v[0], v[1], v[2]); return v.map((k) => k / l); })();
+  const models = new Map(), frames = new Map();
+
   function px(cv) {
     if (!cv || !cv.width) return null;
     let d = null;
     try { d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; } catch (e) { return null; }
-    return { w: cv.width, h: cv.height, d, at(x, y) { if (x < 0 || y < 0 || x >= this.w || y >= this.h) return null; const i = (y * this.w + x) * 4; return this.d[i + 3] > 40 ? [this.d[i], this.d[i + 1], this.d[i + 2]] : null; } };
+    return { w: cv.width, h: cv.height, at(x, y) { if (x < 0 || y < 0 || x >= this.w || y >= this.h) return null; const i = (y * this.w + x) * 4; return d[i + 3] > 40 ? [d[i], d[i + 1], d[i + 2]] : null; } };
   }
-  function build(skin, frame) {
-    const get = (dir) => { try { return px(G.sprites.get('player', { skin, dir, frame })); } catch (e) { return null; } };
+  function build(skin) {
+    const get = (dir) => { try { return px(G.sprites.get('player', { skin, dir, frame: 0 })); } catch (e) { return null; } };
     const F = get('down'), B = get('up'), Lf = get('left'), R = get('right');
     if (!F || !R) return null;
     const W = F.w, H = F.h, D = R.w;
     const solid = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < W && y < H && z < D && !!F.at(x, y) && !!R.at(z, y);
     const faces = [];
+    // n: 0 +z (обличчя), 1 −z (спина), 2 +x, 3 −x, 4 верх
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       if (!F.at(x, y)) continue;
       for (let z = 0; z < D; z++) {
         if (!R.at(z, y)) continue;
-        const X = x - (W - 1) / 2, Z = (z - (D - 1) / 2) * DZ;
-        // +z — спереду (обличчям до камери при куті 0), −z — спина; +x / −x — боки
-        if (!solid(x, y, z + 1)) faces.push({ n: 0, X, Y: y, Z, c: F.at(x, y) });
-        if (!solid(x, y, z - 1)) { const c = (B && B.at(W - 1 - x, y)) || F.at(x, y); faces.push({ n: 1, X, Y: y, Z, c }); }
-        if (!solid(x + 1, y, z)) { const c = (Lf && Lf.at(D - 1 - z, y)) || R.at(z, y); faces.push({ n: 2, X, Y: y, Z, c }); }
-        if (!solid(x - 1, y, z)) faces.push({ n: 3, X, Y: y, Z, c: R.at(z, y) });
+        const X = x - (W - 1) / 2, Z = (z - (D - 1) / 2) * DZ, Y = y;
+        const front = z >= D / 2;
+        if (!solid(x, y, z + 1)) faces.push({ n: 0, X, Y, Z, c: F.at(x, y) });
+        if (!solid(x, y, z - 1)) faces.push({ n: 1, X, Y, Z, c: (B && B.at(W - 1 - x, y)) || F.at(x, y) });
+        if (!solid(x + 1, y, z)) faces.push({ n: 2, X, Y, Z, c: (Lf && Lf.at(D - 1 - z, y)) || R.at(z, y) });
+        if (!solid(x - 1, y, z)) faces.push({ n: 3, X, Y, Z, c: R.at(z, y) });
+        if (!solid(x, y - 1, z)) faces.push({ n: 4, X, Y, Z, c: front ? F.at(x, y) : ((B && B.at(W - 1 - x, y)) || F.at(x, y)) });
       }
     }
-    // найнижчий непрозорий рядок — ноги
     let foot = H - 1;
     for (let y = H - 1; y >= 0; y--) { let any = false; for (let x = 0; x < W; x++) if (F.at(x, y)) { any = true; break; } if (any) { foot = y; break; } }
-    for (const f of faces) f.col = [shade(f.c, 1), shade(f.c, 0.93), shade(f.c, 0.8), shade(f.c, 0.8)][f.n];
-    return { faces, H, foot };
+    let top = 0;
+    for (let y = 0; y < H; y++) { let any = false; for (let x = 0; x < W; x++) if (F.at(x, y)) { any = true; break; } if (any) { top = y; break; } }
+    return { faces, W, H, D, foot, top };
   }
-  function model(skin, frame) {
-    let key = skin + '|' + (frame || 0);
-    try { key += '|' + JSON.stringify(G.progress && G.progress.outfit ? G.progress.outfit() : null); } catch (e) { /* */ }
-    let m = cache.get(key);
-    if (m === undefined) { m = build(skin, frame || 0); if (cache.size > 24) cache.clear(); cache.set(key, m); }
-    return m;
+  function outfitKey() { try { return JSON.stringify(G.progress && G.progress.outfit ? G.progress.outfit() : null); } catch (e) { return ''; } }
+  function model(skin) {
+    const key = skin + '|' + outfitKey();
+    let m = models.get(key);
+    if (m === undefined) { m = build(skin); if (models.size > 12) { models.clear(); frames.clear(); } models.set(key, m); }
+    return { m, key };
+  }
+  const NORM = [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0], [0, -1, 0]];
+  // кадр моделі під кутом k (0..STEPS-1) у масштабі s → офскрін-канвас з контуром
+  function renderFrame(m, k, s) {
+    const a = k / STEPS * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), cp = Math.cos(PITCH), sp = Math.sin(PITCH);
+    const proj = (X, Y, Z) => { const xr = X * ca - Z * sa, zr = X * sa + Z * ca; return [xr, Y * cp + zr * sp, zr * cp - Y * sp]; };
+    const half = Math.ceil(Math.max(m.W, m.D * DZ) * 0.75) + 2;
+    const cw = half * 2 * s + 8, chh = (m.H + m.D) * s + 8;
+    const ox = cw / 2, oy = 4 - (m.top - 1) * s * cp;
+    const list = [];
+    for (const f of m.faces) {
+      const n = NORM[f.n];
+      const nxr = n[0] * ca - n[2] * sa, nzr = n[0] * sa + n[2] * ca, ny = n[1];
+      const nd = nzr * cp - ny * sp;            // до камери
+      if (nd <= 0.01) continue;
+      // кути грані
+      const { X, Y, Z } = f, hz = 0.5 * DZ;
+      let P;
+      if (f.n === 0) P = [[X - 0.5, Y - 0.5, Z + hz], [X + 0.5, Y - 0.5, Z + hz], [X + 0.5, Y + 0.5, Z + hz], [X - 0.5, Y + 0.5, Z + hz]];
+      else if (f.n === 1) P = [[X - 0.5, Y - 0.5, Z - hz], [X + 0.5, Y - 0.5, Z - hz], [X + 0.5, Y + 0.5, Z - hz], [X - 0.5, Y + 0.5, Z - hz]];
+      else if (f.n === 2) P = [[X + 0.5, Y - 0.5, Z - hz], [X + 0.5, Y - 0.5, Z + hz], [X + 0.5, Y + 0.5, Z + hz], [X + 0.5, Y + 0.5, Z - hz]];
+      else if (f.n === 3) P = [[X - 0.5, Y - 0.5, Z - hz], [X - 0.5, Y - 0.5, Z + hz], [X - 0.5, Y + 0.5, Z + hz], [X - 0.5, Y + 0.5, Z - hz]];
+      else P = [[X - 0.5, Y - 0.5, Z - hz], [X + 0.5, Y - 0.5, Z - hz], [X + 0.5, Y - 0.5, Z + hz], [X - 0.5, Y - 0.5, Z + hz]];
+      const Q = P.map((p) => proj(p[0], p[1], p[2]));
+      const c = proj(X, Y, Z);
+      // світло (у просторі камери) + легке «повітря» знизу
+      const ndl = Math.max(0, nxr * LIGHT[0] + ny * LIGHT[1] + nzr * LIGHT[2]);
+      let k2 = 0.62 + 0.5 * ndl;
+      if (f.n === 4) k2 += 0.08;
+      k2 *= 1 - Math.max(0, (Y - m.foot + 6) / 6) * 0.12; // ноги трохи темніші
+      const col = f.c;
+      list.push({ d: c[2] + nd * 0.01, Q, cx: c[0], cy: c[1], fill: 'rgb(' + Math.min(255, Math.round(col[0] * k2)) + ',' + Math.min(255, Math.round(col[1] * k2)) + ',' + Math.min(255, Math.round(col[2] * k2)) + ')' });
+    }
+    list.sort((p, q) => p.d - q.d);
+    const body = G.util.makeCanvas(cw, chh), bx = body.getContext('2d');
+    for (const f of list) {
+      bx.fillStyle = f.fill; bx.beginPath();
+      for (let i = 0; i < 4; i++) { // трохи більша грань — без щілин між вокселями
+        const qx = ox + (f.cx + (f.Q[i][0] - f.cx) * 1.08) * s, qy = oy + (f.cy + (f.Q[i][1] - f.cy) * 1.08) * s;
+        if (i) bx.lineTo(qx, qy); else bx.moveTo(qx, qy);
+      }
+      bx.closePath(); bx.fill();
+    }
+    // контур: темний силует, зсунутий на 2 px у 8 боків, під моделлю
+    const out = G.util.makeCanvas(cw, chh), o = out.getContext('2d');
+    const sil = G.util.makeCanvas(cw, chh), sx = sil.getContext('2d');
+    sx.drawImage(body, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = '#140b1c'; sx.fillRect(0, 0, cw, chh);
+    const t = Math.max(1, Math.round(s * 0.4));
+    for (const [dx, dy] of [[-t, 0], [t, 0], [0, -t], [0, t], [-t, -t], [t, -t], [-t, t], [t, t]]) o.drawImage(sil, dx, dy);
+    o.drawImage(body, 0, 0);
+    // контурне світло по правому краю (rim light)
+    o.globalCompositeOperation = 'source-atop'; o.globalAlpha = 0.18; o.drawImage(sil, -t, 0); o.globalAlpha = 1; o.globalCompositeOperation = 'source-over';
+    return { cv: out, ox, footY: oy + (m.foot + 0.5) * s * cp };
   }
   function draw(ctx, cx, feetY, s, ang, o) {
     o = o || {};
-    const m = model(o.skin || 'office', o.frame || 0);
+    const { m, key } = model(o.skin || 'office');
     if (!m) return false;
-    const ca = Math.cos(ang), sa = Math.sin(ang);
-    const vis = [ca > 0.02, ca < -0.02, sa > 0.02, sa < -0.02];
-    const list = [];
-    for (const f of m.faces) {
-      if (!vis[f.n]) continue;
-      let X = f.X, Z = f.Z, w;
-      if (f.n === 0) Z += 0.5 * DZ; else if (f.n === 1) Z -= 0.5 * DZ; else if (f.n === 2) X += 0.5; else X -= 0.5;
-      const sx = X * ca - Z * sa, depth = X * sa + Z * ca;
-      w = (f.n < 2 ? Math.abs(ca) : Math.abs(sa) * DZ) * s;
-      list.push({ sx, depth, w, y: f.Y, col: f.col });
-    }
-    list.sort((a, b) => a.depth - b.depth);
-    const top = feetY - (m.foot + 1) * s - (o.lift || 0);
-    for (const f of list) {
-      ctx.fillStyle = f.col;
-      const x = cx + f.sx * s - f.w / 2;
-      ctx.fillRect(Math.floor(x), Math.round(top + f.y * s), Math.ceil(f.w + 0.6), s);
-    }
+    let k = Math.round(((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2) * STEPS) % STEPS;
+    const fk = key + '|' + s + '|' + k;
+    let fr = frames.get(fk);
+    if (!fr) { fr = renderFrame(m, k, s); if (frames.size > STEPS * 3) frames.clear(); frames.set(fk, fr); }
+    ctx.drawImage(fr.cv, Math.round(cx - fr.ox), Math.round(feetY - fr.footY - (o.lift || 0)));
     return true;
   }
-  G.hero3d = { draw, model, clear() { cache.clear(); } };
-  G.events && G.events.on && G.events.on('outfit:change', () => cache.clear());
+  G.hero3d = { draw, model: (skin) => model(skin).m, clear() { models.clear(); frames.clear(); } };
+  if (G.events && G.events.on) G.events.on('outfit:change', () => { models.clear(); frames.clear(); });
 })();
 
 
