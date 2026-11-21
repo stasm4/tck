@@ -2672,6 +2672,18 @@
         for (const h of [g.handL, g.handR, g.hand]) if (h && g.frame < 4) { b.p(h.x, h.y - 1, '#c8302f'); }
       },
     }),
+    // ЛЕГЕНДАРНИЙ (преміум-пас): оливкова футболка з тризубом, темне коротке волосся, щетина, карго, берці
+    president: Object.assign({}, ANDRIY, {
+      hairStyle: 'short', hair: '#2e231e', stubble: '#3a2a22', blush: null,
+      shirt: '#5c6440', shirtS: '#474e30', sleeve: '#5c6440', pants: '#3e4232', pantsS: '#30331f', shoes: '#2a2420',
+      torso(b, g) {
+        const { cx, ty, dir, tx, tw } = g, Y = '#e0c050', YD = '#a88a2a';
+        if (dir === 'down') { b.pat(cx + 0, ty + 1, ['#.#', '###', '.#.'], { '#': Y }); b.hl(cx - 2, ty, 4, '#4a5232'); }
+        if (dir === 'up') b.hl(tx + 1, ty, tw - 2, '#4a5232');
+        if (dir === 'right') { b.p(tx + tw - 2, ty + 2, YD); }
+        b.hl(tx, ty + g.th - 1, tw, '#2e3122');
+      },
+    }),
     secret: Object.assign({}, ANDRIY, {
       hairStyle: 'none', blush: null, skin: '#f6f3ec', skinS: '#d8d2c6', shirt: '#f6f3ec', shirtS: '#d8d2c6', pants: '#f6f3ec', pantsS: '#d8d2c6', shoes: '#c9c2b4', hands: '#f6f3ec',
       torso(b, g) { // смуги намотки
@@ -24543,7 +24555,7 @@
         U.rect(ctx, 'rgba(255,255,255,' + (0.25 + 0.15 * sh) + ')', r2.x + 1, r2.y + 1, r2.w - 2, 6);
         U.rect(ctx, '#fbf6ea', r2.x + 4, r2.y + 4, 14, 12); U.rect(ctx, '#2a5fb4', r2.x + 6, r2.y + 8, 10, 1); U.rect(ctx, '#f7d248', r2.x + 6, r2.y + 9, 10, 1); U.rect(ctx, '#c8302a', r2.x + 6, r2.y + 6, 4, 1);
         U.text(ctx, 'БІЛИЙ КВИТОК', r2.x + 22, r2.y + 2, { size: 7, color: '#3a2410' });
-        U.text(ctx, 'рівень ' + lv + (PS && PS.canClaim ? ' · є нагорода!' : ''), r2.x + 22, r2.y + 11, { size: 7, color: PS && PS.canClaim ? '#a02018' : '#6a4a20' });
+        U.text(ctx, 'рівень ' + lv + (PS && PS.canClaim ? ' · забери!' : '') + (PS && PS.premium ? ' ★' : ''), r2.x + 22, r2.y + 11, { size: 7, color: PS && PS.canClaim ? '#a02018' : '#6a4a20' });
         if (PS && PS.canClaim) { const on = Math.sin(G.realTime * 6) > -0.3, bx = r2.x + r2.w - 6, by = r2.y - 4; U.rect(ctx, '#1a0e20', bx - 1, by - 1, 9, 9); U.rect(ctx, on ? '#ff4a3a' : '#c8302a', bx, by, 7, 7); U.rect(ctx, '#fff8e0', bx + 3, by + 1, 1, 3); U.rect(ctx, '#fff8e0', bx + 3, by + 5, 1, 1); }
       }
     });
@@ -30039,8 +30051,11 @@
   const LV_XP = 400, MAXL = 30;
   const XP = { daily: 60, dailyAll: 60, weekly: 150, run: 10, win: 15 };
   const LS = 'tck_pass';
-  let st = { s: SEASON.id, xp: 0, got: [], wk: { key: '', list: [] }, pets: [], pet: null };
+  let st = { s: SEASON.id, xp: 0, got: [], gotP: [], prem: false, wk: { key: '', list: [] }, pets: [], pet: null };
   try { const r = JSON.parse(localStorage.getItem(LS) || 'null'); if (r && r.s === SEASON.id) st = Object.assign(st, r); } catch (e) { /* */ }
+  if (!Array.isArray(st.gotP)) st.gotP = [];
+  try { if (new URLSearchParams(location.search).get('dev') === 'vsi2026') st.prem = true; } catch (e) { /* */ } // тест: преміум лише на цьому пристрої
+  const PREM_PRICE = 149; // грн — оплата з'явиться у версії для Google Play
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) { /* */ } };
   const sfx = (n) => { try { G.audio && G.audio.sfx && G.audio.sfx(n); } catch (e) { /* */ } };
   const toast = (t, ms) => { try { G.ui && G.ui.toast && G.ui.toast(t, ms || 2400); } catch (e) { /* */ } };
@@ -30048,14 +30063,19 @@
 
   // ── нагороди за рівні ──
   // k: 'money' (n грн), 'acc' (id одягу), 'pet' (id улюбленця)
-  const REW = [null,
-    { k: 'money', n: 50 }, { k: 'acc', id: 'hat_beanie_red' }, { k: 'money', n: 75 }, { k: 'acc', id: 'beard_stubble' }, { k: 'money', n: 100 },
-    { k: 'acc', id: 'top_hoodie' }, { k: 'money', n: 100 }, { k: 'acc', id: 'hat_cap' }, { k: 'money', n: 150 }, { k: 'pet', id: 'patron' },
-    { k: 'money', n: 150 }, { k: 'acc', id: 'beard_mustache' }, { k: 'money', n: 150 }, { k: 'acc', id: 'top_puffer_red' }, { k: 'money', n: 200 },
-    { k: 'acc', id: 'hat_panama' }, { k: 'money', n: 200 }, { k: 'acc', id: 'top_sport' }, { k: 'money', n: 250 }, { k: 'pet', id: 'cat' },
-    { k: 'money', n: 250 }, { k: 'acc', id: 'beard_goatee' }, { k: 'money', n: 300 }, { k: 'acc', id: 'hat_ushanka' }, { k: 'money', n: 300 },
-    { k: 'acc', id: 'top_deer' }, { k: 'money', n: 400 }, { k: 'acc', id: 'beard_cossack' }, { k: 'money', n: 500 }, { k: 'pet', id: 'pigeon' },
-  ];
+  const m = (n) => ({ k: 'money', n }), a = (id) => ({ k: 'acc', id }), pet = (id) => ({ k: 'pet', id });
+  // безкоштовна доріжка — «плюс-мінус нормально»: гривні й трохи одягу
+  const FREE = [null,
+    m(30), m(40), a('hat_beanie_blue'), m(50), a('beard_stubble'), m(60), m(70), a('hat_beanie_red'), m(80), m(100),
+    m(80), a('top_hoodie'), m(90), m(100), a('hat_cap'), m(100), m(110), a('beard_mustache'), m(120), m(150),
+    m(120), m(130), a('top_puffer_red'), m(140), m(150), m(150), a('hat_panama'), m(180), m(200), m(300)];
+  // преміум — «імба»: усі улюбленці, найкращий одяг, великі гроші, у фіналі — ЛЕГЕНДАРНИЙ скін
+  const PREM = [null,
+    pet('patron'), m(150), a('top_sport'), a('beard_goatee'), m(200), a('hat_ushanka'), m(250), a('top_deer'), m(300), pet('cat'),
+    m(300), a('beard_cossack'), m(350), a('top_vyshyvanka'), m(400), a('beard_full'), m(400), a('hat_crown'), m(450), pet('pigeon'),
+    m(500), m(500), m(550), m(600), m(600), m(650), m(700), m(750), m(1000), { k: 'skin', id: 'president', legend: true }];
+  const REW = PREM; // сумісність
+
 
   // ── улюлбленці: піксельні спрайти (дивляться праворуч), 2 кадри бігу ──
   const PETS = {
@@ -30186,24 +30206,31 @@
     if (L1 > L0) { toast('БІЛИЙ КВИТОК: РІВЕНЬ ' + L1 + '! Забери нагороду', 3200); sfx('unlock'); }
     else if (why) toast('+' + n + ' досвіду пасу · ' + why, 1800);
   }
-  const canClaim = () => { const L = level(); for (let i = 1; i <= L; i++) if (st.got.indexOf(i) < 0) return true; return false; };
+  const gotList = (tr) => (tr === 'p' ? st.gotP : st.got);
+  const canClaimTr = (tr) => { if (tr === 'p' && !st.prem) return false; const L = level(), g = gotList(tr); for (let i = 1; i <= L; i++) if (g.indexOf(i) < 0) return true; return false; };
+  const canClaim = () => canClaimTr('f') || canClaimTr('p');
   function rewName(r) {
     if (!r) return '';
+    if (r.k === 'skin') return r.id === 'president' ? 'Зеленський' : r.id;
     if (r.k === 'money') return '+' + r.n + ' грн';
     if (r.k === 'pet') return PETS[r.id].name;
     const a = P() && P().accInfo ? P().accInfo(r.id) : null; return a ? a.name : r.id;
   }
-  function claim(L, quiet) {
-    if (L < 1 || L > level() || st.got.indexOf(L) >= 0) return false;
-    const r = REW[L]; if (!r) return false;
+  function claim(L, tr, quiet) {
+    tr = tr === 'p' ? 'p' : 'f';
+    const g = gotList(tr);
+    if (L < 1 || L > level() || g.indexOf(L) >= 0) return false;
+    if (tr === 'p' && !st.prem) return false;
+    const r = (tr === 'p' ? PREM : FREE)[L]; if (!r) return false;
     if (r.k === 'money') { P() && P().addMoney && P().addMoney(r.n); }
     else if (r.k === 'acc') { if (!(P() && P().grantAcc && P().grantAcc(r.id)) && P() && P().addMoney) P().addMoney(150); } // уже було — компенсація
     else if (r.k === 'pet') { if (st.pets.indexOf(r.id) < 0) st.pets.push(r.id); st.pet = r.id; }
-    st.got.push(L); save();
-    if (!quiet) { sfx('unlock'); toast('Отримано: ' + rewName(r) + (r.k === 'pet' ? ' — тепер бігає з тобою!' : ''), 2600); }
+    else if (r.k === 'skin') { if (P() && P().grantSkin) P().grantSkin(r.id); }
+    g.push(L); save();
+    if (!quiet) { sfx('unlock'); toast((r.legend ? 'ЛЕГЕНДАРНИЙ СКІН: ' : 'Отримано: ') + rewName(r) + (r.k === 'pet' ? ' — тепер бігає з тобою!' : ''), 2800); }
     return true;
   }
-  function claimAll() { let n = 0; for (let i = 1; i <= level(); i++) if (claim(i, true)) n++; if (n) { sfx('unlock'); toast('Забрано нагород: ' + n, 2200); } return n; }
+  function claimAll() { let n = 0; for (let i = 1; i <= level(); i++) { if (claim(i, 'f', true)) n++; if (claim(i, 'p', true)) n++; } if (n) { sfx('unlock'); toast('Забрано нагород: ' + n, 2200); } return n; }
 
   // ── сезон: дати ──
   const dayKey = (off) => (P() && P().dateKey ? P().dateKey(off || 0) : new Date().toISOString().slice(0, 10));
@@ -30308,96 +30335,124 @@
     SEASON, MAXL, LV_XP, PETS, REW,
     get level() { return level(); }, get xp() { return st.xp; }, get cur() { return lvCur(); },
     get canClaim() { return canClaim(); }, get pet() { return st.pet; }, get pets() { return st.pets.slice(); },
-    got: (L) => st.got.indexOf(L) >= 0,
+    got: (L, tr) => gotList(tr).indexOf(L) >= 0, get premium() { return !!st.prem; }, PREM_PRICE, FREE, PREM,
     setPet(id) { st.pet = id && st.pets.indexOf(id) >= 0 ? id : null; save(); },
     claim, claimAll, weekly, addXp, drawPet, daysLeft, weekDaysLeft, rewName,
-    _reset() { st = { s: SEASON.id, xp: 0, got: [], wk: { key: '', list: [] }, pets: [], pet: null }; save(); },
+    _reset() { st = { s: SEASON.id, xp: 0, got: [], gotP: [], prem: false, wk: { key: '', list: [] }, pets: [], pet: null }; save(); },
+    _setPremium(v) { st.prem = !!v; save(); },
   };
 
   // ═══════════════ Екран «БІЛИЙ КВИТОК» ═══════════════
+  // Дві доріжки: БЕЗКОШТОВНА (верхній ряд) і ПРЕМІУМ (нижній, золото-фіолетова, усі улюбленці, у фіналі — ЛЕГЕНДАРНИЙ скін).
   if (G.STATES.indexOf('pass') < 0) G.STATES.push('pass');
   const U = () => G.ui.gfx, VW = () => G.cfg.VIEW_W, VH = () => G.cfg.VIEW_H;
-  const S = { tab: 0, sel: 1, scroll: 0, t: 0, drag: null, back: 'menu' };
-  const CW = 58, CG = 6, TY = 82, CH = 118;
-  const trackX0 = () => 14, trackW = () => VW() - 28;
+  const S = { tab: 0, sel: 1, row: 'f', scroll: 0, t: 0, drag: null, pop: false };
+  const LBL = 54, CW = 56, CG = 6, TY = 92, RH = 56, RG = 6;
+  const rowY = (tr) => (tr === 'p' ? TY + RH + RG : TY);
+  const trackX0 = () => 14 + LBL + 4, trackW = () => VW() - 14 - trackX0();
   const cardX = (L) => trackX0() + (L - 1) * (CW + CG) - S.scroll;
   const maxScroll = () => Math.max(0, MAXL * (CW + CG) - CG - trackW());
   const tabR = (i) => ({ x: 14 + i * 104, y: 58, w: 98, h: 18 });
-  const backR = () => ({ x: 14, y: VH() - 26, w: 80, h: 20 });
-  const allR = () => ({ x: VW() - 134, y: VH() - 26, w: 120, h: 20 });
+  const backR = () => ({ x: 14, y: VH() - 24, w: 80, h: 19 });
+  const allR = () => ({ x: VW() - 134, y: VH() - 24, w: 120, h: 19 });
+  const premR = () => ({ x: VW() - 196, y: 58, w: 182, h: 20 });
   function focusOn(L) { S.scroll = Math.max(0, Math.min(maxScroll(), (L - 1) * (CW + CG) - trackW() / 2 + CW / 2)); }
-  function rewPreview(ctx, r, cx, cy, owned) {
+  function skinImg(id) { try { return G.sprites.rawGet ? G.sprites.rawGet('player', { skin: id, dir: 'down', frame: 0 }) : G.sprites.get('player', { skin: id, dir: 'down', frame: 0 }); } catch (e) { return null; } }
+  function rewPreview(ctx, r, cx, cy) {
     const u = U();
     if (r.k === 'money') {
-      u.icon(ctx, 'coin', cx - 9, cy - 16, 3);
-      u.text(ctx, '+' + r.n, cx, cy + 6, { size: 10, align: 'center', color: '#f7c948', shadow: true });
-      u.text(ctx, 'грн', cx, cy + 18, { size: 7, align: 'center', color: '#c8b878' });
+      u.icon(ctx, 'coin', cx - 6, cy - 12, 2);
+      u.text(ctx, '+' + r.n, cx, cy + 2, { size: 10, align: 'center', color: '#f7c948', shadow: true });
     } else if (r.k === 'pet') {
-      const fr = Math.floor(G.realTime * 6) % 2;
-      drawPet(ctx, r.id, cx, cy + 10 - Math.abs(Math.sin(G.realTime * 5)) * 3, 3, fr, false);
+      drawPet(ctx, r.id, cx, cy + 10 - Math.abs(Math.sin(G.realTime * 5)) * 2, 2, Math.floor(G.realTime * 6) % 2, false);
+    } else if (r.k === 'skin') {
+      const img = skinImg(r.id);
+      if (img) ctx.drawImage(img, Math.round(cx - img.width / 2), Math.round(cy + 14 - img.height));
     } else {
       const O = G.outfit, prev = O ? O.override : null;
       let img = null;
       try {
-        const cur = P() && P().outfit ? P().outfit() : {}; const a = P().accInfo(r.id);
-        if (O && a) { O.override = Object.assign({}, cur, { [a.slot]: r.id }); }
+        const cur = P() && P().outfit ? P().outfit() : {}; const ai = P().accInfo(r.id);
+        if (O && ai) O.override = Object.assign({}, cur, { [ai.slot]: r.id });
         img = G.sprites.get('player', { skin: (P() && P().equipped) || 'office', dir: 'down', frame: 0 });
       } catch (e) { img = null; } finally { if (O) O.override = prev; }
-      if (img) ctx.drawImage(img, Math.round(cx - img.width), Math.round(cy + 22 - img.height * 2), img.width * 2, img.height * 2);
+      if (img) ctx.drawImage(img, Math.round(cx - img.width / 2), Math.round(cy + 14 - img.height));
     }
   }
-  function drawCard(ctx, L) {
-    const u = U(), x = Math.round(cardX(L)), y = TY, r = REW[L];
-    if (x + CW < 0 || x > VW()) return;
-    const lv = level(), got = st.got.indexOf(L) >= 0, open = L <= lv, avail = open && !got, f = S.sel === L, big = r.k === 'pet';
+  function drawCard(ctx, L, tr) {
+    const u = U(), x = Math.round(cardX(L)), y = rowY(tr), r = (tr === 'p' ? PREM : FREE)[L];
+    if (x < trackX0() - 3 || x > VW()) return; // картка, що заходить під підписи, — не малюємо (текст гри не обрізається кліпом)
+    const lv = level(), g = gotList(tr), got = g.indexOf(L) >= 0, open = L <= lv, locked = tr === 'p' && !st.prem;
+    const avail = open && !got && !locked, f = S.sel === L && S.row === tr, leg = !!r.legend, special = r.k === 'pet' || leg;
     const pulse = 0.5 + 0.5 * Math.sin(G.realTime * 5);
-    u.rect(ctx, 'rgba(0,0,0,0.35)', x + 2, y + 3, CW, CH);
-    u.rect(ctx, f ? '#fde98f' : avail ? (pulse > 0.5 ? '#f7c948' : '#c89a28') : big ? '#c08af0' : '#120a18', x - 1, y - 1, CW + 2, CH + 2);
-    u.rect(ctx, got ? 'rgba(40,56,40,0.96)' : open ? 'rgba(58,42,72,0.97)' : 'rgba(28,22,36,0.96)', x, y, CW, CH);
-    if (big) { u.rect(ctx, 'rgba(192,138,240,0.18)', x, y, CW, CH); }
-    // номер рівня
-    u.rect(ctx, open ? '#f7c948' : '#4a4258', x, y, CW, 14);
-    u.text(ctx, 'РІВ ' + L, x + CW / 2, y + 3, { size: 7, align: 'center', color: open ? '#3a2410' : '#9a90a8' });
-    // нагорода
-    ctx.save(); if (!open) ctx.globalAlpha = 0.45;
-    rewPreview(ctx, r, x + CW / 2, y + 56, got);
+    u.rect(ctx, 'rgba(0,0,0,0.35)', x + 2, y + 3, CW, RH);
+    let border = '#120a18';
+    if (leg) { const hcol = ['#ff5a4a', '#f7c948', '#93c25b', '#7fd0ff', '#c08af0']; border = hcol[Math.floor(G.realTime * 6) % hcol.length]; }
+    else if (f) border = '#fde98f'; else if (avail) border = pulse > 0.5 ? '#f7c948' : '#c89a28'; else if (tr === 'p') border = '#8a5ac8';
+    u.rect(ctx, border, x - 1, y - 1, CW + 2, RH + 2);
+    const bg = got ? 'rgba(40,56,40,0.96)' : tr === 'p' ? (open ? 'rgba(70,40,96,0.97)' : 'rgba(44,28,60,0.96)') : (open ? 'rgba(58,42,72,0.97)' : 'rgba(28,22,36,0.96)');
+    u.rect(ctx, bg, x, y, CW, RH);
+    if (tr === 'p') u.rect(ctx, 'rgba(247,201,72,0.10)', x, y, CW, 2);
+    if (special && !got) { ctx.save(); ctx.globalAlpha = 0.12 + 0.08 * pulse; u.rect(ctx, leg ? '#f7c948' : '#c08af0', x, y, CW, RH); ctx.restore(); }
+    ctx.save(); if (!open || locked) ctx.globalAlpha = 0.55;
+    rewPreview(ctx, r, x + CW / 2, y + 22);
     ctx.restore();
-    let nm = rewName(r); while (nm.length > 4 && u.measure(nm, 7) > CW - 4) nm = nm.slice(0, -2) + '…';
-    if (r.k !== 'money') u.text(ctx, nm, x + CW / 2, y + 84, { size: 7, align: 'center', color: big ? '#e0c0ff' : '#e8dcc8' });
-    // стан
+    if (leg) u.text(ctx, 'ЛЕГЕНДАРНИЙ', x + CW / 2, y + 1, { size: 7, align: 'center', color: '#ffe070', outline: '#3a1a00' });
+    if (r.k !== 'money') { let nm = rewName(r); while (nm.length > 4 && u.measure(nm, 7) > CW - 4) nm = nm.slice(0, -2) + '…'; u.text(ctx, nm, x + CW / 2, y + 36, { size: 7, align: 'center', color: leg ? '#ffe070' : special ? '#e0c0ff' : '#e8dcc8' }); }
+    else u.text(ctx, 'грн', x + CW / 2, y + 36, { size: 7, align: 'center', color: '#c8b878' });
+    const by = y + RH - 11;
     if (got) {
       const isPet = r.k === 'pet', on = isPet && st.pet === r.id;
-      u.rect(ctx, on ? '#4f8a36' : '#2a3a2a', x + 4, y + CH - 20, CW - 8, 15);
-      u.text(ctx, isPet ? (on ? 'З ТОБОЮ' : 'ВЗЯТИ') : '✓ Є', x + CW / 2, y + CH - 17, { size: 7, align: 'center', color: '#c8f0a8' });
+      u.rect(ctx, on ? '#4f8a36' : '#2a3a2a', x + 3, by, CW - 6, 9);
+      u.text(ctx, isPet ? (on ? 'З ТОБОЮ' : 'ВЗЯТИ') : '✓ Є', x + CW / 2, by + 1, { size: 7, align: 'center', color: '#c8f0a8' });
     } else if (avail) {
-      u.rect(ctx, pulse > 0.5 ? '#6fb04a' : '#5a9a3c', x + 4, y + CH - 20, CW - 8, 15);
-      u.text(ctx, 'ЗАБРАТИ', x + CW / 2, y + CH - 17, { size: 7, align: 'center', color: '#fff8e0' });
-    } else {
-      u.icon(ctx, 'unlock', x + CW / 2 - 3, y + CH - 18);
-    }
+      u.rect(ctx, pulse > 0.5 ? '#6fb04a' : '#5a9a3c', x + 3, by, CW - 6, 9);
+      u.text(ctx, 'ЗАБРАТИ', x + CW / 2, by + 1, { size: 7, align: 'center', color: '#fff8e0' });
+    } else u.icon(ctx, 'unlock', x + CW / 2 - 3, by);
+  }
+  function drawLabels(ctx) {
+    const u = U(), x = 14;
+    u.rect(ctx, '#211830', 0, rowY('f') - 2, trackX0() - 3, RH * 2 + RG + 6); // картки, що виїхали ліворуч, ховаються під підписами
+    // безкоштовно
+    u.rect(ctx, '#120a18', x - 1, rowY('f') - 1, LBL + 2, RH + 2); u.rect(ctx, '#2c223a', x, rowY('f'), LBL, RH);
+    u.icon(ctx, 'coin', x + LBL / 2 - 6, rowY('f') + 10, 2);
+    u.text(ctx, 'БАЗОВИЙ', x + LBL / 2, rowY('f') + 32, { size: 7, align: 'center', color: '#e8dcc8' });
+    u.text(ctx, 'безкоштовно', x + LBL / 2, rowY('f') + 42, { size: 7, align: 'center', color: '#8c8494' });
+    // преміум
+    const py = rowY('p'), sh = 0.5 + 0.5 * Math.sin(G.realTime * 3);
+    u.rect(ctx, '#f7c948', x - 1, py - 1, LBL + 2, RH + 2); u.rect(ctx, '#4a2a70', x, py, LBL, RH);
+    u.rect(ctx, 'rgba(247,201,72,' + (0.12 + 0.1 * sh) + ')', x, py, LBL, RH / 2);
+    u.icon(ctx, 'star', x + LBL / 2 - 6, py + 8, 2);
+    u.text(ctx, 'ПРЕМІУМ', x + LBL / 2, py + 30, { size: 7, align: 'center', color: '#ffe070', outline: '#2a1040' });
+    u.text(ctx, st.prem ? 'відкрито ✓' : 'улюбленці', x + LBL / 2, py + 40, { size: 7, align: 'center', color: st.prem ? '#93c25b' : '#e0c0ff' });
   }
   function drawTrackLine(ctx) {
-    const u = U(), y = TY + CH + 10, lv = level();
+    const u = U(), y = TY - 12, lv = level();
+    ctx.save(); ctx.beginPath(); ctx.rect(trackX0() - 4, 0, VW(), VH()); ctx.clip();
     const x0 = Math.round(cardX(1) + CW / 2), x1 = Math.round(cardX(MAXL) + CW / 2);
-    u.rect(ctx, '#120a18', x0 - 1, y - 1, x1 - x0 + 2, 6); u.rect(ctx, '#2a2030', x0, y, x1 - x0, 4);
+    u.rect(ctx, '#120a18', x0 - 1, y + 2, x1 - x0 + 2, 6); u.rect(ctx, '#2a2030', x0, y + 3, x1 - x0, 4);
     const xl = cardX(lv) + CW / 2 + (lv < MAXL ? (CW + CG) * lvCur() / LV_XP : 0);
-    u.rect(ctx, '#f7c948', x0, y, Math.max(0, Math.round(xl - x0)), 4);
-    for (let L = 1; L <= MAXL; L++) { const cx = Math.round(cardX(L) + CW / 2); if (cx < -4 || cx > VW() + 4) continue; u.rect(ctx, '#120a18', cx - 3, y - 2, 7, 8); u.rect(ctx, L <= lv ? '#f7c948' : '#4a4258', cx - 2, y - 1, 5, 6); }
+    u.rect(ctx, '#f7c948', x0, y + 3, Math.max(0, Math.round(xl - x0)), 4);
+    for (let L = 1; L <= MAXL; L++) {
+      const cx = Math.round(cardX(L) + CW / 2); if (cx < trackX0() - 10 || cx > VW() + 10) continue;
+      const on = L <= lv;
+      u.rect(ctx, '#120a18', cx - 8, y - 1, 16, 11); u.rect(ctx, on ? '#f7c948' : '#4a4258', cx - 7, y, 14, 9);
+      u.text(ctx, String(L), cx, y + 1, { size: 7, align: 'center', color: on ? '#3a2410' : '#b4abb2' });
+    }
+    ctx.restore();
+    u.text(ctx, 'РІВЕНЬ', 14 + LBL / 2, y + 1, { size: 7, align: 'center', color: '#8c8494' });
   }
   function header(ctx) {
     const u = U(), W = VW();
-    // фон-стрічка
     u.rect(ctx, '#1a1226', 0, 0, W, 54);
     for (let i = 0; i < W; i += 24) u.rect(ctx, 'rgba(255,255,255,0.03)', i + ((S.t * 10) % 24), 0, 10, 54);
-    u.rect(ctx, '#f7c948', 0, 53, W, 1);
-    // квиток
+    u.rect(ctx, st.prem ? '#c08af0' : '#f7c948', 0, 53, W, 1);
     const tx = 14, ty = 8;
-    u.rect(ctx, '#120a18', tx - 1, ty - 1, 40, 30); u.rect(ctx, '#fbf6ea', tx, ty, 38, 28); u.rect(ctx, '#e8dcc8', tx, ty + 20, 38, 8);
+    u.rect(ctx, '#120a18', tx - 1, ty - 1, 40, 30); u.rect(ctx, st.prem ? '#ffe9a0' : '#fbf6ea', tx, ty, 38, 28); u.rect(ctx, st.prem ? '#f0d070' : '#e8dcc8', tx, ty + 20, 38, 8);
     for (let k = 0; k < 4; k++) u.rect(ctx, '#c8302a', tx + 6 + k * 7, ty + 6, 4, 2);
     u.rect(ctx, '#2a5fb4', tx + 6, ty + 12, 26, 2); u.rect(ctx, '#f7d248', tx + 6, ty + 14, 26, 2);
     u.text(ctx, 'БІЛИЙ КВИТОК', 60, 6, { size: 18, color: '#fbf6ea', outline: '#120a18', shadow: true });
     u.text(ctx, 'СЕЗОН ' + SEASON.id + ' · ' + SEASON.name + (seasonOver() ? ' · завершено' : ' · ще ' + daysLeft() + ' дн.'), 60, 30, { size: 8, color: '#8fc7e4' });
-    // рівень
     const lv = level(), bx = W - 150;
     u.rect(ctx, '#120a18', bx - 1, 9, 30, 30); u.rect(ctx, '#f7c948', bx, 10, 28, 28); u.rect(ctx, '#ffe58a', bx, 10, 28, 12);
     u.text(ctx, String(lv), bx + 14, 13, { size: 16, align: 'center', color: '#5a3a10' });
@@ -30415,6 +30470,18 @@
       u.text(ctx, lab[i], r.x + r.w / 2, r.y + 5, { size: 8, align: 'center', color: on ? '#fff8e0' : '#b4abb2' });
       if (i === 0 && canClaim()) { const on2 = Math.sin(G.realTime * 6) > -0.3; u.rect(ctx, '#1a0e20', r.x + r.w - 9, r.y - 4, 9, 9); u.rect(ctx, on2 ? '#ff4a3a' : '#c8302a', r.x + r.w - 8, r.y - 3, 7, 7); u.rect(ctx, '#fff8e0', r.x + r.w - 5, r.y - 2, 1, 3); u.rect(ctx, '#fff8e0', r.x + r.w - 5, r.y + 2, 1, 1); }
     }
+    // кнопка преміуму
+    const r = premR(), sh = 0.5 + 0.5 * Math.sin(G.realTime * 4);
+    if (st.prem) {
+      u.rect(ctx, '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2); u.rect(ctx, '#4a2a70', r.x, r.y, r.w, r.h);
+      u.icon(ctx, 'star', r.x + 6, r.y + 6); u.text(ctx, 'ПРЕМІУМ ВІДКРИТО ✓', r.x + r.w / 2 + 6, r.y + 6, { size: 8, align: 'center', color: '#ffe070' });
+    } else {
+      u.rect(ctx, '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2); u.rect(ctx, '#c89a28', r.x, r.y, r.w, r.h); u.rect(ctx, '#f7c948', r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+      u.rect(ctx, 'rgba(255,255,255,' + (0.2 + 0.2 * sh) + ')', r.x + 1, r.y + 1, r.w - 2, 7);
+      const sx = (S.t * 90) % (r.w + 40) - 20; if (sx > 0 && sx < r.w - 8) u.rect(ctx, 'rgba(255,255,255,0.45)', r.x + sx, r.y + 2, 5, r.h - 4);
+      u.icon(ctx, 'star', r.x + 6, r.y + 6);
+      u.text(ctx, 'ВІДКРИТИ ПРЕМІУМ · ' + PREM_PRICE + ' грн', r.x + r.w / 2 + 6, r.y + 6, { size: 8, align: 'center', color: '#3a1a00' });
+    }
   }
   function taskRow(ctx, x, y, w, t, xp) {
     const u = U();
@@ -30428,7 +30495,7 @@
     u.text(ctx, '+' + xp, x + w - 6, y + 3, { size: 8, align: 'right', color: '#7fd0ff' });
   }
   function drawTasks(ctx) {
-    const u = U(), W = VW(), colW = Math.floor((W - 42) / 2), x0 = 14, x1 = 14 + colW + 14, y0 = 86;
+    const u = U(), W = VW(), colW = Math.floor((W - 42) / 2), x0 = 14, x1 = 14 + colW + 14, y0 = 92;
     u.text(ctx, 'ЩОДЕННІ', x0, y0 - 2, { size: 10, color: '#fde98f', shadow: true });
     u.text(ctx, 'нові щодня', x0 + colW, y0, { size: 7, align: 'right', color: '#8c8494' });
     const ds = (P() && P().challenges) ? P().challenges() : [];
@@ -30437,42 +30504,63 @@
     u.text(ctx, 'ТИЖНЕВІ', x1, y0 - 2, { size: 10, color: '#fde98f', shadow: true });
     u.text(ctx, 'нові через ' + weekDaysLeft() + ' дн.', x1 + colW, y0, { size: 7, align: 'right', color: '#8c8494' });
     weekly().forEach((t, i) => taskRow(ctx, x1, y0 + 14 + i * 28, colW, t, XP.weekly));
-    u.text(ctx, 'Кожен забіг: +' + XP.run + ' досвіду, перемога — ще +' + XP.win, x0, VH() - 42, { size: 7, color: '#8c8494' });
+    u.text(ctx, 'Кожен забіг: +' + XP.run + ' досвіду, перемога — ще +' + XP.win, x0, VH() - 38, { size: 7, color: '#8c8494' });
   }
-  function clickCard(L) {
-    const r = REW[L]; if (!r) return;
-    if (st.got.indexOf(L) >= 0) { if (r.k === 'pet') { G.pass.setPet(st.pet === r.id ? null : r.id); sfx('click'); toast(st.pet ? PETS[r.id].name + ' тепер з тобою' : 'Улюбленець відпочиває вдома', 1800); } return; }
-    if (L <= level()) { claim(L); return; }
+  function drawPop(ctx) {
+    if (!S.pop) return;
+    const u = U(), W = VW(), H = VH();
+    ctx.save(); ctx.globalAlpha = 0.72; u.rect(ctx, '#0c0612', 0, 0, W, H); ctx.restore();
+    const w = 300, h = 150, x = Math.round(W / 2 - w / 2), y = Math.round(H / 2 - h / 2);
+    u.rect(ctx, '#f7c948', x - 2, y - 2, w + 4, h + 4); u.rect(ctx, '#2a1840', x, y, w, h);
+    u.text(ctx, 'ПРЕМІУМ «БІЛИЙ КВИТОК»', W / 2, y + 8, { size: 12, align: 'center', color: '#ffe070', outline: '#120a18' });
+    const L = ['• пес Патрон уже на 1-му рівні', '• кіт Бублик і голуб Валера', '• корона, вишиванка, козацькі вуса', '• великі гроші — до 1000 грн за рівень', '• ЛЕГЕНДАРНИЙ скін на 30-му рівні'];
+    L.forEach((t, i) => u.text(ctx, t, x + 20, y + 30 + i * 13, { size: 8, color: i === 4 ? '#ffe070' : '#e8dcc8' }));
+    const sk = skinImg('president'); if (sk) { ctx.imageSmoothingEnabled = false; ctx.drawImage(sk, x + w - 64, y + 26, sk.width * 2.4, sk.height * 2.4); u.text(ctx, 'ЛЕГЕНДАРНИЙ', x + w - 40, y + 102, { size: 7, align: 'center', color: '#ffe070' }); }
+    u.text(ctx, PREM_PRICE + ' грн · оплата з\'явиться у версії для Google Play', W / 2, y + h - 30, { size: 8, align: 'center', color: '#93c25b' });
+    u.text(ctx, G.touch && G.touch.active ? 'Торкнись, щоб закрити' : 'Клік або Esc — закрити', W / 2, y + h - 14, { size: 7, align: 'center', color: '#8c8494' });
+  }
+  function clickCard(L, tr) {
+    const r = (tr === 'p' ? PREM : FREE)[L]; if (!r) return;
+    if (gotList(tr).indexOf(L) >= 0) { if (r.k === 'pet') { G.pass.setPet(st.pet === r.id ? null : r.id); sfx('click'); toast(st.pet ? PETS[r.id].name + ' тепер з тобою' : 'Улюбленець відпочиває вдома', 1800); } return; }
+    if (tr === 'p' && !st.prem) { sfx('click'); S.pop = true; return; }
+    if (L <= level()) { claim(L, tr); return; }
     sfx('click'); toast('Відкриється на ' + L + '-му рівні пасу', 1600);
   }
   G.scenes.pass = {
-    enter(prev) { S.t = 0; S.drag = null; S.back = prev === 'pass' ? S.back : 'menu'; ensureWeek(); let L = 1; for (let i = 1; i <= MAXL; i++) if (i <= level() && st.got.indexOf(i) < 0) { L = i; break; } if (L === 1 && !canClaim()) L = Math.min(MAXL, level() + 1); S.sel = L; focusOn(L); if (G.ui) G.ui.reset(); },
+    enter() {
+      S.t = 0; S.drag = null; S.pop = false; ensureWeek();
+      let L = Math.min(MAXL, level() + 1), row = 'f';
+      for (let i = 1; i <= level(); i++) { if (st.got.indexOf(i) < 0) { L = i; row = 'f'; break; } if (st.prem && st.gotP.indexOf(i) < 0) { L = i; row = 'p'; break; } }
+      S.sel = L; S.row = row; focusOn(L); if (G.ui) G.ui.reset();
+    },
     exit() {},
     update(dt, realDt) {
       S.t += realDt || dt;
-      const I = G.input, m = I.mouse, rd = realDt || dt;
+      const I = G.input, m = I.mouse, rd = realDt || dt, inR = (r) => U().inRect(m.x, m.y, r);
+      if (S.pop) { if (m.clicked || I.pressed('pause') || I.pressed('confirm')) { I.consume('pause'); S.pop = false; sfx('click'); } return; }
       if (I.pressed('pause')) { I.consume('pause'); sfx('click'); G.setState('menu'); return; }
       if (m.clicked) {
-        if (U().inRect(m.x, m.y, backR())) { sfx('click'); G.setState('menu'); return; }
-        for (let i = 0; i < 2; i++) if (U().inRect(m.x, m.y, tabR(i))) { S.tab = i; sfx('click'); return; }
-        if (S.tab === 0 && canClaim() && U().inRect(m.x, m.y, allR())) { claimAll(); return; }
+        if (inR(backR())) { sfx('click'); G.setState('menu'); return; }
+        for (let i = 0; i < 2; i++) if (inR(tabR(i))) { S.tab = i; sfx('click'); return; }
+        if (inR(premR())) { sfx('click'); if (!st.prem) S.pop = true; return; }
+        if (S.tab === 0 && canClaim() && inR(allR())) { claimAll(); return; }
       }
       if (S.tab === 0) {
         if (I.pressed('left')) { S.sel = Math.max(1, S.sel - 1); sfx('click'); }
         if (I.pressed('right')) { S.sel = Math.min(MAXL, S.sel + 1); sfx('click'); }
-        if (I.pressed('confirm') || I.pressed('attack')) clickCard(S.sel);
-        // перетягування стрічки
-        const inTrack = m.y >= TY - 4 && m.y <= TY + CH + 16;
+        if (I.pressed('up')) { S.row = 'f'; sfx('click'); }
+        if (I.pressed('down')) { S.row = 'p'; sfx('click'); }
+        if (I.pressed('confirm') || I.pressed('attack')) clickCard(S.sel, S.row);
+        const inTrack = m.y >= TY - 14 && m.y <= rowY('p') + RH + 4 && m.x >= trackX0() - 4;
         if (m.down && !S.drag && inTrack) S.drag = { x: m.x, moved: 0 };
         if (S.drag) {
           if (!m.down) {
-            if (S.drag.moved < 4) for (let L = 1; L <= MAXL; L++) { const x = cardX(L); if (m.x >= x && m.x < x + CW && m.y >= TY && m.y < TY + CH) { S.sel = L; clickCard(L); break; } }
+            if (S.drag.moved < 4) for (let L = 1; L <= MAXL; L++) { const x = cardX(L); if (m.x < x || m.x >= x + CW) continue; for (const tr of ['f', 'p']) { const y = rowY(tr); if (m.y >= y && m.y < y + RH) { S.sel = L; S.row = tr; clickCard(L, tr); } } break; }
             S.drag = null;
           } else { const dx = m.x - S.drag.x; S.drag.x = m.x; S.drag.moved += Math.abs(dx); S.scroll = Math.max(0, Math.min(maxScroll(), S.scroll - dx)); }
         } else {
-          // тримати вибрану картку в кадрі
           const x = cardX(S.sel);
-          if (x < 14) S.scroll = Math.max(0, S.scroll - Math.min(600 * rd, 14 - x));
+          if (x < trackX0()) S.scroll = Math.max(0, S.scroll - Math.min(600 * rd, trackX0() - x));
           else if (x + CW > VW() - 14) S.scroll = Math.min(maxScroll(), S.scroll + Math.min(600 * rd, x + CW - VW() + 14));
         }
       } else if (I.pressed('left') || I.pressed('right')) { S.tab = 0; sfx('click'); }
@@ -30481,16 +30569,19 @@
       const u = U(), W = VW(), H = VH();
       u.rect(ctx, '#211830', 0, 0, W, H);
       for (let y = 54; y < H; y += 8) u.rect(ctx, 'rgba(140,200,255,0.025)', 0, y, W, 4);
-      // сніг
       for (let i = 0; i < 40; i++) { const sx = (i * 97 + S.t * (12 + i % 5 * 4)) % W, sy = (i * 53 + S.t * (18 + i % 7 * 3)) % H; u.rect(ctx, 'rgba(255,255,255,0.25)', Math.round(sx), Math.round(sy), 1, 1); }
       header(ctx); tabs(ctx);
       if (S.tab === 0) {
-        for (let L = 1; L <= MAXL; L++) drawCard(ctx, L);
         drawTrackLine(ctx);
-        u.text(ctx, G.touch && G.touch.active ? 'Гортай пальцем · торкнись картки' : '← → — гортати · Enter — забрати · можна тягнути мишкою', W / 2, TY + CH + 20, { size: 7, align: 'center', color: 'rgba(255,255,255,0.45)' });
+        ctx.save(); ctx.beginPath(); ctx.rect(trackX0() - 3, 0, W, H); ctx.clip();
+        for (let L = 1; L <= MAXL; L++) { drawCard(ctx, L, 'f'); drawCard(ctx, L, 'p'); }
+        ctx.restore();
+        drawLabels(ctx);
+        u.text(ctx, G.touch && G.touch.active ? 'Гортай пальцем · торкнись картки' : '← → гортати · ↑ ↓ ряд · Enter — забрати · можна тягнути мишкою', W / 2, rowY('p') + RH + 6, { size: 7, align: 'center', color: 'rgba(255,255,255,0.45)' });
         if (canClaim()) { const r = allR(), p2 = 0.5 + 0.5 * Math.sin(G.realTime * 5); u.rect(ctx, '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2); u.rect(ctx, p2 > 0.5 ? '#6fb04a' : '#5a9a3c', r.x, r.y, r.w, r.h); u.text(ctx, 'ЗАБРАТИ ВСЕ', r.x + r.w / 2, r.y + 6, { size: 8, align: 'center', color: '#fff8e0' }); }
       } else drawTasks(ctx);
       u.button(ctx, backR(), 'Назад', false, { size: 8 });
+      drawPop(ctx);
       G.ui.drawOverlay && G.ui.drawOverlay(ctx);
     },
   };
@@ -30609,6 +30700,9 @@
     { id: 'panas', name: 'Дід Панас', kind: 'achievement', counter: 'day1Clears', need: 3, condLabel: 'День 1 пройдено', desc: 'Вишиванка й вуса. "Отак, діти, ми на роботу ходили..."' },
     { id: 'secret', name: 'Секретний скін', kind: 'achievement', counter: 'toiletHides', need: 5, condLabel: 'Сховки в біотуалеті', hiddenName: '???',
       desc: 'Костюм туалетного паперу. Ніхто не шукає там, де пахне.' },
+    { id: 'president', name: 'Зеленський', kind: 'pass', need: 1, legend: true, condText: 'Рівень 30 преміум-пасу «Білий квиток»',
+      desc: 'ЛЕГЕНДАРНИЙ. Оливкова футболка з тризубом, щетина, погляд «я тут». Видається лише в преміум-пасі.',
+      reaction: '…Пане Президенте?! Ми тут… просто стоїмо.' },
   ];
   const SKIN_BY_ID = {};
   for (const s of SKINS) SKIN_BY_ID[s.id] = s;
@@ -31308,6 +31402,7 @@
     get equipped() { return D.equipped; },
     // ── Round 33: одяг героя ──
     // 76_pass: одяг у подарунок (нагорода сезону) → true, якщо видано
+    grantSkin(id) { return !!unlock(id, 'pass'); }, // 76_pass: скін-нагорода
     grantAcc(id) { const a = ACC_BY_ID[id]; if (!a || this.accOwned(id)) return false; D.acc.own.push(id); persist(); return true; },
     accInfo(id) { const a = ACC_BY_ID[id]; return a ? { id: a.id, slot: a.slot, name: a.name } : null; },
     accOwned(id) { const a = ACC_BY_ID[id]; return !!a && (a.price === 0 || D.acc.own.indexOf(id) >= 0); },
