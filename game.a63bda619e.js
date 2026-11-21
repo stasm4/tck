@@ -24450,10 +24450,10 @@
   }
   G.ui.level = () => levelOf(xpNow());
   const PROF_R = () => ({ x: 8, y: 4, w: 178, h: 26 });
-  const POD = () => { const x0 = MENU_X + MENU_W + 16, x1 = VW() - 8; return { cx: Math.round((x0 + x1) / 2), feet: 214, x0, x1 }; };
-  const HERO_R = () => { const p = POD(); return { x: p.cx - 64, y: 84, w: 128, h: 140 }; };
+  const POD = () => { const x0 = MENU_X + MENU_W + 16, x1 = VW() - 8; return { cx: Math.round((x0 + x1) / 2), feet: 200, x0, x1 }; };
+  const HERO_R = () => { const p = POD(); return { x: p.cx - 64, y: 72, w: 128, h: 140 }; };
   const RBTN = () => { const w = 84, x = VW() - 8 - w; return [{ id: 'login', r: { x, y: 30, w, h: 17 } }, { id: 'tasks', r: { x, y: 51, w, h: 17 } }]; };
-  const LOOK_R = () => { const p = POD(), w = 96; return { x: p.cx - w / 2, y: p.feet + 27, w, h: 16 }; };
+  const LOOK_R = () => { const p = POD(), w = 96; return { x: p.cx - w / 2, y: p.feet + 25, w, h: 15 }; };
   const H3 = { ang: 0.2, vel: 0, drag: null, idle: 0, jump: 0, jumpV: 0, lastLvl: 0 };
   function heroSkin() { const P = G.progress; return (G.heroes && G.heroes.skinFor && G.heroes.cur ? G.heroes.skinFor(G.heroes.cur) : null) || (P && P.equipped) || 'office'; }
   function heroUpdate(dt) {
@@ -24499,7 +24499,7 @@
     pill(ctx, lr.x, lr.y, lr.w, lr.h, lh ? '#3f7fae' : '#2d5f86');
     U.icon(ctx, 'shirt', lr.x + 5, lr.y + 4);
     U.text(ctx, 'ЗМІНИТИ ОБРАЗ', lr.x + lr.w / 2 + 6, lr.y + 4, { size: 7, align: 'center', color: '#fff8e0' });
-    if (H3.idle > 1.5 && M.t < 20) U.text(ctx, isTouch() ? '← покрути пальцем →' : '← покрути мишкою →', p.cx, 76, { size: 7, align: 'center', color: 'rgba(255,255,255,0.55)' });
+    if (H3.idle > 1.5 && M.t < 20) U.text(ctx, isTouch() ? '« крути пальцем »' : '« крути мишкою »', p.cx, 62, { size: 7, align: 'center', color: 'rgba(255,255,255,0.55)' });
   }
   function pill(ctx, x, y, w, h, fill) { U.rect(ctx, 'rgba(0,0,0,0.35)', x + 1, y + 2, w, h); U.rect(ctx, '#120a18', x - 1, y - 1, w + 2, h + 2); U.rect(ctx, fill, x, y, w, h); U.rect(ctx, 'rgba(255,255,255,0.18)', x, y, w, 1); }
   function drawTopBar(ctx) {
@@ -24881,6 +24881,7 @@
     const pulse = Math.sin(M.t * 4) > -0.6;
     U.text(ctx, 'БУСИФІКАЦІЯ', MENU_X + MENU_W / 2 + 1, 35, { size: 16, align: 'center', color: '#1a0e20' });
     U.text(ctx, 'БУСИФІКАЦІЯ', MENU_X + MENU_W / 2, 34, { size: 16, align: 'center', color: pulse ? '#ff5a4a' : '#d8443a', outline: '#1a0e20' });
+    { const period = 14, ph = M.t % period, bx2 = VW() + 70 - ph * 60; if (bx2 > -80) U.drawBus(ctx, bx2, 271, 1.1, 'left', M.t); } // бус їде нижньою смугою дороги, під кнопками й героєм
     drawHero3d(ctx);
     drawTopBar(ctx);
     const P = G.progress;
@@ -29947,9 +29948,6 @@
   function renderFrame(m, k, s) {
     const a = k / STEPS * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), cp = Math.cos(PITCH), sp = Math.sin(PITCH);
     const proj = (X, Y, Z) => { const xr = X * ca - Z * sa, zr = X * sa + Z * ca; return [xr, Y * cp + zr * sp, zr * cp - Y * sp]; };
-    const half = Math.ceil(Math.max(m.W, m.D * DZ) * 0.75) + 2;
-    const cw = half * 2 * s + 8, chh = (m.H + m.D) * s + 8;
-    const ox = cw / 2, oy = 4 - (m.top - 1) * s * cp;
     const list = [];
     for (const f of m.faces) {
       const n = NORM[f.n];
@@ -29975,6 +29973,11 @@
       list.push({ d: c[2] + nd * 0.01, Q, cx: c[0], cy: c[1], fill: 'rgb(' + Math.min(255, Math.round(col[0] * k2)) + ',' + Math.min(255, Math.round(col[1] * k2)) + ',' + Math.min(255, Math.round(col[2] * k2)) + ')' });
     }
     list.sort((p, q) => p.d - q.d);
+    // межі кадру — за реальними кутами граней (щоб шапка/спина не обрізались під будь-яким кутом)
+    let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9;
+    for (const f of list) for (const q of f.Q) { if (q[0] < mnx) mnx = q[0]; if (q[0] > mxx) mxx = q[0]; if (q[1] < mny) mny = q[1]; if (q[1] > mxy) mxy = q[1]; }
+    const pad = 6, cw = Math.ceil((mxx - mnx) * s) + pad * 2, chh = Math.ceil((mxy - mny) * s) + pad * 2;
+    const ox = pad - mnx * s, oy = pad - mny * s;
     const body = G.util.makeCanvas(cw, chh), bx = body.getContext('2d');
     for (const f of list) {
       bx.fillStyle = f.fill; bx.beginPath();
@@ -29993,7 +29996,7 @@
     o.drawImage(body, 0, 0);
     // контурне світло по правому краю (rim light)
     o.globalCompositeOperation = 'source-atop'; o.globalAlpha = 0.18; o.drawImage(sil, -t, 0); o.globalAlpha = 1; o.globalCompositeOperation = 'source-over';
-    return { cv: out, ox, footY: oy + (m.foot + 0.5) * s * cp };
+    return { cv: out, ox, footY: oy + (m.foot + 0.5) * cp * s };
   }
   function draw(ctx, cx, feetY, s, ang, o) {
     o = o || {};
