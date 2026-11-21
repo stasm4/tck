@@ -14837,14 +14837,14 @@
       const cx = ix != null ? Math.max(x0 + 20, Math.min(x1 - 20, ix)) : (x0 + x1) / 2;   // точка влучання на фасаді
       const iy = yt + Math.round(fh * T * 0.35), seed = b.x * 7 + b.y * 13;
       const front = { x: cx, y: yb + 22 };                                                  // тротуар/дорога перед будинком
-      const burning = mode === 'burning';
+      const burning = mode === 'burning', repair = mode === 'repair'; // 'repair' — місії 27+ і режими: стоїть у риштуванні, вікна забиті
       // 1) фасад: опалена пляма, вибиті вікна (вночі з них світить вогонь), тріщини
       this.list.push(G.addEntity(new Decor(cx, yb - 0.5, (ctx) => {
         const t = rt();
         ctx.save();
         for (let i = 0; i < 26; i++) { // кіптява — рваними плямами вгору
           const ox = (hsh(i, 1, seed) - 0.5) * 76, oy = (hsh(i, 2, seed) - 0.7) * fh * T * 1.0, r = 5 + hsh(i, 3, seed) * 11;
-          ctx.fillStyle = 'rgba(18,12,10,' + (burning ? 0.55 : 0.42) * (0.6 + hsh(i, 4, seed) * 0.4) + ')';
+          ctx.fillStyle = 'rgba(18,12,10,' + (burning ? 0.55 : repair ? 0.3 : 0.42) * (0.6 + hsh(i, 4, seed) * 0.4) + ')';
           ctx.beginPath(); ctx.ellipse(Math.round(cx + ox), Math.round(iy + oy), r, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
         }
         const W = [[-18, -6], [0, -2], [16, -8], [-8, 10], [10, 12]];
@@ -14853,7 +14853,7 @@
           if (wy < yt + 2 || wy > yb - 8) continue;
           ctx.fillStyle = '#0c0808'; ctx.fillRect(wx - 3, wy - 3, 7, 6);
           if (burning) { const f = 0.5 + 0.5 * Math.sin(t * 9 + i * 2); ctx.fillStyle = 'rgba(255,' + Math.round(120 + 80 * f) + ',40,' + (0.55 + 0.35 * f) + ')'; ctx.fillRect(wx - 2, wy - 1, 5, 3); }
-          else if (i < 3) { ctx.fillStyle = '#b8945a'; ctx.fillRect(wx - 3, wy - 3, 7, 6); ctx.fillStyle = '#8a6a3a'; ctx.fillRect(wx - 3, wy - 1, 7, 1); ctx.fillRect(wx - 3, wy + 1, 7, 1); } // забиті фанерою
+          else if (i < 3 || repair) { ctx.fillStyle = '#b8945a'; ctx.fillRect(wx - 3, wy - 3, 7, 6); ctx.fillStyle = '#8a6a3a'; ctx.fillRect(wx - 3, wy - 1, 7, 1); ctx.fillRect(wx - 3, wy + 1, 7, 1); } // забиті фанерою
         }
         ctx.strokeStyle = 'rgba(20,14,12,0.8)'; ctx.lineWidth = 1; ctx.beginPath(); // тріщини
         for (let i = 0; i < 5; i++) { let x = cx + (hsh(i, 5, seed) - 0.5) * 40, y = iy + (hsh(i, 15, seed) - 0.5) * 10; ctx.moveTo(x, y); for (let k = 0; k < 2; k++) { x += (hsh(i, 6 + k, seed) - 0.5) * 10; y += (hsh(i, 9 + k, seed) - 0.5) * 8; ctx.lineTo(Math.round(x), Math.round(y)); } }
@@ -14868,8 +14868,8 @@
       // 2) земля під фасадом: закопчена пляма, розкидані уламки бетону й цегли, арматура, скло, тліючі шматки
       // (шахед влучив у стіну — ями нема, є те, що вилетіло з будинку)
       const debris = [];
-      for (let i = 0; i < 70; i++) {
-        const a = Math.PI * (0.05 + 0.9 * hsh(i, 41, seed)), d = 6 + Math.pow(hsh(i, 42, seed), 1.6) * (burning ? 70 : 34);
+      for (let i = 0; i < (repair ? 18 : 70); i++) {
+        const a = Math.PI * (0.05 + 0.9 * hsh(i, 41, seed)), d = 6 + Math.pow(hsh(i, 42, seed), 1.6) * (burning ? 70 : repair ? 16 : 34);
         debris.push({ x: cx + Math.cos(a) * d * 1.4 * (hsh(i, 43, seed) < 0.5 ? -1 : 1), y: yb + 2 + Math.sin(a) * d * 0.55, w: 1 + Math.floor(hsh(i, 44, seed) * (d < 25 ? 5 : 3)), h: 1 + Math.floor(hsh(i, 45, seed) * 3), k: i % 7 });
       }
       this.list.push(G.addEntity(new Decor(cx, yb + 1, (ctx) => {
@@ -14908,7 +14908,7 @@
         this.list.push(G.addEntity(new Decor(cx, yb + 80, (ctx) => { smokePuffs(ctx, cx, iy - 10, 16, 170, 60, ['#2a2224', '#3a3236', '#5a5458'], 0.72); smokePuffs(ctx, cx - 14, iy, 8, 120, 40, ['#3a3236', '#5a5458', '#7a747a'], 0.5, 1.7); })));
       } else {
         // 3) наступного дня: тонкий дим, огорожа «ОБЕРЕЖНО», пожежна машина, пожежник домочує
-        this.list.push(G.addEntity(new Decor(cx, yb + 40, (ctx) => smokePuffs(ctx, cx + 4, iy - 6, 7, 80, 22, ['#6a6468', '#8a848a', '#aaa4aa'], 0.32, 2))));
+        if (!repair) this.list.push(G.addEntity(new Decor(cx, yb + 40, (ctx) => smokePuffs(ctx, cx + 4, iy - 6, 7, 80, 22, ['#6a6468', '#8a848a', '#aaa4aa'], 0.32, 2))));
         const fy = yb + 10;
         this.list.push(G.addEntity(new Decor(cx, fy + 1, (ctx) => {
           ctx.save();
@@ -14921,6 +14921,7 @@
           if (G.text) G.text(ctx, 'ОБЕРЕЖНО', sx + 23, sy + 2, { size: 7, align: 'center', color: '#1a1418' });
           ctx.restore();
         })));
+        if (repair) return front; // через кілька днів: рятувальники поїхали, лишились огорожа, сітка й риштування
         const tx = Math.min(x1 + 20, cx + 78), ty = yb + 36;
         this.list.push(G.addEntity(new Decor(tx, ty - 1, (ctx) => { const fr = Math.floor(rt() * 4) % 4; const img = ext('prop', { variant: 'firetruck', dir: 'left', frame: fr }) || A.prop('firetruck', { dir: 'left', frame: fr & 1 }); if (img) ctx.drawImage(img, Math.round(tx - img.width / 2), ty - img.height + 2); })));
         const ff = { x: cx + 30, y: yb + 26 };
@@ -34986,19 +34987,25 @@
     if (!from && G.audio && G.audio.sfx) G.audio.sfx('shahed', { vol: 1, dur: 2.1, peak: 0.95, pan: 0 });
   }
   // місія 26: наслідки вчорашнього прильоту на тому самому будинку (або біля метро «Хрещатик», якщо 25-ту не грали)
-  function setupAftermath() {
+  function hasStrike() { try { return !!localStorage.getItem('tck_strike'); } catch (e) { return false; } }
+  // mode 'aftermath' (місія 26) або 'repair' (місії 27+ і режими, якщо прильот уже був): будинок лишається пошкодженим
+  function setupAftermath(mode) {
     S.siteDone = true;
     const W = G.world, T = G.cfg.TILE; if (!W || !W.buildings || !G.kyivScenes || !G.kyivScenes.strikeSite) return;
     let b = null;
     try { const v = JSON.parse(localStorage.getItem('tck_strike') || 'null'); const c = v && W.buildings[v.i]; if (c && STRIKE_KIND[c.kind] && c.face === 's') b = c; } catch (e) { /* */ }
     if (!b) { const m = poi('metroB'); const q = m && pickStrikeBuilding(140, 460, m); if (q) b = q.ref; }
     if (!b) return;
-    const front = G.kyivScenes.strikeSite(b, 'aftermath');
+    const front = G.kyivScenes.strikeSite(b, mode || 'aftermath');
     if (front) { POI.strike_site.t = [Math.floor(front.x / T), Math.floor((front.y + 6) / T)]; delete poiCache.strike_site; }
   }
   // місія 25: сценарний прильот перед героєм під час тривоги
   function updateStrike() {
-    if (S && S.n === 26 && !S.siteDone) setupAftermath();
+    if (S && !S.siteDone) {
+      if (S.n === 26) setupAftermath('aftermath');
+      else if (S.n >= 27 || (S.mode && hasStrike())) setupAftermath('repair');
+      else S.siteDone = true;
+    }
     if (!S || S.strikeOn) return;
     if (S.n === 25 && S.ev.air_raid && S.t > 3.5) { const b = pickStrikeBuilding(30, 220); if (b) startStrike(b); }
   }
