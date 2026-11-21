@@ -8529,6 +8529,21 @@
     }
     return end;
   };
+  // ── прильот у будинок (82_missions): удар — різкий тріск, глибокий бас «БУМ», гуркіт уламків ──
+  R.impact = (v, t, o) => {
+    const out = gain(0.95); chain(out, v.out); v.add(out);
+    const n = noise(t, 0.5), nf = filt('lowpass', 5200, 0.7), ng = gain(0); // тріск
+    nf.frequency.setValueAtTime(5200, t); nf.frequency.exponentialRampToValueAtTime(400, t + 0.45);
+    envAD(ng.gain, t, 1.0, 0.002, 0.45); chain(n, nf, ng, out); v.add(n, nf, ng);
+    const sub = osc('sine', 72, t), sg = gain(0); // бас
+    sub.frequency.setValueAtTime(72, t); sub.frequency.exponentialRampToValueAtTime(32, t + 1.3);
+    sg.gain.setValueAtTime(0, t); sg.gain.linearRampToValueAtTime(1.0, t + 0.012); sg.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+    chain(sub, sg, out); sub.stop(t + 1.6); v.add(sub, sg);
+    const r = noise(t + 0.08, 2.2), rf = filt('lowpass', 900, 0.8), rg = gain(0); // гуркіт і уламки
+    rg.gain.setValueAtTime(0, t + 0.08); rg.gain.linearRampToValueAtTime(0.55, t + 0.2); rg.gain.exponentialRampToValueAtTime(0.001, t + 2.3);
+    chain(r, rf, rg, out); v.add(r, rf, rg);
+    return 2.4;
+  };
   // ── улюбленці (76_pass): гавкіт, шипіння кота, «курли» голуба ──
   R.bark = (v, t, o) => {
     const g0 = gain(0.32); chain(g0, v.out); v.add(g0);
@@ -34786,49 +34801,63 @@
       const T = G.cfg.TILE, fh = Math.max(2, b.fh || 3), yb = (b.y + b.h) * T;
       super((b.x + b.w / 2) * T, yb + 2, 2, 2, 'decor'); this.body = 'manual';
       this.b = b; this.ix = this.x + (Math.random() - 0.5) * Math.max(0, b.w * T - 48); this.iy = yb - fh * T * 0.65;
-      this.fx = from ? from.x : this.ix - 260; this.fy = from ? from.y : this.iy - 180; this.t = 0; this.D = 1.9; this.hit = false; this.parts = [];
+      const side = Math.random() < 0.5 ? -1 : 1;
+      this.fx = from ? from.x : this.ix + side * 150; this.fy = from ? from.y : this.iy - 230; this.t = 0; this.D = 2.0; this.hit = false; this.parts = []; this.smoke = [];
     }
     update(dt) {
       this.t += dt;
       if (!this.hit && this.t >= this.D) {
         this.hit = true;
-        S.flash = 0.45;
-        if (G.camera && G.camera.shake) G.camera.shake(9, 900);
-        if (G.audio) { G.audio.stopSfx && G.audio.stopSfx('shahed', 0.05); G.audio.sfx && G.audio.sfx('explosion', { x: this.ix, y: this.iy, vol: 1 }); G.after(120, () => G.audio.sfx && G.audio.sfx('distant_boom', { vol: 1, near: true }), {}); }
-        for (let i = 0; i < 34; i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.6, v = 60 + Math.random() * 160; this.parts.push({ x: this.ix, y: this.iy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 1 + Math.random() * 1.2, c: ['#6a625c', '#8a817a', '#4a4440', '#ffb030', '#e8e0d8'][i % 5], s: 1 + (i % 3) }); }
+        S.boomFlash = 0.5;
+        if (G.camera && G.camera.shake) G.camera.shake(12, 1100);
+        if (G.slowmo) G.slowmo(0.45, 450);
+        if (G.audio) { G.audio.stopSfx && G.audio.stopSfx('shahed', 0.03); G.audio.sfx && G.audio.sfx('impact', { vol: 1 }); G.audio.sfx && G.audio.sfx('explosion', { x: this.ix, y: this.iy, vol: 1 }); }
+        for (let i = 0; i < 46; i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 3.0, v = 70 + Math.random() * 200; this.parts.push({ x: this.ix, y: this.iy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 1 + Math.random() * 1.4, c: ['#6a625c', '#8a817a', '#4a4440', '#ffb030', '#e8e0d8', '#ff6a1a'][i % 6], s: 1 + (i % 3), spark: i % 6 >= 3 }); }
+        for (let i = 0; i < 14; i++) this.smoke.push({ x: this.ix + (Math.random() - 0.5) * 20, y: this.iy, vx: (Math.random() - 0.5) * 30, vy: -25 - Math.random() * 45, r: 6 + Math.random() * 8, t: 0, life: 2.4 + Math.random() * 1.5 });
         if (G.kyivScenes && G.kyivScenes.strikeSite) G.kyivScenes.strikeSite(this.b.ref || this.b, 'burning', this.ix);
         S.strikeOn = true;
-        if (G.ui && G.ui.bigText) G.ui.bigText('ПРИЛІТ!', 1600);
-        if (G.ui && G.ui.toast) G.ui.toast(S.n === 25 ? 'ПРИЛІТ! Швидше в метро — і людей забирай!' : 'Прильот у будинок поруч! Не стій — в укриття!', 3000);
+
         // перехожі в паніці
         if (G.npcs && G.npcs.list) for (const n of G.npcs.list) if (n.alive && Math.hypot(n.x - this.ix, n.y - this.iy) < 220 && G.ui && G.ui.bubble && Math.random() < 0.35) G.ui.bubble(n, ['Прильот!!!', 'Господи!', 'Всі в укриття!', 'Пожежників!'][Math.floor(Math.random() * 4)], 1600, { style: 'shout' });
       }
       for (const q of this.parts) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 260 * dt; }
       this.parts = this.parts.filter((q) => q.t < q.life);
-      if (this.hit && this.t > this.D + 2.6) this.alive = false;
+      for (const q of this.smoke) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.98; q.vy *= 0.985; q.r += dt * 9; }
+      this.smoke = this.smoke.filter((q) => q.t < q.life);
+      if (S.boomFlash > 0) S.boomFlash -= dt;
+      if (this.hit && this.t > this.D + 4) this.alive = false;
     }
     draw(ctx) {
       const t = this.t, D = this.D, night = (G.lighting && G.lighting.night) || 0;
-      if (!this.hit) { // пікірує: розгін, гул, димний слід
-        const k = Math.pow(t / D, 1.6), x = this.fx + (this.ix - this.fx) * k, y = this.fy + (this.iy - this.fy) * k;
+      if (!this.hit) { // пікірує прямо в стіну: розгін, гул, димний слід, тінь на землі
+        const k = Math.pow(t / D, 1.7), x = this.fx + (this.ix - this.fx) * k, y = this.fy + (this.iy - this.fy) * k;
         ctx.save();
-        for (let i = 1; i < 10; i++) { const kk = Math.max(0, k - i * 0.035), sx = this.fx + (this.ix - this.fx) * kk, sy = this.fy + (this.iy - this.fy) * kk; ctx.fillStyle = 'rgba(90,86,84,' + (0.35 - i * 0.03) + ')'; ctx.beginPath(); ctx.arc(sx, sy, 2 + i * 0.6, 0, Math.PI * 2); ctx.fill(); }
-        ctx.translate(Math.round(x), Math.round(y)); ctx.rotate(Math.atan2(this.iy - this.fy, this.ix - this.fx) * (this.ix >= this.fx ? 1 : 1));
-        if (this.ix < this.fx) ctx.scale(1, -1);
+        for (let i = 1; i < 14; i++) { const kk = Math.max(0, k - i * 0.03), sx = this.fx + (this.ix - this.fx) * kk, sy = this.fy + (this.iy - this.fy) * kk; ctx.fillStyle = 'rgba(110,104,100,' + Math.max(0, 0.4 - i * 0.028) + ')'; ctx.beginPath(); ctx.arc(sx, sy, 2 + i * 0.7, 0, Math.PI * 2); ctx.fill(); }
+        ctx.fillStyle = 'rgba(0,0,0,' + (0.15 + 0.25 * k) + ')'; ctx.beginPath(); ctx.ellipse(x, this.b.y * G.cfg.TILE + this.b.h * G.cfg.TILE + 4, 6 + 6 * k, 2 + k, 0, 0, Math.PI * 2); ctx.fill();
+        const sc = 0.9 + 0.5 * k;
+        ctx.translate(Math.round(x), Math.round(y)); ctx.rotate(Math.atan2(this.iy - this.fy, this.ix - this.fx)); ctx.scale(sc, this.ix < this.fx ? -sc : sc);
         drawShahed(ctx, 0, 0, 1, night, 1, G.realTime);
         ctx.restore();
         return;
       }
-      const e = t - D; // вибух
+      const e = t - D;
       ctx.save();
-      if (e < 0.9) {
-        const r = 8 + e * 70, a = 1 - e / 0.9;
-        ctx.strokeStyle = 'rgba(255,240,200,' + (0.8 * a) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(this.ix, this.iy + 6, r, r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-        const L = [['#fff6c0', 0.35], ['#ffd84a', 0.6], ['#ff8a2a', 0.85], ['#c83a10', 1]];
-        for (let i = L.length - 1; i >= 0; i--) { ctx.fillStyle = L[i][0]; ctx.globalAlpha = a; pxDisc(ctx, this.ix, this.iy - e * 10, (10 + e * 26) * L[i][1]); }
+      // ударна хвиля по землі
+      if (e < 0.7) { const r = 10 + e * 140, a = 1 - e / 0.7; ctx.strokeStyle = 'rgba(255,236,200,' + (0.7 * a) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(this.ix, this.b.y * G.cfg.TILE + this.b.h * G.cfg.TILE + 6, r, r * 0.35, 0, 0, Math.PI * 2); ctx.stroke(); }
+      // гриб диму
+      for (const q of this.smoke) { const a = Math.min(1, q.t * 3) * Math.max(0, 1 - q.t / q.life); ctx.fillStyle = 'rgba(40,34,34,' + (0.6 * a) + ')'; pxDisc(ctx, q.x, q.y, q.r); }
+      // вогняна куля: шари від білого до темно-червоного
+      if (e < 1.3) {
+        const a = Math.max(0, 1 - e / 1.3), R = 14 + 40 * (1 - Math.pow(1 - Math.min(1, e / 0.35), 2));
+        const L = [['#5a2a1a', 1.08], ['#c83a10', 0.95], ['#ff7a1a', 0.78], ['#ffc040', 0.55], ['#fff6c8', 0.3]];
+        ctx.globalAlpha = a;
+        for (const [c, m] of L) { ctx.fillStyle = c; pxDisc(ctx, this.ix, this.iy - e * 16, R * m); }
+        ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(this.ix, this.iy, 4, this.ix, this.iy, R * 2.4);
+        g.addColorStop(0, 'rgba(255,190,80,' + (0.6 * a) + ')'); g.addColorStop(1, 'rgba(255,120,30,0)'); ctx.fillStyle = g; ctx.fillRect(this.ix - R * 2.4, this.iy - R * 2.4, R * 4.8, R * 4.8);
+        ctx.globalCompositeOperation = 'source-over';
       }
       ctx.globalAlpha = 1;
-      for (const q of this.parts) { ctx.fillStyle = q.c; ctx.globalAlpha = Math.max(0, 1 - q.t / q.life); ctx.fillRect(Math.round(q.x), Math.round(q.y), q.s, q.s); }
+      for (const q of this.parts) { ctx.fillStyle = q.c; ctx.globalAlpha = Math.max(0, 1 - q.t / q.life); ctx.fillRect(Math.round(q.x), Math.round(q.y), q.s, q.s); if (q.spark) { ctx.fillRect(Math.round(q.x - q.vx * 0.02), Math.round(q.y - q.vy * 0.02), 1, 1); } }
       ctx.restore();
     }
   }
@@ -35187,6 +35216,7 @@
       ctx.restore();
     }
     if (S.flash > 0) { ctx.save(); ctx.fillStyle = 'rgba(255,255,255,' + Math.min(0.8, S.flash * 2.5).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH); ctx.restore(); }
+    if (S.boomFlash > 0) { ctx.save(); ctx.fillStyle = 'rgba(255,170,70,' + Math.min(0.55, S.boomFlash * 1.2).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH); ctx.restore(); }
     }
     if (part === 'fx') return;
     // сповіщення про події — по центру знизу
