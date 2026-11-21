@@ -29091,8 +29091,53 @@
   function FilmDecor(o) { Object.assign(this, { alive: true, kind: 'decor', x: 0, y: 0, w: 2, h: 2, hidden: false }, o); }
   FilmDecor.prototype.draw = function (ctx) { this.fn(ctx, this); };
   // ворота СІЗО: бетонна стіна з колючим дротом, ґратчасті ворота (відʼїжджають убік), табличка, ліхтар
+  // корпус тюрми за стіною (закриває місто): цегла, ґрати на вікнах, вишка з прожектором.
+  // Малюється двічі: з декором і ще раз поверх крон дерев (world.drawOverlay), щоб місто не просвічувало.
+  function prisonBack(ctx, D) {
+    const x0 = Math.round(D.x - D.half), x1 = Math.round(D.x + D.half), yt = Math.round(D.y) - 37; // низ корпусу — над колючим дротом стіни
+    const bx0 = x0 - 90, bx1 = x1 + 90, btop = yt - 150;
+    ctx.fillStyle = '#2a2a34'; ctx.fillRect(bx0, btop - 30, bx1 - bx0, 30);                       // нічне небо над дахом
+    ctx.fillStyle = '#5a4f4a'; ctx.fillRect(bx0, btop, bx1 - bx0, yt - btop);                      // стіна корпусу
+    ctx.fillStyle = '#4c423e'; for (let y = btop + 3; y < yt; y += 4) ctx.fillRect(bx0, y, bx1 - bx0, 1); // ряди цегли
+    ctx.fillStyle = '#433a36'; ctx.fillRect(bx0, btop, bx1 - bx0, 4);                              // дах
+    ctx.fillStyle = '#6a605a'; ctx.fillRect(bx0, btop + 4, bx1 - bx0, 1);
+    for (let row = 0; row < 4; row++) {                                                             // вікна з ґратами
+      const wy = btop + 14 + row * 30;
+      if (wy + 14 > yt - 4) break;
+      for (let x = bx0 + 10; x < bx1 - 12; x += 22) {
+        const lit = ((x * 7 + row * 13) % 5) === 0;
+        ctx.fillStyle = '#1a1820'; ctx.fillRect(x - 1, wy - 1, 12, 16);
+        ctx.fillStyle = lit ? '#c8a860' : '#24222c'; ctx.fillRect(x, wy, 10, 14);
+        ctx.fillStyle = '#8a8890'; for (let k = 1; k < 10; k += 3) ctx.fillRect(x + k, wy, 1, 14);
+        ctx.fillRect(x, wy + 6, 10, 1);
+      }
+    }
+    // вишка ліворуч
+    const tx = x0 - 30, ty = yt - 70;
+    ctx.fillStyle = '#3a3a42'; ctx.fillRect(tx - 1, ty, 3, yt - ty); ctx.fillRect(tx + 17, ty, 3, yt - ty);
+    for (let y = ty + 8; y < yt; y += 12) { ctx.fillRect(tx, y, 18, 1); }
+    ctx.fillStyle = '#4a4650'; ctx.fillRect(tx - 4, ty - 14, 26, 14);
+    ctx.fillStyle = '#1e1c24'; ctx.fillRect(tx - 1, ty - 11, 20, 7);
+    ctx.fillStyle = '#2e2c34'; ctx.fillRect(tx - 6, ty - 18, 30, 4);
+    const sw = Math.sin(G.realTime * 0.9) * 0.6;                                                    // прожектор
+    ctx.save(); ctx.globalAlpha = 0.16; ctx.fillStyle = '#fff4c0';
+    ctx.beginPath(); ctx.moveTo(tx + 9, ty - 8); ctx.lineTo(tx + 9 + Math.cos(sw + 0.6) * 160, ty - 8 + 90); ctx.lineTo(tx + 9 + Math.cos(sw + 0.9) * 160, ty - 8 + 110); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#fff4c0'; ctx.fillRect(tx + 8, ty - 9, 3, 2);
+  }
+  if (G.world && G.world.drawOverlay && !G.world._prisonTop) {
+    G.world._prisonTop = true;
+    const ov0 = G.world.drawOverlay;
+    G.world.drawOverlay = function (ctx) {
+      const r = ov0.apply(this, arguments);
+      if (G.state === 'cutscene') for (const e of G.entities) if (e.alive && !e.hidden && e.kind === 'decor' && e.fn === drawPrison) prisonBack(ctx, e);
+      return r;
+    };
+  }
   function drawPrison(ctx, D) {
     const x0 = Math.round(D.x - D.half), x1 = Math.round(D.x + D.half), yb = Math.round(D.y), yt = yb - 30, gw = 30, gx0 = Math.round(D.x - gw / 2);
+    prisonBack(ctx, D);
+    ctx.fillStyle = '#5a4f4a'; ctx.fillRect(x0 - 90, yt - 7, x1 - x0 + 180, 7); // корпус до самої стіни
     ctx.fillStyle = '#7e7a76'; ctx.fillRect(x0, yt, x1 - x0, yb - yt);
     ctx.fillStyle = '#8e8a85'; ctx.fillRect(x0, yt, x1 - x0, 12);
     ctx.fillStyle = '#a6a29c'; ctx.fillRect(x0, yt - 2, x1 - x0, 2);                           // козирок
