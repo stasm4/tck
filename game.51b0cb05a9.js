@@ -24636,7 +24636,7 @@
   // великий банер сезонного пасу — між лого і кнопками праворуч, одразу кидається в око
   const PASS_R = () => { const x0 = MENU_X + MENU_W + 10, x1 = VW() - 8 - 84 - 6; return { x: x0, y: 27, w: x1 - x0, h: 38 }; };
   const LOOK_R = () => { const p = POD(), w = 96; return { x: p.cx - w / 2, y: p.feet + 25, w, h: 15 }; };
-  const H3 = { ang: 0.2, vel: 0, drag: null, idle: 0, jump: 0, jumpV: 0, lastLvl: 0 };
+  const H3 = { ang: 0.08, vel: 0, drag: null, idle: 0, jump: 0, jumpV: 0, lastLvl: 0 };
   function heroSkin() { const P = G.progress; return (G.heroes && G.heroes.skinFor && G.heroes.cur ? G.heroes.skinFor(G.heroes.cur) : null) || (P && P.equipped) || 'office'; }
   function heroUpdate(dt) {
     const m = G.input.mouse, R = HERO_R();
@@ -24647,7 +24647,7 @@
     } else {
       H3.ang += H3.vel * dt; H3.vel *= Math.pow(0.04, dt); H3.idle += dt;
       if (H3.idle > 2.5 && Math.abs(H3.vel) < 0.3) { // сам потроху повертається обличчям і хитається
-        const want = 0.12 + Math.sin(M.t * 0.6) * 0.32;
+        const want = 0.06 + Math.sin(M.t * 0.6) * 0.22;
         let d = want - (H3.ang % (Math.PI * 2)); while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
         H3.ang += d * Math.min(1, dt * 1.5);
       }
@@ -30196,14 +30196,27 @@
   const LIGHT = (() => { const v = [-0.45, -0.75, 0.55], l = Math.hypot(v[0], v[1], v[2]); return v.map((k) => k / l); })();
   const models = new Map(), frames = new Map();
 
-  function px(cv) {
+  function px(cv, strip) {
     if (!cv || !cv.width) return null;
     let d = null;
     try { d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; } catch (e) { return null; }
-    return { w: cv.width, h: cv.height, at(x, y) { if (x < 0 || y < 0 || x >= this.w || y >= this.h) return null; const i = (y * this.w + x) * 4; return d[i + 3] > 40 ? [d[i], d[i + 1], d[i + 2]] : null; } };
+    const w = cv.width, h = cv.height;
+    // контур 2D-спрайта (темна/золота облямівка) у 3D-моделі не потрібен — інакше навколо фігури груба «шкаралупа» з кубиків
+    let cut = null;
+    if (strip) {
+      cut = new Uint8Array(w * h);
+      const op = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 40;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (!op(x, y)) continue;
+        if (op(x - 1, y) && op(x + 1, y) && op(x, y - 1) && op(x, y + 1)) continue;
+        const i = (y * w + x) * 4, r = d[i], g = d[i + 1], bb = d[i + 2], lum = 0.3 * r + 0.59 * g + 0.11 * bb;
+        if (lum < 46 || (r > g && g > bb && lum < 95 && r - bb > 40)) cut[y * w + x] = 1; // темний або коричнево-золотий контур
+      }
+    }
+    return { w, h, at(x, y) { if (x < 0 || y < 0 || x >= w || y >= h) return null; if (cut && cut[y * w + x]) return null; const i = (y * w + x) * 4; return d[i + 3] > 40 ? [d[i], d[i + 1], d[i + 2]] : null; } };
   }
   function build(skin) {
-    const get = (dir) => { try { return px(G.sprites.get('player', { skin, dir, frame: 0 })); } catch (e) { return null; } };
+    const get = (dir) => { try { return px(G.sprites.get('player', { skin, dir, frame: 0 }), true); } catch (e) { return null; } };
     const F = get('down'), B = get('up'), Lf = get('left'), R = get('right');
     if (!F || !R) return null;
     const W = F.w, H = F.h, D = R.w;
@@ -30363,6 +30376,7 @@
   try { const r = JSON.parse(localStorage.getItem(LS) || 'null'); if (r && r.s === SEASON.id) st = Object.assign(st, r); } catch (e) { /* */ }
   if (!Array.isArray(st.gotP)) st.gotP = [];
   const RV = 2; if (st.rv !== RV) { st.rv = RV; st.got = []; st.gotP = []; } // змінився список нагород — забрати можна наново
+  let migrated = false;
   try { if (new URLSearchParams(location.search).get('dev') === 'vsi2026') { st.prem = true; st.xp = Math.max(st.xp, 400 * 29 + 1); } } catch (e) { /* */ } // тест: преміум лише на цьому пристрої
   const PREM_PRICE = 149, PREM_USD = '3.99'; // грн / $ — оплата з'явиться у версії для Google Play
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) { /* */ } };
@@ -30526,7 +30540,7 @@
     else if (why) toast('+' + n + ' досвіду пасу · ' + why, 1800);
   }
   const gotList = (tr) => (tr === 'p' ? st.gotP : st.got);
-  const canClaimTr = (tr) => { if (tr === 'p' && !st.prem) return false; const L = level(), g = gotList(tr); for (let i = 1; i <= L; i++) if (g.indexOf(i) < 0) return true; return false; };
+  const canClaimTr = (tr) => { markOwned(); if (tr === 'p' && !st.prem) return false; const L = level(), g = gotList(tr); for (let i = 1; i <= L; i++) if (g.indexOf(i) < 0) return true; return false; };
   const canClaim = () => canClaimTr('f') || canClaimTr('p');
   function rewName(r) {
     if (!r) return '';
@@ -30548,6 +30562,18 @@
     g.push(L); save();
     if (!quiet) { sfx('unlock'); toast((r.legend ? 'ЛЕГЕНДАРНИЙ СКІН: ' : 'Отримано: ') + rewName(r) + (r.k === 'pet' ? ' — тепер бігає з тобою!' : ''), 2800); }
     return true;
+  }
+  // що вже є (скін, улюбленець, одяг) — позначаємо забраним, щоб не «забирати» вдруге після оновлення списку
+  function markOwned() {
+    if (migrated || !P() || !P().skins) return;
+    migrated = true;
+    let ch = false;
+    const owns = (r) => r && ((r.k === 'skin' && P().skins.some((q) => q.id === r.id && q.unlocked)) || (r.k === 'pet' && st.pets.indexOf(r.id) >= 0) || (r.k === 'acc' && P().accOwned && P().accOwned(r.id)));
+    for (let L = 1; L <= MAXL; L++) {
+      if (st.got.indexOf(L) < 0 && owns(FREE[L])) { st.got.push(L); ch = true; }
+      if (st.gotP.indexOf(L) < 0 && owns(PREM[L])) { st.gotP.push(L); ch = true; }
+    }
+    if (ch) save();
   }
   function claimAll() { let n = 0; for (let i = 1; i <= level(); i++) { if (claim(i, 'f', true)) n++; if (claim(i, 'p', true)) n++; } if (n) { sfx('unlock'); toast('Забрано нагород: ' + n, 2200); } return n; }
 
@@ -30742,7 +30768,7 @@
       try {
         const cur = P() && P().outfit ? P().outfit() : {}; const ai = P().accInfo(r.id);
         if (O && ai) O.override = Object.assign({}, cur, { [ai.slot]: r.id });
-        img = G.sprites.get('player', { skin: (P() && P().equipped) || 'office', dir: 'down', frame: 0 });
+        img = G.sprites.get('player', { skin: 'office', dir: 'down', frame: 0 }); // одяг видно лише на «Офісному» (скіни пасу мають власний образ)
       } catch (e) { img = null; } finally { if (O) O.override = prev; }
       if (img) ctx.drawImage(img, Math.round(cx - img.width / 2), Math.round(cy + 14 - img.height));
     }
