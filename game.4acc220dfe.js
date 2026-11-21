@@ -474,6 +474,16 @@
   // М'яка еліптична тінь: три концентричні напівпрозорі еліпси.
   G.drawShadow = function (ctx, x, y, w, alpha) {
     const a = alpha == null ? 0.28 : alpha;
+    if (G.gfx && G.gfx.p && G.gfx.p.ultra && G.lighting && G.lighting.sun && G.state === 'play') { // «ультра»: довга мʼяка тінь за сонцем + контактна
+      const S = G._sunF === G.frame ? G._sunC : (G._sunC = G.lighting.sun(), G._sunF = G.frame, G._sunC);
+      const L = Math.min(2.2, S.len || 0.5), ang = Math.atan2(S.dy || 0.4, S.dx || 0.2), str = (S.sh == null ? 0.8 : S.sh) * (1 - (S.night || 0) * 0.6);
+      const len = w * 0.9 * (0.6 + L), cxs = x + Math.cos(ang) * len * 0.5, cys = y + Math.sin(ang) * len * 0.35;
+      ctx.save(); ctx.fillStyle = '#0a0612';
+      for (const [k, al] of [[1.15, 0.18], [0.85, 0.28], [0.55, 0.32]]) { ctx.globalAlpha = a * al * str * 1.3; ctx.beginPath(); ctx.ellipse(cxs, cys, Math.max(2, len * 0.62 * k), Math.max(1.5, w * 0.24 * k), ang * 0.35, 0, Math.PI * 2); ctx.fill(); }
+      ctx.globalAlpha = a * 0.7; ctx.beginPath(); ctx.ellipse(x, y, Math.max(2, w * 0.42), Math.max(1.2, w * 0.15), 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      return;
+    }
     const rx = Math.max(2, w * 0.6), ry = Math.max(1.5, w * 0.22);
     ctx.save();
     ctx.fillStyle = '#000';
@@ -557,11 +567,13 @@
   // ?q=low|medium|high у URL — примусово (для тестів). Параметри рівня: G.gfx.p (див. PRESET).
   G.quality = 'high';
   G.gfx = (function () {
-    const LV = ['min', 'low', 'medium', 'high'];
+    const LV = ['min', 'low', 'medium', 'high', 'ultra'];
     // maxScale — межа множника буфера екрана (×логічні 480×270); light — 2 повне світло, 1 без дорогих режимів
     // змішування (soft-light/saturation/overlay), 0 — мінімум; fx — ліміт разових ефектів; lines — ліній швидкості;
     // npcK/carK — частка перехожих/машин біля камери; warmEvery — добудова чанків раз на N кадрів; mmEvery — міні-карта
     const PRESET = {
+      // Round 42: «ультра» — лише вручну: чіткіші тіні від сонця, довгі тіні людей, світіння (bloom), кіно-обробка
+      ultra: { maxScale: 99, light: 2, fx: 80, lines: 26, npcK: 1, carK: 1, warmEvery: 1, mmEvery: 1, busDust: 40, snow: 1.2, steps: 5, ultra: true },
       high: { maxScale: 99, light: 2, fx: 60, lines: 22, npcK: 1, carK: 1, warmEvery: 1, mmEvery: 1, busDust: 30, snow: 1, steps: 5 },
       medium: { maxScale: 3, light: 1, fx: 32, lines: 12, npcK: 1, carK: 1, warmEvery: 2, mmEvery: 3, busDust: 14, snow: 0.8, steps: 4 },
       low: { maxScale: 2, light: 0, fx: 16, lines: 6, npcK: 0.7, carK: 0.75, warmEvery: 3, mmEvery: 6, busDust: 6, snow: 0.5, steps: 3 },
@@ -604,7 +616,7 @@
     Q.init = function () {
       let q = '';
       try { q = String((window.location && window.location.search) || '') + String((window.location && window.location.hash) || ''); } catch (e) { /* */ }
-      const m = /[?&#]q=(min|low|medium|high)\b/.exec(q);
+      const m = /[?&#]q=(min|low|medium|high|ultra)\b/.exec(q);
       Q.forced = m ? m[1] : null;
       const sv = G.save.get('gfx');
       Q.override = sv && PRESET[sv.q] ? sv.q : null;
@@ -635,7 +647,7 @@
         const af = M.uf / M.un, aw = M.uw / M.un;
         M.ut = M.uf = M.uw = M.un = 0;
         const fast = LV[i] === 'min' ? aw < 6 : (af < 17.5 && aw < 5); // на «мін» кадри 30/с — дивимось на час роботи
-        if (fast && i < LV.length - 1 && !(M.blocked[LV[i + 1]] > M.clock)) { Q.auto = LV[i + 1]; apply(Q.auto); M.hold = 2000; resetWin(); }
+        if (fast && i < LV.length - 1 && LV[i + 1] !== 'ultra' && !(M.blocked[LV[i + 1]] > M.clock)) { Q.auto = LV[i + 1]; apply(Q.auto); M.hold = 2000; resetWin(); }
       }
     };
     Q._mon = M;
@@ -937,7 +949,7 @@
   const HZ = { iv: [], hz: 60, done: false };
   G.displayHz = 60;
   function applySimHz() {
-    const q = G.quality, hi = q === 'high' || q === 'medium';
+    const q = G.quality, hi = q === 'ultra' || q === 'high' || q === 'medium';
     const want = hi ? HZ.hz : 60;
     const dt = 1 / want;
     if (Math.abs(G.cfg.DT - dt) > 1e-6) { G.cfg.DT = dt; G.simHz = want; }
@@ -12936,7 +12948,7 @@
   let VW = G.cfg.VIEW_W;
   let VH = G.cfg.VIEW_H; // Round 27: на планшетах висота світу теж динамічна (270..360)
   const syncVW = () => { VW = G.cfg.VIEW_W; VH = G.cfg.VIEW_H; };
-  const SC = 4;
+  let SC = 4; // «ультра» — 2 (чіткіші тіні)
   const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
   const lerp = (a, b, t) => a + (b - a) * t;
   const smooth = (t) => { t = clamp01(t); return t * t * (3 - 2 * t); };
@@ -13049,6 +13061,7 @@
   const _cuts = [];
   function drawShadows(ctx, r) {
     if (!L.enabled || !G.world || !G.world.shade) return;
+    SC = G.gfx && G.gfx.p && G.gfx.p.ultra ? 2 : 4;
     syncVW();
     const S = sun();
     const bx0 = Math.floor(r.x / SC) * SC - SC * 2 - (S.dx < 0 ? SC * 30 : 0), by0 = Math.floor(r.y / SC) * SC - SC * 2;
@@ -14186,7 +14199,32 @@
     grade(ctx);
   }
 
+  // ── «ультра»: світіння (bloom) яскравих місць, віньєтка, тепло вдень / холод уночі ──
+  let bl1 = null, bl2 = null;
+  function ultraPost(ctx) {
+    const cv = ctx.canvas; if (!cv || !cv.width) return;
+    const W = cv.width, H = cv.height, w1 = Math.max(8, Math.round(W / 4)), h1 = Math.max(8, Math.round(H / 4)), w2 = Math.max(4, w1 >> 1), h2 = Math.max(4, h1 >> 1);
+    if (!bl1 || bl1.width !== w1 || bl1.height !== h1) { bl1 = G.util.makeCanvas(w1, h1); bl2 = G.util.makeCanvas(w2, h2); }
+    const g1 = bl1.getContext('2d'), g2 = bl2.getContext('2d'), S = sun(), night = S.night || 0;
+    g1.globalCompositeOperation = 'source-over'; g1.imageSmoothingEnabled = true; g1.drawImage(cv, 0, 0, w1, h1);
+    g1.globalCompositeOperation = 'multiply'; g1.drawImage(bl1, 0, 0); g1.drawImage(bl1, 0, 0); // лишаємо яскраве («поріг»)
+    g2.globalCompositeOperation = 'source-over'; g2.imageSmoothingEnabled = true; g2.clearRect(0, 0, w2, h2); g2.drawImage(bl1, 0, 0, w2, h2);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = true;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.16 + 0.34 * night; ctx.drawImage(bl2, 0, 0, W, H);
+    ctx.globalAlpha = 0.10 + 0.18 * night; ctx.drawImage(bl1, 0, 0, W, H);
+    // тон: вдень трохи тепліше, вночі — холодніше
+    ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = 0.22;
+    ctx.fillStyle = night > 0.5 ? '#3a5aa8' : (S.warm > 0.4 ? '#ffb070' : '#ffe0b0'); ctx.fillRect(0, 0, W, H);
+    // віньєтка
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(8,4,18,' + (0.32 + 0.12 * night) + ')');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
   const L = G.lighting = {
+    ultraPost,
     enabled: true, sun, drawShadows, post, grade, glow, cone,
     night: 0, phase: 'day', blackout: 0,
     powerOff, generator, powerLevel,
@@ -26081,7 +26119,7 @@
     if (which === 'sfx') click();
   }
   // Round 17: «Графіка»: авто → висока → середня → низька → авто
-  const GFX_ORDER = [null, 'high', 'medium', 'low', 'min'], GFX_NAME = { high: 'висока', medium: 'середня', low: 'низька', min: 'мінімальна' };
+  const GFX_ORDER = [null, 'ultra', 'high', 'medium', 'low', 'min'], GFX_NAME = { ultra: 'УЛЬТРА', high: 'висока', medium: 'середня', low: 'низька', min: 'мінімальна' };
   function gfxLabel() {
     const X = G.gfx;
     if (!X) return 'висока';
@@ -40858,6 +40896,7 @@
   };
   G.drawPlay = function (ctx) {
     G.drawWorld(ctx);
+    if (G.gfx && G.gfx.p && G.gfx.p.ultra && G.lighting && G.lighting.ultraPost) { try { G.lighting.ultraPost(ctx); } catch (e) { /* */ } }
     if (G.safe && G.safe.s && G.player && G.missions && G.missions.drawScreenFx) G.missions.drawScreenFx(ctx, 'fx'); // дощ / небо тривоги — на весь екран
     G.uiLayer(ctx, (g) => call(G.ui, 'drawHUD', g)); // Round 21: інтерфейс — у безпечній зоні
   };
