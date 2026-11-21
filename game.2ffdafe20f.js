@@ -2672,16 +2672,147 @@
         for (const h of [g.handL, g.handR, g.hand]) if (h && g.frame < 4) { b.p(h.x, h.y - 1, '#c8302f'); }
       },
     }),
-    // ЛЕГЕНДАРНИЙ (преміум-пас): оливкова футболка з тризубом, темне коротке волосся, щетина, карго, берці
+    // ═══ Скіни сезонного пасу «Білий квиток» — яскраві, з деталями ═══
+    // ЛЕГЕНДАРНИЙ: оливковий світшот з тризубом, коротке темне волосся, борода-щетина по щелепі, густі брови, карго, берці, золотий контур
     president: Object.assign({}, ANDRIY, {
-      hairStyle: 'short', hair: '#2e231e', stubble: '#3a2a22', blush: null,
-      shirt: '#5c6440', shirtS: '#474e30', sleeve: '#5c6440', pants: '#3e4232', pantsS: '#30331f', shoes: '#2a2420',
+      hairStyle: 'short', hair: '#2a201b', blush: null, brows: '#17110e', outlineC: '#5a3a06',
+      shirt: '#5b6438', shirtS: '#454c2a', sleeve: '#5b6438', pants: '#59563c', pantsS: '#46432e', shoes: '#1c1816',
+      head(b, g) {
+        const { hx, hy, dir } = g, B = '#3a2c24', BL = '#4e3c30';
+        if (dir === 'up') return;
+        if (dir === 'down') {
+          for (let c = 1; c <= 8; c++) b.p(hx + c, hy + 7, (c === 4 || c === 5) ? BL : B);
+          for (let c = 2; c <= 7; c++) b.p(hx + c, hy + 8, B);
+          b.p(hx + 0, hy + 5, B); b.p(hx + 9, hy + 5, B); b.p(hx + 0, hy + 6, B); b.p(hx + 9, hy + 6, B); b.p(hx + 1, hy + 6, BL); b.p(hx + 8, hy + 6, BL);
+          b.p(hx + 4, hy + 7, '#8a5a48'); b.p(hx + 5, hy + 7, '#8a5a48'); // губи
+          b.hl(hx + 1, hy + 4, 2, '#17110e'); b.hl(hx + 7, hy + 4, 2, '#17110e'); // густі брови
+          b.p(hx + 3, hy + 2, '#3c2e26'); // проділ / пасмо
+        } else {
+          for (let c = 4; c <= 8; c++) b.p(hx + c, hy + 7, B); for (let c = 3; c <= 7; c++) b.p(hx + c, hy + 8, B);
+          b.p(hx + 4, hy + 6, B); b.p(hx + 8, hy + 7, '#8a5a48'); b.hl(hx + 6, hy + 4, 3, '#17110e');
+        }
+      },
       torso(b, g) {
-        const { cx, ty, dir, tx, tw } = g, Y = '#e0c050', YD = '#a88a2a';
-        if (dir === 'down') { b.pat(cx + 0, ty + 1, ['#.#', '###', '.#.'], { '#': Y }); b.hl(cx - 2, ty, 4, '#4a5232'); }
-        if (dir === 'up') b.hl(tx + 1, ty, tw - 2, '#4a5232');
-        if (dir === 'right') { b.p(tx + tw - 2, ty + 2, YD); }
-        b.hl(tx, ty + g.th - 1, tw, '#2e3122');
+        const { cx, ty, dir, tx, tw, th } = g, Y = '#ffd23a', YD = '#c89a18';
+        if (dir === 'down') {
+          b.hl(cx - 2, ty, 4, '#3e4526'); b.p(cx - 3, ty, '#3e4526'); b.p(cx + 2, ty, '#3e4526'); // круглий комір
+          b.pat(cx - 2, ty + 1, ['#.#.#', '#.#.#', '#####', '..#..'], { '#': Y }); b.p(cx, ty + 1, YD);
+        }
+        if (dir === 'up') b.hl(tx + 1, ty, tw - 2, '#3e4526');
+        if (dir === 'right') { b.p(tx + tw - 2, ty + 2, Y); b.p(tx + tw - 2, ty + 3, YD); }
+        b.hl(tx, ty + th - 1, tw, '#353a22');
+      },
+      arms(b, g) { for (const h of [g.handL, g.handR]) if (h && g.frame < 4) b.p(h.x, h.y - 1, '#454c2a'); },
+    }),
+    // Козак Мамай: оселедець, довгі вуса, синій жупан із золотою облямівкою, червоний пояс, червоні шаровари, жовті чоботи
+    kozak: Object.assign({}, ANDRIY, {
+      hairStyle: 'bald', hair: '#3a2416', skin: '#f2bc94', skinS: '#d6966e', brows: '#2a1a10', blush: '#e8786a',
+      shirt: '#2f6fe8', shirtS: '#1f4fb8', sleeve: '#2f6fe8', pants: '#ee3030', pantsS: '#c01c22', shoes: '#ffc21a', belt: '#ff3a3a', buckle: '#ffd23a',
+      head(b, g) {
+        const { hx, hy, dir } = g, H = '#3a2416', HL = '#5a3a24', M = '#2a1a10';
+        if (dir === 'down') {
+          b.p(hx + 5, hy - 1, H); b.p(hx + 5, hy, HL); b.p(hx + 4, hy, H); b.p(hx + 3, hy + 1, H); b.p(hx + 2, hy + 2, H); b.p(hx + 1, hy + 3, H); b.p(hx + 1, hy + 4, HL); // оселедець
+          b.hl(hx + 2, hy + 7, 6, M); b.p(hx + 1, hy + 8, M); b.p(hx + 8, hy + 8, M); b.p(hx + 1, hy + 9, M); b.p(hx + 8, hy + 9, M); // вуса донизу
+        } else if (dir === 'right') {
+          b.p(hx + 4, hy - 1, H); b.p(hx + 3, hy, H); b.p(hx + 2, hy + 1, H); b.p(hx + 1, hy + 2, HL); b.p(hx + 1, hy + 3, H);
+          b.hl(hx + 6, hy + 7, 4, M); b.p(hx + 6, hy + 8, M); b.p(hx + 6, hy + 9, M);
+        } else { b.p(hx + 5, hy - 1, H); b.vl(hx + 5, hy, 3, H); b.vl(hx + 4, hy + 3, 3, HL); }
+      },
+      torso(b, g) {
+        const { cx, ty, dir, tx, tw, th } = g, Y = '#ffd23a';
+        if (dir === 'down') { b.vl(cx - 1, ty, th - 1, Y); b.p(tx, ty, Y); b.p(tx + tw - 1, ty, Y); b.p(cx - 2, ty + 1, '#ffe98a'); b.p(cx + 1, ty + 1, '#ffe98a'); }
+        if (dir === 'up') { b.hl(tx, ty, tw, Y); }
+        if (dir === 'right') { b.vl(tx + tw - 1, ty, th - 1, Y); }
+      },
+      arms(b, g) { for (const h of [g.handL, g.handR, g.hand]) if (h && g.frame < 4) b.p(h.x, h.y - 1, '#ffd23a'); },
+    }),
+    // Кіберкозак: чорний костюм із неоновими лініями, світний візор, рожевий ірокез, неонові кросівки
+    cyber: Object.assign({}, ANDRIY, {
+      hairStyle: 'buzz', hair: '#ff2ad4', blush: null, eyes: 'none',
+      shirt: '#1c1e2c', shirtS: '#12141e', sleeve: '#1c1e2c', pants: '#181a26', pantsS: '#101219', shoes: '#29f0ff', hands: '#2a2e40',
+      head(b, g) {
+        const { hx, hy, dir } = g, N = '#29f0ff', NL = '#c8ffff', P2 = '#ff2ad4', P3 = '#ff8af0';
+        if (dir === 'up') { for (let r = -2; r < 4; r++) b.p(hx + 4, hy + r, r & 1 ? P3 : P2); b.p(hx + 5, hy - 1, P2); return; }
+        if (dir === 'down') { for (let r = -2; r < 2; r++) { b.p(hx + 4, hy + r, P2); b.p(hx + 5, hy + r, r & 1 ? P3 : P2); } b.hl(hx + 1, hy + 5, 8, N); b.hl(hx + 2, hy + 5, 2, NL); b.hl(hx + 1, hy + 6, 8, '#0a8aa8'); }
+        else { for (let r = -2; r < 2; r++) b.p(hx + 4, hy + r, r & 1 ? P3 : P2); b.hl(hx + 5, hy + 5, 5, N); b.p(hx + 8, hy + 5, NL); b.hl(hx + 5, hy + 6, 5, '#0a8aa8'); }
+      },
+      torso(b, g) {
+        const { cx, ty, dir, tx, tw, th } = g, N = '#29f0ff', P2 = '#ff2ad4';
+        if (dir !== 'right') { b.vl(tx, ty, th, N); b.vl(tx + tw - 1, ty, th, N); }
+        if (dir === 'down') { b.pat(cx - 1, ty + 2, ['##', '.#'], { '#': P2 }); b.hl(tx, ty + th - 1, tw, N); }
+        if (dir === 'right') { b.vl(tx + tw - 1, ty, th, N); b.hl(tx, ty + th - 1, tw, N); }
+      },
+      post(b, g) { // неонове світіння по краях взуття і візора
+        const { shoeY, cx } = g;
+        for (let x = cx - 6; x < cx + 6; x++) if (b.a(x, shoeY) && !b.a(x, shoeY + 1)) b.p(x, shoeY + 1, '#29f0ff', 0.35);
+      },
+    }),
+    // Капітан Слава: синій костюм, жовтий плащ, тризуб у колі на грудях, маска, жовті рукавиці й чоботи
+    hero: Object.assign({}, ANDRIY, {
+      hairStyle: 'short', hair: '#5a3420', blush: null,
+      shirt: '#2a6ae8', shirtS: '#1a4ab8', sleeve: '#2a6ae8', pants: '#2a6ae8', pantsS: '#1a4ab8', shoes: '#ffd23a', hands: '#ffd23a', belt: '#ffd23a', buckle: '#ff3a3a',
+      back(b, g) {
+        const { dir, tx, ty, tw, shoeY, frame } = g, C = '#ffd23a', CD = '#e8a818', CL = '#fff09a';
+        if (dir === 'down') { b.rect(tx - 2, ty, 2, shoeY - ty - 1, CD); b.rect(tx + tw, ty, 2, shoeY - ty - 1, CD); b.p(tx - 2, ty, C); b.p(tx + tw + 1, ty, C); }
+        if (dir === 'right') { const f = frame & 1; for (let y = ty; y < shoeY - 1; y++) { const w = 1 + Math.floor((y - ty) * 0.55) + f; b.hl(tx - w, y, w, y === ty ? CL : (y & 1 ? CD : C)); } }
+      },
+      front(b, g) {
+        const { dir, tx, ty, tw, shoeY } = g, C = '#ffd23a', CD = '#e8a818', CL = '#fff09a';
+        if (dir !== 'up') return;
+        for (let y = ty; y < shoeY - 1; y++) { const w = tw + 2 + Math.floor((y - ty) / 3); b.hl(tx - 1 - Math.floor((y - ty) / 6), y, w, (y - ty) % 4 === 0 ? CL : C); b.p(tx - 1 - Math.floor((y - ty) / 6), y, CD); }
+      },
+      head(b, g) {
+        const { hx, hy, dir } = g, M = '#123a9a';
+        if (dir === 'down') { b.hl(hx + 1, hy + 4, 8, M); b.hl(hx + 1, hy + 5, 8, M); b.p(hx + 2, hy + 5, '#ffffff'); b.p(hx + 7, hy + 5, '#ffffff'); b.p(hx + 2, hy + 6, '#1a1424'); b.p(hx + 7, hy + 6, '#1a1424'); }
+        else if (dir === 'right') { b.hl(hx + 4, hy + 4, 6, M); b.hl(hx + 4, hy + 5, 6, M); b.p(hx + 7, hy + 5, '#ffffff'); }
+        else { b.hl(hx + 1, hy + 5, 8, M); b.p(hx + 4, hy + 6, M); b.p(hx + 5, hy + 6, M); }
+      },
+      torso(b, g) {
+        const { cx, ty, dir, tx, tw } = g, Y = '#ffd23a', R = '#ff3a3a';
+        if (dir === 'down') { b.pat(cx - 3, ty, ['.###.', '#y#y#', '#yyy#', '.#y#.'], { '#': Y, y: R }); }
+        if (dir === 'right') b.vl(tx + tw - 1, ty + 1, 3, Y);
+      },
+    }),
+    // Мольфар: біла вишита сорочка, червоно-чорна гуцульська безрукавка (кептар), крисаня з кольоровим пір'ям, вуса
+    molfar: Object.assign({}, ANDRIY, {
+      hairStyle: 'long', hair: '#1e1614', mustache: '#1e1614', blush: '#e8786a',
+      shirt: '#f6f2e8', shirtS: '#d8d0c0', sleeve: '#f6f2e8', pants: '#2a2638', pantsS: '#1c1a26', shoes: '#9a6a32', belt: '#2a8a3a', buckle: '#ffd23a',
+      head(b, g) {
+        const { hx, hy, dir } = g, K = '#1a1418', KB = '#2e262c', R = '#ff3a3a', Y = '#ffd23a', Gr = '#2ad86a', Bl = '#3a8aff';
+        b.hl(hx - 1, hy + 1, 12, K); b.rect(hx + 1, hy - 3, 8, 4, KB); b.hl(hx + 1, hy, 8, R); b.p(hx + 3, hy, Y); b.p(hx + 6, hy, Gr); // крисаня зі стрічкою
+        if (dir !== 'up') { b.p(hx + 8, hy - 4, R); b.p(hx + 9, hy - 5, Y); b.p(hx + 9, hy - 4, Gr); b.p(hx + 10, hy - 6, Bl); b.p(hx + 10, hy - 5, R); } // пір'я
+      },
+      torso(b, g) {
+        const { ty, dir, tx, tw, th, cx } = g, R = '#e8282a', K = '#1a1418', Y = '#ffd23a', Gr = '#2ad86a';
+        if (dir === 'down') {
+          for (let y = ty; y < ty + th - 1; y++) { b.p(tx, y, y & 1 ? K : R); b.p(tx + 1, y, R); b.p(tx + tw - 2, y, R); b.p(tx + tw - 1, y, y & 1 ? K : R); }
+          b.p(tx + 1, ty + 2, Y); b.p(tx + tw - 2, ty + 2, Y); b.p(tx + 1, ty + 4, Gr); b.p(tx + tw - 2, ty + 4, Gr);
+          b.vl(cx - 1, ty, 3, R); b.p(cx, ty + 1, K); // вишивка на сорочці
+        }
+        if (dir === 'up') { b.rect(tx, ty, tw, th - 1, R); for (let x = tx; x < tx + tw; x += 2) b.p(x, ty + 2, Y); for (let x = tx + 1; x < tx + tw; x += 2) b.p(x, ty + 4, Gr); }
+        if (dir === 'right') { b.rect(tx, ty, tw - 1, th - 1, R); b.p(tx + 1, ty + 2, Y); b.p(tx + 2, ty + 4, Gr); }
+      },
+    }),
+    // Святий Миколай (безкоштовний пас, рівень 30): золота митра з хрестом, біла борода, червоні ризи із золотою облямівкою
+    mykolai: Object.assign({}, ANDRIY, {
+      hairStyle: 'short', hair: '#f0f0ea', brows: '#f6f6f0', blush: '#f08a8a', eyes: 'happy',
+      shirt: '#e02a2a', shirtS: '#b01c22', sleeve: '#e02a2a', pants: '#e02a2a', pantsS: '#b01c22', shoes: '#8a2a1a', hands: '#f2c8a0',
+      head(b, g) {
+        const { hx, hy, dir } = g, Gd = '#ffd23a', GdD = '#d89a18', W = '#ffffff', WS = '#e0e0e8', R = '#e02a2a';
+        // митра
+        b.rect(hx + 2, hy - 5, 6, 6, Gd); b.hl(hx + 3, hy - 6, 4, Gd); b.p(hx + 4, hy - 7, Gd); b.p(hx + 5, hy - 7, Gd); b.vl(hx + 7, hy - 5, 6, GdD);
+        if (dir !== 'up') { b.vl(hx + 4, hy - 5, 4, R); b.vl(hx + 5, hy - 5, 4, R); b.hl(hx + 3, hy - 3, 4, R); }
+        b.hl(hx + 1, hy, 8, GdD);
+        if (dir === 'up') { b.rect(hx + 1, hy + 6, 8, 3, W); return; }
+        // борода й вуса
+        if (dir === 'down') { b.rect(hx + 1, hy + 7, 8, 2, W); b.rect(hx + 2, hy + 9, 6, 2, W); b.rect(hx + 3, hy + 11, 4, 1, WS); b.hl(hx + 3, hy + 7, 4, WS); b.p(hx + 4, hy + 8, '#c86a5a'); b.p(hx + 5, hy + 8, '#c86a5a'); }
+        else { b.rect(hx + 4, hy + 7, 6, 2, W); b.rect(hx + 5, hy + 9, 4, 2, W); b.p(hx + 6, hy + 11, WS); }
+      },
+      torso(b, g) {
+        const { cx, ty, dir, tx, tw, th } = g, Gd = '#ffd23a';
+        if (dir === 'down') { b.vl(cx - 1, ty + 2, th - 2, Gd); b.vl(cx, ty + 2, th - 2, Gd); b.hl(cx - 2, ty + 4, 4, Gd); }
+        if (dir === 'up') b.hl(tx, ty + 1, tw, Gd);
+        if (dir === 'right') b.vl(tx + tw - 1, ty + 2, th - 2, Gd);
       },
     }),
     secret: Object.assign({}, ANDRIY, {
@@ -25037,10 +25168,10 @@
   // ═══════════════════════════ Гардероб ═══════════════════════════
   // Round 33: вкладки СКІНИ / ШАПКИ / БОРОДИ / КОФТИ. Закрите — купується за гривні прямо тут; куплене — одягається.
   const WD = { sel: 0, t: 0, cols: 7, focus: 'grid', tab: 0, msg: null, msgT: 0, flash: 0 };
-  const WTABS = [{ id: 'skins', label: 'СКІНИ' }, { id: 'hat', label: 'ШАПКИ' }, { id: 'beard', label: 'БОРОДИ' }, { id: 'top', label: 'КОФТИ' }];
+  const WTABS = [{ id: 'skins', label: 'СКІНИ' }, { id: 'hat', label: 'ШАПКИ' }, { id: 'beard', label: 'БОРОДИ' }, { id: 'top', label: 'КОФТИ' }, { id: 'pets', label: 'УЛЮБЛЕНЦІ' }];
   const WG = { x0: 14, y0: 50, cw: 38, ch: 50, gap: 4 };
-  const cellRect = (i) => ({ x: WG.x0 + (i % WD.cols) * (WG.cw + WG.gap), y: WG.y0 + Math.floor(i / WD.cols) * (WG.ch + WG.gap), w: WG.cw, h: WG.ch });
-  const tabRect = (i) => ({ x: 14 + i * 72, y: 30, w: 68, h: 15 });
+  const cellRect = (i) => { const n = WD.cols > 7, cw = n ? 27 : WG.cw, gp = n ? 2 : WG.gap; return { x: WG.x0 + (i % WD.cols) * (cw + gp), y: WG.y0 + Math.floor(i / WD.cols) * (WG.ch + WG.gap), w: cw, h: WG.ch }; }; // >14 скінів — 10 у ряд
+  const tabRect = (i) => ({ x: 14 + i * 64, y: 30, w: i === 4 ? 70 : 60, h: 15 });
   const backRect = { x: 14, y: 240, w: 80, h: 20 };
   function skinsList() {
     if (G.progress && G.progress.skins && G.progress.skins.length) return G.progress.skins;
@@ -25050,12 +25181,23 @@
   function wdList() {
     const t = WTABS[WD.tab].id;
     if (t === 'skins') return skinsList();
+    if (t === 'pets') { // Round 41: улюбленці з пасу «Білий квиток»
+      const PS = G.pass; if (!PS) return [];
+      const out = [{ id: null, name: 'Без улюбленця', desc: 'Гуляєш сам. Теж варіант.', owned: true, equipped: !PS.pet }];
+      for (const id of ['patron', 'cat', 'pigeon']) { const d = PS.PETS[id]; out.push({ id, name: d.name, desc: d.desc, owned: PS.pets.indexOf(id) >= 0, equipped: PS.pet === id, lvl: PS.PET_LVL[id] }); }
+      return out;
+    }
     return G.progress && G.progress.accItems ? G.progress.accItems(t) : [];
   }
   function wdMsg(m) { WD.msg = m; WD.msgT = 2; }
   function wdAct(it) {
     const P = G.progress;
     if (!it || !P) return;
+    if (WTABS[WD.tab].id === 'pets') {
+      if (it.owned) { if (G.pass) G.pass.setPet(it.id); click('pickup'); }
+      else { click('click'); wdMsg('Преміум-пас «Білий квиток», рівень ' + it.lvl); }
+      return;
+    }
     if (WTABS[WD.tab].id === 'skins') {
       if (it.unlocked) { if (P.equip && P.equip(it.id)) click('pickup'); return; }
       if (!it.price) { click('click'); wdMsg('Цей скін лише за умову'); return; }
@@ -25072,6 +25214,7 @@
   function wdSetTab(i) {
     WD.tab = (i + WTABS.length) % WTABS.length;
     const L = wdList();
+    WD.cols = L.length > 14 ? 10 : 7;
     const k = WTABS[WD.tab].id === 'skins' ? L.findIndex((s) => s.id === equipped()) : L.findIndex((x) => x.equipped);
     WD.sel = Math.max(0, k);
   }
@@ -25117,6 +25260,48 @@
     if (G.outfit) G.outfit.override = null;
     return img;
   }
+  function drawPetsTab(ctx) {
+    const list = wdList(), t = WD.t, PS = G.pass;
+    for (let i = 0; i < list.length; i++) {
+      const it = list[i], r = cellRect(i), sel = i === WD.sel && WD.focus === 'grid';
+      U.panel(ctx, r.x, r.y, r.w, r.h, { fill: it.owned ? (it.equipped ? 'rgba(94,152,70,0.55)' : 'rgba(69,41,63,0.95)') : 'rgba(30,24,36,0.95)', border: sel ? '#fde98f' : '#1a0e20' });
+      if (it.id && PS) {
+        ctx.save(); if (!it.owned) ctx.globalAlpha = 0.35;
+        PS.drawPet(ctx, it.id, r.x + r.w / 2, r.y + r.h - 16 - (sel && it.owned ? Math.abs(Math.sin(t * 6)) * 2 : 0), 2, sel ? Math.floor(t * 8) % 2 : 0, false);
+        ctx.restore();
+      } else U.text(ctx, '—', r.x + r.w / 2, r.y + 16, { size: 16, align: 'center', color: '#8c8494' });
+      if (!it.owned) { U.icon(ctx, 'star', r.x + 3, r.y + r.h - 11); U.text(ctx, String(it.lvl), r.x + r.w / 2 + 4, r.y + r.h - 12, { size: 8, align: 'center', color: '#c08af0' }); }
+      else if (it.equipped) U.icon(ctx, 'check', r.x + r.w / 2 - 3, r.y + r.h - 10);
+    }
+    const it = list[WD.sel] || list[0] || {};
+    U.panel(ctx, 14, 160, 290, 74);
+    U.text(ctx, it.name || '', 22, 165, { size: 10, color: it.owned ? '#fde98f' : '#e8dcc8', shadow: true });
+    const dl = U.wrap(it.desc || '', 274, 8);
+    for (let i = 0; i < dl.length && i < 2; i++) U.text(ctx, dl[i], 22, 180 + i * U.lineH(8), { size: 8, color: '#e8dcc8' });
+    U.text(ctx, 'Бігає поруч у грі й стоїть з тобою в меню', 22, 202, { size: 8, color: '#8fc7e4' });
+    const act = isTouch() ? 'торкнись ще раз' : 'Enter';
+    U.text(ctx, it.equipped ? '✓ З тобою' : it.owned ? act + ' — узяти з собою' : 'Преміум-пас «Білий квиток», рівень ' + it.lvl, 22, 218, { size: 8, color: it.equipped ? '#93c25b' : it.owned ? '#fbf6ea' : '#c08af0' });
+    // 3D-прев'ю, крутиться
+    U.panel(ctx, 314, 50, 154, 184, { fill: 'rgba(58,46,68,0.95)' });
+    U.rect(ctx, 'rgba(0,0,0,0.25)', 320, 56, 142, 136);
+    for (let x = 320; x < 462; x += 8) U.rect(ctx, 'rgba(255,255,255,0.04)', x, 56, 4, 136);
+    if (it.id && PS) {
+      ctx.save(); if (!it.owned) ctx.globalAlpha = 0.4;
+      if (G.drawShadow) G.drawShadow(ctx, 391, 168, 30, 0.4);
+      const hop = Math.abs(Math.sin(t * 3)) * (Math.sin(t * 0.8) > 0.4 ? 6 : 0);
+      if (!(G.hero3d && G.hero3d.drawPet && G.hero3d.drawPet(ctx, it.id, 391, 170, 6, t * 0.9, Math.round(hop)))) PS.drawPet(ctx, it.id, 391, 170, 5, 0, false);
+      ctx.restore();
+    }
+    U.text(ctx, it.name || '', 391, 204, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
+    U.text(ctx, it.equipped ? '✓ з тобою' : it.owned ? 'можна взяти' : 'закрито', 391, 218, { size: 8, align: 'center', color: it.owned ? '#93c25b' : '#c08af0' });
+    if (WD.msgT > 0 && WD.msg) {
+      const w = U.measure(WD.msg, 8) + 16;
+      U.panel(ctx, 240 - w / 2, 236, w, 16, { fill: 'rgba(26,14,32,0.95)', border: '#f7c948' });
+      U.text(ctx, WD.msg, 240, 240, { size: 8, align: 'center', color: '#fde98f' });
+    }
+    U.button(ctx, backRect, 'Назад', WD.focus === 'back', { size: 8 });
+    G.ui.drawOverlay(ctx);
+  }
   S.wardrobe.draw = function (ctx) {
     U.rect(ctx, '#2a1e34', 0, 0, VW(), VH());
     for (let y = 0; y < VH(); y += 8) U.rect(ctx, 'rgba(255,255,255,0.025)', 0, y, VW(), 4);
@@ -25129,6 +25314,7 @@
       U.panel(ctx, r.x, r.y, r.w, r.h, { fill: on ? '#5e9846' : 'rgba(58,46,68,0.95)', border: WD.focus === 'tabs' && on ? '#fde98f' : '#1a0e20' });
       U.text(ctx, WTABS[i].label, r.x + r.w / 2, r.y + 3, { size: 8, align: 'center', color: on ? '#fff8e0' : '#b4abb2' });
     }
+    if (tabId === 'pets') { drawPetsTab(ctx); return; }
     const list = wdList(), eq = equipped(), t = WD.t;
     const dirs = ['down', 'left', 'up', 'right'];
     for (let i = 0; i < list.length; i++) {
@@ -25142,7 +25328,8 @@
         U.drawScaled(ctx, pic, r.x + r.w / 2 - img.width / 2, r.y + r.h - 16 - img.height + 2, 1, isSkins && it.id === 'invisible' && have ? 0.5 : 1);
       }
       if (!have) {
-        if (it.price) { U.icon(ctx, 'coin', r.x + 3, r.y + r.h - 11); U.text(ctx, String(it.price), r.x + r.w / 2 + 3, r.y + r.h - 12, { size: 8, align: 'center', color: money >= it.price ? '#f7c948' : '#8c8494' }); }
+        if (it.price && r.w < 34) U.text(ctx, String(it.price), r.x + r.w / 2, r.y + r.h - 11, { size: 7, align: 'center', color: money >= it.price ? '#f7c948' : '#8c8494' });
+        else if (it.price) { U.icon(ctx, 'coin', r.x + 3, r.y + r.h - 11); U.text(ctx, String(it.price), r.x + r.w / 2 + 3, r.y + r.h - 12, { size: 8, align: 'center', color: money >= it.price ? '#f7c948' : '#8c8494' }); }
         else { U.icon(ctx, 'unlock', r.x + r.w - 9, r.y + 3); U.text(ctx, '?', r.x + r.w / 2, r.y + r.h - 12, { size: 8, align: 'center', color: '#7a7280' }); }
       } else if (worn) U.icon(ctx, 'check', r.x + r.w / 2 - 3, r.y + r.h - 10);
     }
@@ -30132,8 +30319,9 @@
   let st = { s: SEASON.id, xp: 0, got: [], gotP: [], prem: false, wk: { key: '', list: [] }, pets: [], pet: null };
   try { const r = JSON.parse(localStorage.getItem(LS) || 'null'); if (r && r.s === SEASON.id) st = Object.assign(st, r); } catch (e) { /* */ }
   if (!Array.isArray(st.gotP)) st.gotP = [];
+  const RV = 2; if (st.rv !== RV) { st.rv = RV; st.got = []; st.gotP = []; } // змінився список нагород — забрати можна наново
   try { if (new URLSearchParams(location.search).get('dev') === 'vsi2026') { st.prem = true; st.xp = Math.max(st.xp, 400 * 29 + 1); } } catch (e) { /* */ } // тест: преміум лише на цьому пристрої
-  const PREM_PRICE = 149; // грн — оплата з'явиться у версії для Google Play
+  const PREM_PRICE = 149, PREM_USD = '3.99'; // грн / $ — оплата з'явиться у версії для Google Play
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) { /* */ } };
   const sfx = (n) => { try { G.audio && G.audio.sfx && G.audio.sfx(n); } catch (e) { /* */ } };
   const toast = (t, ms) => { try { G.ui && G.ui.toast && G.ui.toast(t, ms || 2400); } catch (e) { /* */ } };
@@ -30143,15 +30331,16 @@
   // k: 'money' (n грн), 'acc' (id одягу), 'pet' (id улюбленця)
   const m = (n) => ({ k: 'money', n }), a = (id) => ({ k: 'acc', id }), pet = (id) => ({ k: 'pet', id });
   // безкоштовна доріжка — «плюс-мінус нормально»: гривні й трохи одягу
+  const skin = (id, legend) => ({ k: 'skin', id, legend: !!legend });
   const FREE = [null,
     m(30), m(40), a('hat_beanie_blue'), m(50), a('beard_stubble'), m(60), m(70), a('hat_beanie_red'), m(80), m(100),
     m(80), a('top_hoodie'), m(90), m(100), a('hat_cap'), m(100), m(110), a('beard_mustache'), m(120), m(150),
-    m(120), m(130), a('top_puffer_red'), m(140), m(150), m(150), a('hat_panama'), m(180), m(200), m(300)];
-  // преміум — «імба»: усі улюбленці, найкращий одяг, великі гроші, у фіналі — ЛЕГЕНДАРНИЙ скін
+    m(120), m(130), a('top_puffer_red'), m(140), m(150), m(150), a('hat_panama'), m(180), m(200), skin('mykolai')];
+  // преміум — «імба»: усі улюбленці, 5 яскравих скінів, великі гроші; у фіналі — ЛЕГЕНДАРНИЙ
   const PREM = [null,
-    pet('patron'), m(150), a('top_sport'), a('beard_goatee'), m(200), a('hat_ushanka'), m(250), a('top_deer'), m(300), pet('cat'),
-    m(300), a('beard_cossack'), m(350), a('top_vyshyvanka'), m(400), a('beard_full'), m(400), a('hat_crown'), m(450), pet('pigeon'),
-    m(500), m(500), m(550), m(600), m(600), m(650), m(700), m(750), m(1000), { k: 'skin', id: 'president', legend: true }];
+    pet('patron'), m(150), a('top_sport'), a('beard_goatee'), skin('kozak'), a('hat_ushanka'), m(250), a('top_deer'), m(300), pet('cat'),
+    m(300), skin('cyber'), a('beard_cossack'), a('top_vyshyvanka'), m(400), a('beard_full'), skin('hero'), a('hat_crown'), m(450), pet('pigeon'),
+    m(500), skin('molfar'), m(550), m(600), m(600), m(650), m(700), m(750), m(1000), skin('president', true)];
   const REW = PREM; // сумісність
 
 
@@ -30298,7 +30487,7 @@
   const canClaim = () => canClaimTr('f') || canClaimTr('p');
   function rewName(r) {
     if (!r) return '';
-    if (r.k === 'skin') return r.id === 'president' ? 'Зеленський' : r.id;
+    if (r.k === 'skin') { const sk = P() && P().skins ? P().skins.find((q) => q.id === r.id) : null; return sk ? sk.realName || sk.name : r.id; }
     if (r.k === 'money') return '+' + r.n + ' грн';
     if (r.k === 'pet') return PETS[r.id].name;
     const a = P() && P().accInfo ? P().accInfo(r.id) : null; return a ? a.name : r.id;
@@ -30421,7 +30610,7 @@
   G.pass = {
     SEASON, MAXL, LV_XP, PETS, REW,
     get level() { return level(); }, get xp() { return st.xp; }, get cur() { return lvCur(); },
-    get canClaim() { return canClaim(); }, get pet() { return st.pet; }, get pets() { return st.pets.slice(); },
+    get canClaim() { return canClaim(); }, get pet() { return st.pet; }, get pets() { return st.pets.slice(); }, PET_LVL: { patron: 1, cat: 10, pigeon: 20 },
     got: (L, tr) => gotList(tr).indexOf(L) >= 0, get premium() { return !!st.prem; }, PREM_PRICE, FREE, PREM,
     setPet(id) { st.pet = id && st.pets.indexOf(id) >= 0 ? id : null; save(); },
     claim, claimAll, weekly, addXp, drawPet, petRaw, daysLeft, weekDaysLeft, rewName,
@@ -30567,7 +30756,7 @@
       u.rect(ctx, 'rgba(255,255,255,' + (0.2 + 0.2 * sh) + ')', r.x + 1, r.y + 1, r.w - 2, 7);
       const sx = (S.t * 90) % (r.w + 40) - 20; if (sx > 0 && sx < r.w - 8) u.rect(ctx, 'rgba(255,255,255,0.45)', r.x + sx, r.y + 2, 5, r.h - 4);
       u.icon(ctx, 'star', r.x + 6, r.y + 6);
-      u.text(ctx, 'ВІДКРИТИ ПРЕМІУМ · ' + PREM_PRICE + ' грн', r.x + r.w / 2 + 6, r.y + 6, { size: 8, align: 'center', color: '#3a1a00' });
+      u.text(ctx, 'ПРЕМІУМ · ' + PREM_PRICE + ' грн / $' + PREM_USD, r.x + r.w / 2 + 6, r.y + 6, { size: 8, align: 'center', color: '#3a1a00' });
     }
   }
   function taskRow(ctx, x, y, w, t, xp) {
@@ -30600,10 +30789,10 @@
     const w = 300, h = 150, x = Math.round(W / 2 - w / 2), y = Math.round(H / 2 - h / 2);
     u.rect(ctx, '#f7c948', x - 2, y - 2, w + 4, h + 4); u.rect(ctx, '#2a1840', x, y, w, h);
     u.text(ctx, 'ПРЕМІУМ «БІЛИЙ КВИТОК»', W / 2, y + 8, { size: 12, align: 'center', color: '#ffe070', outline: '#120a18' });
-    const L = ['• пес Патрон уже на 1-му рівні', '• кіт Бублик і голуб Валера', '• корона, вишиванка, козацькі вуса', '• великі гроші — до 1000 грн за рівень', '• ЛЕГЕНДАРНИЙ скін на 30-му рівні'];
+    const L = ['• пес Патрон уже на 1-му рівні, кіт і голуб', '• 4 яскраві скіни: Козак Мамай, Кіберкозак,', '   Капітан Слава, Мольфар', '• корона, вишиванка, до 1000 грн за рівень', '• ЛЕГЕНДАРНИЙ скін на 30-му рівні'];
     L.forEach((t, i) => u.text(ctx, t, x + 20, y + 30 + i * 13, { size: 8, color: i === 4 ? '#ffe070' : '#e8dcc8' }));
     const sk = skinImg('president'); if (sk) { ctx.imageSmoothingEnabled = false; ctx.drawImage(sk, x + w - 64, y + 26, sk.width * 2.4, sk.height * 2.4); u.text(ctx, 'ЛЕГЕНДАРНИЙ', x + w - 40, y + 102, { size: 7, align: 'center', color: '#ffe070' }); }
-    u.text(ctx, PREM_PRICE + ' грн · оплата з\'явиться у версії для Google Play', W / 2, y + h - 30, { size: 8, align: 'center', color: '#93c25b' });
+    u.text(ctx, PREM_PRICE + ' грн ($' + PREM_USD + ') · оплата з\'явиться у версії для Google Play', W / 2, y + h - 30, { size: 8, align: 'center', color: '#93c25b' });
     u.text(ctx, G.touch && G.touch.active ? 'Торкнись, щоб закрити' : 'Клік або Esc — закрити', W / 2, y + h - 14, { size: 7, align: 'center', color: '#8c8494' });
   }
   function clickCard(L, tr) {
@@ -30787,8 +30976,18 @@
     { id: 'panas', name: 'Дід Панас', kind: 'achievement', counter: 'day1Clears', need: 3, condLabel: 'День 1 пройдено', desc: 'Вишиванка й вуса. "Отак, діти, ми на роботу ходили..."' },
     { id: 'secret', name: 'Секретний скін', kind: 'achievement', counter: 'toiletHides', need: 5, condLabel: 'Сховки в біотуалеті', hiddenName: '???',
       desc: 'Костюм туалетного паперу. Ніхто не шукає там, де пахне.' },
-    { id: 'president', name: 'Зеленський', kind: 'pass', need: 1, legend: true, condText: 'Рівень 30 преміум-пасу «Білий квиток»',
-      desc: 'ЛЕГЕНДАРНИЙ. Оливкова футболка з тризубом, щетина, погляд «я тут». Видається лише в преміум-пасі.',
+    { id: 'kozak', name: 'Козак Мамай', kind: 'pass', need: 1, condText: 'Преміум-пас «Білий квиток», рівень 5',
+      desc: 'Оселедець, вуса до грудей, синій жупан і червоні шаровари. Повістку не бачив — бандуру бачив.', reaction: 'Діду, ви з якого року?..' },
+    { id: 'cyber', name: 'Кіберкозак', kind: 'pass', need: 1, condText: 'Преміум-пас «Білий квиток», рівень 12',
+      desc: 'Неоновий костюм, світний візор, рожевий ірокез. З майбутнього, де ТЦК — це музей.', reaction: 'Це… маскарад? Документи є?' },
+    { id: 'hero', name: 'Капітан Слава', kind: 'pass', need: 1, condText: 'Преміум-пас «Білий квиток», рівень 17',
+      desc: 'Синій костюм, жовтий плащ, тризуб на грудях. Супергерой, якого не можна мобілізувати — він уже на службі в добра.', reaction: 'Хто ви такий?! Плащ здайте!' },
+    { id: 'molfar', name: 'Мольфар', kind: 'pass', need: 1, condText: 'Преміум-пас «Білий квиток», рівень 22',
+      desc: 'Гуцульський кептар, крисаня з пір\'ям. Наврочить бусик — і той заглохне.', reaction: 'Тільки не дивіться на мене так…' },
+    { id: 'mykolai', name: 'Святий Миколай', kind: 'pass', need: 1, condText: 'Безкоштовний пас «Білий квиток», рівень 30',
+      desc: 'Золота митра, біла борода, червоні ризи. Під подушку кладе не повістку, а подарунки.', reaction: 'Миколаю… а ви список хороших дітей нам не покажете?' },
+    { id: 'president', name: 'Зеленський', kind: 'pass', need: 1, legend: true, condText: 'Преміум-пас «Білий квиток», рівень 30',
+      desc: 'ЛЕГЕНДАРНИЙ. Оливковий світшот з тризубом, борода, густі брови, карго й берці. Лише в преміум-пасі.',
       reaction: '…Пане Президенте?! Ми тут… просто стоїмо.' },
   ];
   const SKIN_BY_ID = {};
@@ -38470,6 +38669,7 @@
     return O.override ? Object.assign(base, O.override) : base;
   };
 
+  const OWN_LOOK = { president: 1, kozak: 1, cyber: 1, hero: 1, molfar: 1, mykolai: 1 };
   const cache = new WeakMap();
   const origGet = G.sprites.get.bind(G.sprites);
   G.sprites.get = function (key, opts) {
@@ -38480,6 +38680,7 @@
     // скін (Спортик, Кур'єр, Боксер…) — це вже повний одяг: верх з гардеробу лише на «Офісному» (інакше зимова куртка ховає скін)
     const sk = opts && (opts.skin || opts.variant);
     if (sk && sk !== 'office' && o.top && o.top !== 'top_shirt') o = Object.assign({}, o, { top: 'top_shirt' });
+    if (OWN_LOOK[sk]) o = { hat: 'hat_none', beard: 'beard_none', top: 'top_shirt' }; // скіни пасу — власний образ (шапка/борода з гардеробу не накладаються)
     const k = o.hat + '|' + o.beard + '|' + o.top + '|' + (portrait ? 'P' : (opts && opts.dir) || 'down');
     let m = cache.get(img);
     if (!m) { m = {}; cache.set(img, m); }
