@@ -14721,6 +14721,105 @@
       const by = (sc.b.y + sc.b.h) * T;
       G.addEntity(new Decor(x, by, (ctx) => smokePuffs(ctx, x, y - 30, 7, 70, 22, ['#5a5458', '#7a747a', '#9a949a'], 0.32, 3)));
     },
+    // ── прильот шахеда в будинок (82_missions): mode 'burning' — щойно влучив (вогонь з вікон, чорний дим, уламки, вирва);
+    // 'aftermath' — наступного дня (місія 26): обгорілий фасад, будівельна сітка й риштування, огорожа «ОБЕРЕЖНО»,
+    // вирва під листом і конусами, пожежна машина, пожежник домочує, тонкий дим. Повертає {x, y} — точку перед фасадом.
+    strikeSite(b, mode, ix) {
+      if (!b) return null;
+      const fh = Math.max(2, b.fh || 3), x0 = b.x * T, x1 = (b.x + b.w) * T, yb = (b.y + b.h) * T, yt = yb - fh * T;
+      const cx = ix != null ? Math.max(x0 + 20, Math.min(x1 - 20, ix)) : (x0 + x1) / 2;   // точка влучання на фасаді
+      const iy = yt + Math.round(fh * T * 0.35), seed = b.x * 7 + b.y * 13;
+      const front = { x: cx, y: yb + 22 };                                                  // тротуар/дорога перед будинком
+      const burning = mode === 'burning';
+      // 1) фасад: опалена пляма, вибиті вікна (вночі з них світить вогонь), тріщини
+      this.list.push(G.addEntity(new Decor(cx, yb - 0.5, (ctx) => {
+        const t = rt();
+        ctx.save();
+        for (let i = 0; i < 26; i++) { // кіптява — рваними плямами вгору
+          const ox = (hsh(i, 1, seed) - 0.5) * 76, oy = (hsh(i, 2, seed) - 0.7) * fh * T * 1.0, r = 5 + hsh(i, 3, seed) * 11;
+          ctx.fillStyle = 'rgba(18,12,10,' + (burning ? 0.55 : 0.42) * (0.6 + hsh(i, 4, seed) * 0.4) + ')';
+          ctx.beginPath(); ctx.ellipse(Math.round(cx + ox), Math.round(iy + oy), r, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+        }
+        const W = [[-18, -6], [0, -2], [16, -8], [-8, 10], [10, 12]];
+        for (let i = 0; i < W.length; i++) { // вибиті вікна
+          const wx = Math.round(cx + W[i][0]), wy = Math.round(iy + W[i][1]);
+          if (wy < yt + 2 || wy > yb - 8) continue;
+          ctx.fillStyle = '#0c0808'; ctx.fillRect(wx - 3, wy - 3, 7, 6);
+          if (burning) { const f = 0.5 + 0.5 * Math.sin(t * 9 + i * 2); ctx.fillStyle = 'rgba(255,' + Math.round(120 + 80 * f) + ',40,' + (0.55 + 0.35 * f) + ')'; ctx.fillRect(wx - 2, wy - 1, 5, 3); }
+          else if (i < 3) { ctx.fillStyle = '#b8945a'; ctx.fillRect(wx - 3, wy - 3, 7, 6); ctx.fillStyle = '#8a6a3a'; ctx.fillRect(wx - 3, wy - 1, 7, 1); ctx.fillRect(wx - 3, wy + 1, 7, 1); } // забиті фанерою
+        }
+        ctx.strokeStyle = 'rgba(20,14,12,0.8)'; ctx.lineWidth = 1; ctx.beginPath(); // тріщини
+        for (let i = 0; i < 5; i++) { let x = cx + (hsh(i, 5, seed) - 0.5) * 40, y = iy + (hsh(i, 15, seed) - 0.5) * 10; ctx.moveTo(x, y); for (let k = 0; k < 2; k++) { x += (hsh(i, 6 + k, seed) - 0.5) * 10; y += (hsh(i, 9 + k, seed) - 0.5) * 8; ctx.lineTo(Math.round(x), Math.round(y)); } }
+        ctx.stroke();
+        if (!burning) { // будівельна сітка на верхній частині + риштування
+          ctx.fillStyle = 'rgba(40,120,60,0.55)'; const nx = Math.round(cx - 34), ny = yt + 2, nw = 68, nh = Math.round(fh * T * 0.55);
+          ctx.fillRect(nx, ny, nw, nh); ctx.fillStyle = 'rgba(20,70,30,0.6)'; for (let y = ny; y < ny + nh; y += 3) ctx.fillRect(nx, y, nw, 1); for (let x = nx; x < nx + nw; x += 4) ctx.fillRect(x, ny, 1, nh);
+          ctx.fillStyle = '#8a8a90'; for (let x = nx - 4; x <= nx + nw + 4; x += 18) ctx.fillRect(x, yt, 1, yb - yt); for (let y = yt + 6; y < yb; y += 14) ctx.fillRect(nx - 4, y, nw + 9, 1);
+        }
+        ctx.restore();
+      })));
+      // 2) уламки біля фасаду + вирва перед будинком
+      this.list.push(G.addEntity(new Decor(cx, yb + 1, (ctx) => {
+        ctx.save();
+        const C = ['#6a625c', '#8a817a', '#4a4440', '#9a6a4a', '#b8b0a8'];
+        for (let i = 0; i < 30; i++) { const ox = (hsh(i, 21, seed) - 0.5) * 60, oy = hsh(i, 22, seed) * 10, w = 2 + Math.floor(hsh(i, 23, seed) * 4); ctx.fillStyle = C[i % C.length]; ctx.fillRect(Math.round(cx + ox), Math.round(yb + oy), w, 2 + (i % 2)); }
+        const fx = front.x, fy = front.y;
+        if (burning) {
+          ctx.fillStyle = 'rgba(10,8,8,0.85)'; ctx.beginPath(); ctx.ellipse(fx, fy, 15, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'rgba(255,120,40,0.35)'; ctx.beginPath(); ctx.ellipse(fx, fy, 6, 2, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(40,32,28,0.9)'; ctx.beginPath(); ctx.ellipse(fx, fy - 1, 11, 4, 0, 0, Math.PI * 2); ctx.fill();
+          for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; ctx.fillStyle = C[i % 4]; ctx.fillRect(Math.round(fx + Math.cos(a) * 17), Math.round(fy + Math.sin(a) * 7), 2, 2); }
+          // блиск скла
+          const t = rt(); ctx.fillStyle = '#e8f4ff'; for (let i = 0; i < 10; i++) if (Math.sin(t * 3 + i * 1.7) > 0.7) ctx.fillRect(Math.round(cx + (hsh(i, 31, seed) - 0.5) * 70), Math.round(yb + 4 + hsh(i, 32, seed) * 18), 1, 1);
+        } else { // вирву закрили сталевим листом, конуси
+          ctx.fillStyle = '#5a5e64'; ctx.fillRect(Math.round(fx - 13), Math.round(fy - 4), 26, 8); ctx.fillStyle = '#7a7e86'; ctx.fillRect(Math.round(fx - 13), Math.round(fy - 4), 26, 1);
+          for (const dx of [-17, 17]) { ctx.fillStyle = '#ff7a1a'; ctx.fillRect(Math.round(fx + dx - 1), Math.round(fy - 6), 3, 6); ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(fx + dx - 1), Math.round(fy - 4), 3, 1); }
+        }
+        ctx.restore();
+      })));
+      if (burning) {
+        // 3) вогонь з вікон і з місця влучання + чорний дим стовпом
+        this.list.push(G.addEntity(new Decor(cx, yb - 0.2, (ctx) => {
+          const t = rt(), fl = 0.85 + 0.15 * Math.sin(t * 11) * Math.sin(t * 7.3);
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'; // теплий відсвіт на стіні й землі
+          const gr = ctx.createRadialGradient(cx, iy, 4, cx, iy, 70);
+          gr.addColorStop(0, 'rgba(255,150,40,' + (0.45 * fl) + ')'); gr.addColorStop(1, 'rgba(255,120,30,0)');
+          ctx.fillStyle = gr; ctx.fillRect(cx - 70, iy - 70, 140, 140); ctx.restore();
+          flames(ctx, Math.round(cx - 20), Math.round(iy + 8), 40, 34);
+          flames(ctx, Math.round(cx + 14), Math.round(iy - 2), 16, 18);
+          flames(ctx, Math.round(cx - 30), Math.round(iy + 2), 14, 14);
+          flames(ctx, Math.round(cx - 6), Math.round(iy - 14), 14, 12);
+        })));
+        this.list.push(G.addEntity(new Decor(cx, yb + 80, (ctx) => { smokePuffs(ctx, cx, iy - 10, 16, 170, 60, ['#2a2224', '#3a3236', '#5a5458'], 0.72); smokePuffs(ctx, cx - 14, iy, 8, 120, 40, ['#3a3236', '#5a5458', '#7a747a'], 0.5, 1.7); })));
+      } else {
+        // 3) наступного дня: тонкий дим, огорожа «ОБЕРЕЖНО», пожежна машина, пожежник домочує
+        this.list.push(G.addEntity(new Decor(cx, yb + 40, (ctx) => smokePuffs(ctx, cx + 4, iy - 6, 7, 80, 22, ['#6a6468', '#8a848a', '#aaa4aa'], 0.32, 2))));
+        const fy = yb + 10;
+        this.list.push(G.addEntity(new Decor(cx, fy + 1, (ctx) => {
+          ctx.save();
+          for (let x = Math.round(cx - 40); x < cx + 40; x += 10) { // смугаста огорожа
+            ctx.fillStyle = '#2a2a2e'; ctx.fillRect(x, fy - 9, 1, 9); ctx.fillRect(x + 9, fy - 9, 1, 9);
+            for (let k = 0; k < 9; k++) { ctx.fillStyle = Math.floor((k + x / 3)) % 2 ? '#e8302a' : '#f6f2ee'; ctx.fillRect(x + k, fy - 8, 1, 3); }
+          }
+          const sx = Math.round(cx - 22), sy = fy - 22; // табличка
+          ctx.fillStyle = '#2a2a2e'; ctx.fillRect(sx + 21, sy + 10, 2, 12); ctx.fillStyle = '#ffd23a'; ctx.fillRect(sx, sy, 45, 11); ctx.fillStyle = '#1a1418'; ctx.fillRect(sx, sy, 45, 1); ctx.fillRect(sx, sy + 10, 45, 1);
+          if (G.text) G.text(ctx, 'ОБЕРЕЖНО', sx + 23, sy + 2, { size: 7, align: 'center', color: '#1a1418' });
+          ctx.restore();
+        })));
+        const tx = Math.min(x1 + 20, cx + 78), ty = yb + 36;
+        this.list.push(G.addEntity(new Decor(tx, ty - 1, (ctx) => { const fr = Math.floor(rt() * 4) % 4; const img = ext('prop', { variant: 'firetruck', dir: 'left', frame: fr }) || A.prop('firetruck', { dir: 'left', frame: fr & 1 }); if (img) ctx.drawImage(img, Math.round(tx - img.width / 2), ty - img.height + 2); })));
+        const ff = { x: cx + 30, y: yb + 26 };
+        this.list.push(G.addEntity(new Decor(ff.x, ff.y, (ctx) => { const img = ext('prop', { variant: 'firefighter', dir: 'left', frame: Math.floor(rt() * 2.5) % 2, type: 'hose' }) || A.prop('person', { variant: 'firefighter', dir: 'left', frame: 0, hose: true }); drawImgFeet(ctx, img, ff.x, ff.y); })));
+        this.list.push(G.addEntity(new Decor(cx, yb + 2, (ctx) => {
+          const t = rt(), sxw = ff.x - 9, syw = ff.y - 12, ex = cx + 6, ey = iy + 6;
+          ctx.save();
+          for (let i = 0; i < 22; i++) { const ph = ((t * 2.2) + i / 22) % 1; ctx.globalAlpha = 0.85 - ph * 0.3; ctx.fillStyle = i % 3 ? '#bfe6ff' : '#ffffff'; ctx.fillRect(Math.round(sxw + (ex - sxw) * ph), Math.round(syw + (ey - syw) * ph - Math.sin(ph * Math.PI) * 10), 2, 1); }
+          ctx.restore();
+        })));
+        const rs = { x: cx - 30, y: yb + 24 };
+        this.list.push(G.addEntity(new Decor(rs.x, rs.y, (ctx) => drawImgFeet(ctx, ext('prop', { variant: 'rescuer', dir: 'right', frame: 0 }) || A.prop('person', { variant: 'rescuer', dir: 'right' }), rs.x, rs.y))));
+      }
+      return front;
+    },
     spawnFire(sc) {
       const k = sc.kiosk, tr = sc.truck;
       const kx = (k.x + 1) * T, ky = (k.y + 2) * T;           // низ кіоску (центр)
@@ -32537,6 +32636,7 @@
   // ═══════════════════════════ Точки інтересу ═══════════════════════════
   // t: [tx, ty] — тайл (центр), zone — ціль зони (zid — id зони, напр. метро), r — радіус зарахування
   const POI = {
+    strike_site: { t: [100, 60], label: 'Місце прильоту', r: 34 }, // місія 26: перекрита вулиця після прильоту (тайл ставиться на старті)
     home: { zone: 'home', door: true, label: 'Дім', r: 24 }, // round 8: ціль — двері маминого підʼїзду (≈1.5 тайла), а не весь двір
     // round 7: поштомати й кіоски переставлено на край тротуару/площі (не посеред смуги). prop/ptype — точка стає перед
     // найближчим (≤ 8 тайлів від t) пропом цього виду й типу, тож POI не "відʼїде", якщо генератор зсуне кіоск на 1–3 тайли
@@ -32950,7 +33050,8 @@
       brief: 'Ти вийшов за хлібом — і тебе спакували просто біля підʼїзду. Військкомат, обхідний лист, шість кабінетів ВЛК. Прослизни повз лікарів, вилізь через вікно коридору — і подалі від району, до Каті.',
       steps: [
         { type: 'mini', game: 'vlk_full', label: 'ВЛК: шість кабінетів — прослизни!' },
-        { type: 'go', at: 'metroB', label: 'Вибрався через вікно! Подалі від району — до метро «Хрещатик»' },
+        { type: 'go', at: 'strike_site', label: 'Вибрався! Учора тут прилетів шахед — пройди повз рятувальників' },
+        { type: 'go', at: 'metroB', label: 'Подалі від району — до метро «Хрещатик»' },
         { type: 'hold', at: 'coffee_sq', label: 'Катя чекає в сквері — обійми її', hold: 1.4, doing: 'Катя: «Ти де був?!» — і не відпускає.' }],
       events: [{ type: 'raid', at: [14, 26], chance: 1 }, { type: 'rain', at: [5, 10], chance: 0.6 }],
       star3: 'clean', place: 'square',
@@ -34196,6 +34297,7 @@
     for (const e of S.ents) if (e.alive) e.update(dt);
     updateEvents(dt);
     raidFxUpdate(dt);
+    updateStrike();
     updateCheckpoints();
     updatePriest(dt);
     updateSides(dt);
@@ -34616,7 +34718,12 @@
     const R = S.rfx;
     // усе в небі прив'язане до місця на мапі, а не до екрана: запамʼятовуємо камеру в момент появи
     for (const f of R.list) { if (f.cx == null && G.camera) { f.cx = G.camera.x; f.cy = G.camera.y; } f.t += dt; }
-    R.list = R.list.filter((f) => f.t < (f.kind === 'mg' ? 2.8 : f.kind === 'shahed' ? f.life : 5.5));
+    R.list = R.list.filter((f) => f.kind === 'shahed' ? (!f.gone && f.t < 45 && (f.t < f.life || shOnScreen(f))) : f.t < (f.kind === 'mg' ? 2.8 : 5.5));
+    // рідко: шахед не збили — він пікірує в будинок поруч
+    for (const f of R.list) if (f.kind === 'shahed' && f.dive && !f.down && !f.gone && f.t >= f.dive && !S.strikeOn) {
+      const pos = shWorld(f), b = pickStrikeBuilding(110, 260);
+      if (b) { f.gone = true; if (G.audio && G.audio.stopSfx) G.audio.stopSfx('shahed', 0.3); startStrike(b, pos); } else f.dive = f.t + 1.5;
+    }
     for (const f of R.list) if (f.kind === 'shahed' && f.downAt && !f.down && f.t >= f.downAt) { // збили
       f.down = true;
       R.list.push({ kind: 'boom', t: 0, x: f.x0 + f.vx * f.t, y: f.y, seed: Math.random() * 1000, big: true, cx: f.cx, cy: f.cy });
@@ -34624,7 +34731,7 @@
       G.after(350 + Math.random() * 300, () => { if (S && S.ev.air_raid && G.audio) G.audio.sfx('distant_boom', { vol: 1, near: true }); }, {});
     }
     if (e.t < R.next || e.dur - e.t < 3) return;
-    R.next = e.t + 2.5 + Math.random() * 3.5;          // пауза 2.5–6 с: вибухи й постріли чути весь час тривоги
+    R.next = e.t + 1.1 + Math.random() * 2.2;          // пауза 1.1–3.3 с: Київ — вибухи й постріли весь час тривоги
     const A = G.audio, snd = (name, ms, vol) => { if (A && A.sfx) G.after(ms, () => { if (S && S.ev.air_raid) A.sfx(name, { vol }); }, {}); };
     const roll = Math.random();
     if (roll < 0.3 && !R.list.some((q) => q.kind === 'shahed' && !q.down)) { shahedEpisode(R, snd); return; } // шахед: гул мопеда, силует у небі, ППО — іноді збиває
@@ -34653,6 +34760,103 @@
     else { sx = 1.08; sy = 0.55 + Math.random() * 0.4; }
     return { kind: 'mg', t: t0 || 0, sx, sy, tx, ty, wob: Math.random() * 6 };
   }
+  // ── позиція шахеда: на екрані (з урахуванням руху камери) і у світі ──
+  function shScreen(f) { const cam = G.camera || { x: 0, y: 0 }; return { x: G.cfg.VIEW_W * (f.x0 + f.vx * f.t) + (f.cx == null ? 0 : f.cx - cam.x), y: G.cfg.VIEW_H * f.y + (f.cy == null ? 0 : f.cy - cam.y) }; }
+  function shOnScreen(f) { const p = shScreen(f); return p.x > -40 && p.x < G.cfg.VIEW_W + 40 && p.y > -40 && p.y < G.cfg.VIEW_H + 40; }
+  function shWorld(f) { const p = shScreen(f), r = G.camera.rect(); return { x: r.x + p.x * r.w / G.cfg.VIEW_W, y: r.y + p.y * r.h / G.cfg.VIEW_H }; }
+  // будинок для прильоту: фасад видно (обличчям до камери), перед героєм/камерою, на відстані minD..maxD
+  const STRIKE_KIND = { panel: 1, khrush: 1, shop: 1, office: 1, tower: 1, np: 1, atb: 1 };
+  function pickStrikeBuilding(minD, maxD, from) {
+    const W = G.world, p = from || G.player; if (!W || !W.buildings || !p) return null;
+    const T = G.cfg.TILE, r = G.camera.rect();
+    let best = null, bs = 1e9;
+    W.buildings.forEach((b, i) => {
+      if (!STRIKE_KIND[b.kind] || b.face !== 's' || b.w < 4) return;
+      const fx = (b.x + b.w / 2) * T, fy = (b.y + b.h) * T, d = Math.hypot(fx - p.x, fy - p.y);
+      if (d < minD || d > maxD || fy > p.y + 20) return;
+      if (!from && (fx < r.x + 30 || fx > r.x + r.w - 30 || fy < r.y + 50 || fy > r.y + r.h)) return; // має бути в кадрі
+      const sc = Math.abs(d - (minD + maxD) / 2) + Math.abs(fx - p.x) * 0.5;
+      if (sc < bs) { bs = sc; best = Object.assign({ _i: i }, b); best.ref = b; }
+    });
+    return best;
+  }
+  // проліт-пікірування → вибух → пожежа (будинок горить до кінця забігу)
+  class StrikeFx extends G.Entity {
+    constructor(b, from) {
+      const T = G.cfg.TILE, fh = Math.max(2, b.fh || 3), yb = (b.y + b.h) * T;
+      super((b.x + b.w / 2) * T, yb + 2, 2, 2, 'decor'); this.body = 'manual';
+      this.b = b; this.ix = this.x + (Math.random() - 0.5) * Math.max(0, b.w * T - 48); this.iy = yb - fh * T * 0.65;
+      this.fx = from ? from.x : this.ix - 260; this.fy = from ? from.y : this.iy - 180; this.t = 0; this.D = 1.9; this.hit = false; this.parts = [];
+    }
+    update(dt) {
+      this.t += dt;
+      if (!this.hit && this.t >= this.D) {
+        this.hit = true;
+        S.flash = 0.45;
+        if (G.camera && G.camera.shake) G.camera.shake(9, 900);
+        if (G.audio) { G.audio.stopSfx && G.audio.stopSfx('shahed', 0.05); G.audio.sfx && G.audio.sfx('explosion', { x: this.ix, y: this.iy, vol: 1 }); G.after(120, () => G.audio.sfx && G.audio.sfx('distant_boom', { vol: 1, near: true }), {}); }
+        for (let i = 0; i < 34; i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.6, v = 60 + Math.random() * 160; this.parts.push({ x: this.ix, y: this.iy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 1 + Math.random() * 1.2, c: ['#6a625c', '#8a817a', '#4a4440', '#ffb030', '#e8e0d8'][i % 5], s: 1 + (i % 3) }); }
+        if (G.kyivScenes && G.kyivScenes.strikeSite) G.kyivScenes.strikeSite(this.b.ref || this.b, 'burning', this.ix);
+        S.strikeOn = true;
+        if (G.ui && G.ui.bigText) G.ui.bigText('ПРИЛІТ!', 1600);
+        if (G.ui && G.ui.toast) G.ui.toast(S.n === 25 ? 'ПРИЛІТ! Швидше в метро — і людей забирай!' : 'Прильот у будинок поруч! Не стій — в укриття!', 3000);
+        // перехожі в паніці
+        if (G.npcs && G.npcs.list) for (const n of G.npcs.list) if (n.alive && Math.hypot(n.x - this.ix, n.y - this.iy) < 220 && G.ui && G.ui.bubble && Math.random() < 0.35) G.ui.bubble(n, ['Прильот!!!', 'Господи!', 'Всі в укриття!', 'Пожежників!'][Math.floor(Math.random() * 4)], 1600, { style: 'shout' });
+      }
+      for (const q of this.parts) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 260 * dt; }
+      this.parts = this.parts.filter((q) => q.t < q.life);
+      if (this.hit && this.t > this.D + 2.6) this.alive = false;
+    }
+    draw(ctx) {
+      const t = this.t, D = this.D, night = (G.lighting && G.lighting.night) || 0;
+      if (!this.hit) { // пікірує: розгін, гул, димний слід
+        const k = Math.pow(t / D, 1.6), x = this.fx + (this.ix - this.fx) * k, y = this.fy + (this.iy - this.fy) * k;
+        ctx.save();
+        for (let i = 1; i < 10; i++) { const kk = Math.max(0, k - i * 0.035), sx = this.fx + (this.ix - this.fx) * kk, sy = this.fy + (this.iy - this.fy) * kk; ctx.fillStyle = 'rgba(90,86,84,' + (0.35 - i * 0.03) + ')'; ctx.beginPath(); ctx.arc(sx, sy, 2 + i * 0.6, 0, Math.PI * 2); ctx.fill(); }
+        ctx.translate(Math.round(x), Math.round(y)); ctx.rotate(Math.atan2(this.iy - this.fy, this.ix - this.fx) * (this.ix >= this.fx ? 1 : 1));
+        if (this.ix < this.fx) ctx.scale(1, -1);
+        drawShahed(ctx, 0, 0, 1, night, 1, G.realTime);
+        ctx.restore();
+        return;
+      }
+      const e = t - D; // вибух
+      ctx.save();
+      if (e < 0.9) {
+        const r = 8 + e * 70, a = 1 - e / 0.9;
+        ctx.strokeStyle = 'rgba(255,240,200,' + (0.8 * a) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(this.ix, this.iy + 6, r, r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+        const L = [['#fff6c0', 0.35], ['#ffd84a', 0.6], ['#ff8a2a', 0.85], ['#c83a10', 1]];
+        for (let i = L.length - 1; i >= 0; i--) { ctx.fillStyle = L[i][0]; ctx.globalAlpha = a; pxDisc(ctx, this.ix, this.iy - e * 10, (10 + e * 26) * L[i][1]); }
+      }
+      ctx.globalAlpha = 1;
+      for (const q of this.parts) { ctx.fillStyle = q.c; ctx.globalAlpha = Math.max(0, 1 - q.t / q.life); ctx.fillRect(Math.round(q.x), Math.round(q.y), q.s, q.s); }
+      ctx.restore();
+    }
+  }
+  function startStrike(b, from) {
+    if (!b || S.strikeOn) return;
+    S.strikeOn = true;
+    const fx = new StrikeFx(b, from);
+    G.addEntity(fx); S.ents.push(fx);
+    try { localStorage.setItem('tck_strike', JSON.stringify({ i: b._i })); } catch (e) { /* */ }
+    if (!from && G.audio && G.audio.sfx) G.audio.sfx('shahed', { vol: 1, dur: 2.1, peak: 0.95, pan: 0 });
+  }
+  // місія 26: наслідки вчорашнього прильоту на тому самому будинку (або біля метро «Хрещатик», якщо 25-ту не грали)
+  function setupAftermath() {
+    S.siteDone = true;
+    const W = G.world, T = G.cfg.TILE; if (!W || !W.buildings || !G.kyivScenes || !G.kyivScenes.strikeSite) return;
+    let b = null;
+    try { const v = JSON.parse(localStorage.getItem('tck_strike') || 'null'); const c = v && W.buildings[v.i]; if (c && STRIKE_KIND[c.kind] && c.face === 's') b = c; } catch (e) { /* */ }
+    if (!b) { const m = poi('metroB'); const q = m && pickStrikeBuilding(140, 460, m); if (q) b = q.ref; }
+    if (!b) return;
+    const front = G.kyivScenes.strikeSite(b, 'aftermath');
+    if (front) { POI.strike_site.t = [Math.floor(front.x / T), Math.floor((front.y + 6) / T)]; delete poiCache.strike_site; }
+  }
+  // місія 25: сценарний прильот перед героєм під час тривоги
+  function updateStrike() {
+    if (S && S.n === 26 && !S.siteDone) setupAftermath();
+    if (!S || S.strikeOn) return;
+    if (S.n === 25 && S.ev.air_raid && S.t > 16) { const b = pickStrikeBuilding(80, 240); if (b) startStrike(b); }
+  }
   // шахед летить через небо (екранні частки): звук починається раніше, ніж його видно; 50% — мобільна група
   // відкриває вогонь трасерами в його бік і збиває (спалах, вибух), інакше пролітає і гул стихає
   function shahedEpisode(R, snd) {
@@ -34660,7 +34864,8 @@
     const y = 0.1 + Math.random() * 0.28, vx = (dirR ? 1 : -1) * 1.25 / SPAN;
     const x0 = (dirR ? -0.12 : 1.12) - vx * lead;
     const f = { kind: 'shahed', t: 0, x0, y, vx, life: lead + SPAN, dir: dirR ? 1 : -1 };
-    if (Math.random() < 0.5) {
+    if (Math.random() < 0.12 && !S.strikeOn) f.dive = lead + SPAN * (0.3 + Math.random() * 0.25); // рідкісний прильот у будинок
+    else if (Math.random() < 0.5) {
       f.downAt = lead + SPAN * (0.35 + Math.random() * 0.3);
       const xs = x0 + vx * f.downAt;
       R.list.push(mgShot(xs, y, -(f.downAt - 1.7)));
