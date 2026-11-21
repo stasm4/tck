@@ -8529,6 +8529,36 @@
     }
     return end;
   };
+  // ── улюбленці (76_pass): гавкіт, шипіння кота, «курли» голуба ──
+  R.bark = (v, t, o) => {
+    const g0 = gain(0.32); chain(g0, v.out); v.add(g0);
+    let end = 0;
+    for (const s of [0, 0.17]) {
+      const p = 0.95 + Math.random() * 0.12, x = osc('sawtooth', 520 * p, t + s), f = filt('bandpass', 900 * p, 2.2), g = gain(0);
+      x.frequency.setValueAtTime(520 * p, t + s); x.frequency.exponentialRampToValueAtTime(240 * p, t + s + 0.11);
+      g.gain.setValueAtTime(0, t + s); g.gain.linearRampToValueAtTime(0.9, t + s + 0.01); g.gain.exponentialRampToValueAtTime(0.001, t + s + 0.13);
+      const n = noise(t + s, 0.1), nf = filt('bandpass', 1500, 1.4), ng = gain(0); envAD(ng.gain, t + s, 0.35, 0.003, 0.08);
+      chain(x, f, g, g0); chain(n, nf, ng, g0); x.stop(t + s + 0.15); v.add(x, f, g, n, nf, ng);
+      end = s + 0.16;
+    }
+    return end;
+  };
+  R.hiss = (v, t, o) => {
+    const n = noise(t, 0.5), f = filt('highpass', 2600, 0.8), g = gain(0);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.28, t + 0.05); g.gain.setValueAtTime(0.28, t + 0.3); g.gain.linearRampToValueAtTime(0, t + 0.48);
+    chain(n, f, g, v.out); v.add(n, f, g);
+    return 0.5;
+  };
+  R.coo = (v, t, o) => {
+    const g0 = gain(0.25); chain(g0, v.out); v.add(g0);
+    for (const [s, f0] of [[0, 420], [0.16, 380], [0.3, 440]]) {
+      const x = osc('sine', f0, t + s), g = gain(0), lfo = osc('sine', 28, t + s), lg = gain(18);
+      chain(lfo, lg); lg.connect(x.frequency);
+      g.gain.setValueAtTime(0, t + s); g.gain.linearRampToValueAtTime(0.8, t + s + 0.03); g.gain.linearRampToValueAtTime(0, t + s + 0.13);
+      chain(x, g, g0); x.stop(t + s + 0.15); lfo.stop(t + s + 0.15); v.add(x, g, lfo, lg);
+    }
+    return 0.46;
+  };
   R.punch = (v, t, o) => {
     const p = o.pitch || 0.9 + Math.random() * 0.2;
     const n = noise(t, 0.15), f = filt('lowpass', 1600 * p), g = gain(0);
@@ -30722,11 +30752,76 @@
   });
 
   // ── улюбленець у грі: бігає за героєм ──
+  // ── улюбленець у грі: бігає за героєм і ЗАХИЩАЄ — кидається на ТЦК, що підійшов упритул ──
+  // пес — стрибає й гарчить, кіт — дряпає, голуб — кружляє над головою й клює. ТЦК на ~1 с зупиняється. Відпочинок 7 с.
+  const SAY = {
+    patron: { pet: ['ГРРР!', 'ГАВ-ГАВ!', 'Р-Р-Р-Р!'], tck: ['Ай! Заберіть пса!', 'Він мене кусає!', 'Хто пустив собаку?!'] },
+    cat: { pet: ['Ш-Ш-Ш!', 'МЯУ!!!', 'ФРРР!'], tck: ['Ай, кіт дряпається!', 'Мої штани!', 'Заберіть це руде!'] },
+    pigeon: { pet: ['КУРЛИ!', 'КУР-КУР!', 'ФЛАП-ФЛАП!'], tck: ['Голуб! Мої очі!', 'Відчепись, птаха!', 'Він мене клює!'] },
+  };
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
   class Pet extends G.Entity {
-    constructor(id, x, y) { super(x, y, 6, 4, 'pet'); this.id = id; this.body = 'manual'; this.t = 0; this.fr = 0; this.faceL = false; this.hop = 0; }
+    constructor(id, x, y) { super(x, y, 6, 4, 'pet'); this.id = id; this.body = 'manual'; this.t = 0; this.fr = 0; this.faceL = false; this.hop = 0; this.st = 'follow'; this.cd = 3; this.tg = null; this.at = 0; this.fx = []; this.fly = 0; }
+    threat() {
+      const p = G.player; if (!p || !G.tck || !G.tck.list) return null;
+      let best = null, bd = 44;
+      for (const t of G.tck.list) {
+        if (!t.alive || t.ko || t.stun > 0 || t._petHit > 0) continue;
+        const d = Math.hypot(t.x - p.x, t.y - p.y);
+        if (d < bd) { bd = d; best = t; }
+      }
+      return best;
+    }
     update(dt) {
       const p = G.player; if (!p) return;
-      this.t += dt;
+      this.t += dt; this.cd -= dt;
+      for (const f of this.fx) { f.t += dt; f.x += f.vx * dt; f.y += f.vy * dt; f.vy += (f.g || 0) * dt; }
+      this.fx = this.fx.filter((f) => f.t < f.life);
+      if (G.tck && G.tck.list) for (const t of G.tck.list) if (t._petHit > 0) t._petHit -= dt;
+      // ── напад ──
+      if (this.st === 'follow' && this.cd <= 0 && !p.hidden && !p.inMetro && !p.riding) {
+        const t = this.threat();
+        if (t) { this.st = 'run'; this.tg = t; this.at = 0; if (G.ui && G.ui.bubble) G.ui.bubble(this, pick(SAY[this.id].pet), 1100, { style: 'shout' }); try { G.audio && G.audio.sfx && G.audio.sfx(this.id === 'patron' ? 'bark' : this.id === 'cat' ? 'hiss' : 'coo', { x: this.x, y: this.y }); } catch (e) { /* */ } }
+      }
+      if (this.st === 'run' || this.st === 'attack') {
+        const t = this.tg;
+        if (!t || !t.alive || t.ko) { this.st = 'follow'; this.cd = 2; return; }
+        const tx = t.x + (this.x < t.x ? -6 : 6), ty = t.y + 3, dx = tx - this.x, dy = ty - this.y, d = Math.hypot(dx, dy);
+        this.faceL = t.x < this.x;
+        if (this.st === 'run') {
+          const sp = 280; this.fr = Math.floor(this.t * 14) % 2; this.hop = Math.abs(Math.sin(this.t * 18)) * 2;
+          if (this.id === 'pigeon') this.fly = Math.min(16, this.fly + dt * 60);
+          if (d > 4) { this.x += dx / d * Math.min(d, sp * dt); this.y += dy / d * Math.min(d, sp * dt); }
+          this.at += dt;
+          if (d <= 6 || this.at > 1.2) { this.st = 'attack'; this.at = 0; this.hitDone = false; }
+          return;
+        }
+        // attack: ~1.1 с анімації
+        this.at += dt;
+        const k = this.at;
+        if (this.id === 'patron') { // стрибки на ТЦК з ривком
+          this.hop = Math.abs(Math.sin(k * 11)) * 7; this.x = tx + (this.faceL ? 1 : -1) * Math.sin(k * 11) * 3; this.y = ty; this.fr = Math.floor(k * 12) % 2;
+          if (Math.random() < dt * 14) this.fx.push({ kind: 'dust', x: this.x + (Math.random() - 0.5) * 8, y: this.y + 1, vx: (Math.random() - 0.5) * 30, vy: -10 - Math.random() * 12, t: 0, life: 0.5 });
+        } else if (this.id === 'cat') { // підскоки й удари лапою
+          this.hop = Math.abs(Math.sin(k * 15)) * 5; this.x = tx + Math.sin(k * 20) * 1.5; this.y = ty; this.fr = Math.floor(k * 16) % 2;
+          if (Math.random() < dt * 7) this.fx.push({ kind: 'claw', x: t.x + (Math.random() - 0.5) * 8, y: t.y - 8 - Math.random() * 12, vx: 0, vy: 0, t: 0, life: 0.28, flip: Math.random() < 0.5 });
+        } else { // голуб: кружляє над головою і пікірує
+          const a = k * 9; this.fly = 14 + Math.sin(k * 18) * 6; this.x = t.x + Math.cos(a) * 9; this.y = t.y + 2 + Math.sin(a) * 3; this.faceL = Math.sin(a) > 0; this.fr = Math.floor(k * 18) % 2;
+          if (Math.random() < dt * 10) this.fx.push({ kind: 'feather', x: this.x, y: this.y - this.fly, vx: (Math.random() - 0.5) * 40, vy: -20 - Math.random() * 10, g: 60, t: 0, life: 0.9, c: Math.random() < 0.5 ? '#b8c0d0' : '#8a93a6' });
+        }
+        if (!this.hitDone && k > 0.25) {
+          this.hitDone = true;
+          if ((t.stunImmune || 0) <= 0) { t.stun = Math.max(t.stun || 0, 1.1); t.kx = (t.x < this.x ? -1 : 1) * 60; t.ky = 0; }
+          t._petHit = 6;
+          if (G.ui && G.ui.bubble) G.ui.bubble(t, pick(SAY[this.id].tck), 1500, { style: 'shout' });
+          try { G.audio && G.audio.sfx && G.audio.sfx(this.id === 'patron' ? 'bark' : 'punch', { x: this.x, y: this.y }); } catch (e) { /* */ }
+          for (let n = 0; n < 6; n++) this.fx.push({ kind: 'star', x: t.x + (Math.random() - 0.5) * 10, y: t.y - 16 - Math.random() * 8, vx: (Math.random() - 0.5) * 50, vy: -20 - Math.random() * 30, g: 90, t: 0, life: 0.6 });
+        }
+        if (k > 1.15) { this.st = 'follow'; this.cd = 7; this.tg = null; }
+        return;
+      }
+      // ── супровід ──
+      if (this.fly > 0) this.fly = Math.max(0, this.fly - dt * 40);
       const side = p.dir === 'left' ? 1 : p.dir === 'right' ? -1 : (this.x < p.x ? -1 : 1);
       const tx = p.x + side * 16, ty = p.y + 5;
       const dx = tx - this.x, dy = ty - this.y, d = Math.hypot(dx, dy);
@@ -30739,9 +30834,21 @@
       // рух — тут: G.updatePlay оновлює лише свої модулі, а не довільні сутності
       const now = G.time != null ? G.time / (G.cfg.GAME_MIN_PER_SEC || 1) : G.realTime, dt = this._lt == null ? 0 : Math.max(0, Math.min(0.1, now - this._lt)); this._lt = now;
       if (dt > 0) this.update(dt);
-      const p = G.player; if (p && (p.hidden || p.inMetro)) return;
-      if (G.drawShadow) G.drawShadow(ctx, Math.round(this.x), Math.round(this.y + 1), 9, 0.3);
-      drawPet(ctx, this.id, this.x, this.y + 2 - this.hop, 1, this.fr, this.faceL);
+      const p = G.player; if (p && (p.hidden || p.inMetro) && this.st === 'follow') return;
+      if (G.drawShadow) G.drawShadow(ctx, Math.round(this.x), Math.round(this.y + 1), this.fly > 4 ? 6 : 9, this.fly > 4 ? 0.18 : 0.3);
+      // пил під лапами — до тварини
+      for (const f of this.fx) if (f.kind === 'dust') { const a = 1 - f.t / f.life; ctx.fillStyle = 'rgba(220,214,200,' + (0.6 * a) + ')'; const r = 1 + f.t * 6; ctx.fillRect(Math.round(f.x - r / 2), Math.round(f.y - r / 2), Math.ceil(r), Math.ceil(r)); }
+      drawPet(ctx, this.id, this.x, this.y + 2 - this.hop - this.fly, 1, this.fr, this.faceL);
+      // ефекти атаки — поверх
+      for (const f of this.fx) {
+        const a = Math.max(0, 1 - f.t / f.life), X = Math.round(f.x), Y = Math.round(f.y);
+        if (f.kind === 'claw') { // три білі сліди кігтів
+          ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.beginPath();
+          for (let q = 0; q < 3; q++) { const o = q * 2 - 2, s2 = f.flip ? -1 : 1; ctx.moveTo(X + o - 3 * s2, Y - 3); ctx.lineTo(X + o + 3 * s2, Y + 3); }
+          ctx.stroke(); ctx.strokeStyle = 'rgba(255,90,90,0.8)'; ctx.beginPath(); ctx.moveTo(X - 3, Y - 2); ctx.lineTo(X + 3, Y + 4); ctx.stroke(); ctx.restore();
+        } else if (f.kind === 'feather') { ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = f.c; ctx.fillRect(X, Y, 2, 1); ctx.fillRect(X + 1, Y + 1, 1, 1); ctx.restore(); }
+        else if (f.kind === 'star') { ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = '#ffe070'; ctx.fillRect(X, Y, 1, 1); ctx.fillRect(X - 1, Y, 3, 1); ctx.fillRect(X, Y - 1, 1, 3); ctx.restore(); }
+      }
     }
   }
   let petE = null;
