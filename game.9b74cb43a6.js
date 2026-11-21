@@ -23959,6 +23959,7 @@
   }
   function toastArea() {
     if (G.state === 'menu') return { x0: 206, x1: VW() - 98, y0: 30, y1: 70, cx: 206 + Math.round((VW() - 304) / 2) }; // Round 40: над головою 3D-героя, між профілем і кнопками праворуч
+    if (G.state === 'pass') return { x0: 100, x1: VW() - 140, y0: 226, y1: VH() - 4, cx: VW() / 2 }; // пас: тости під стрічкою нагород
     if (inHud()) return { x0: 2, x1: VW() - 2, y0: 6, y1: isTouch() ? 172 : 200, cx: VW() / 2 };
     return { x0: 4, x1: VW() - 4, y0: 8, y1: VH() - 30, cx: VW() / 2 };
   }
@@ -24452,7 +24453,7 @@
   const PROF_R = () => ({ x: 8, y: 4, w: 178, h: 26 });
   const POD = () => { const x0 = MENU_X + MENU_W + 16, x1 = VW() - 8; return { cx: Math.round((x0 + x1) / 2), feet: 200, x0, x1 }; };
   const HERO_R = () => { const p = POD(); return { x: p.cx - 64, y: 72, w: 128, h: 140 }; };
-  const RBTN = () => { const w = 84, x = VW() - 8 - w; return [{ id: 'login', r: { x, y: 30, w, h: 17 } }, { id: 'tasks', r: { x, y: 51, w, h: 17 } }]; };
+  const RBTN = () => { const w = 84, x = VW() - 8 - w; return [{ id: 'login', r: { x, y: 30, w, h: 17 } }, { id: 'pass', r: { x: x - 16, y: 51, w: w + 16, h: 20 } }]; };
   const LOOK_R = () => { const p = POD(), w = 96; return { x: p.cx - w / 2, y: p.feet + 25, w, h: 15 }; };
   const H3 = { ang: 0.2, vel: 0, drag: null, idle: 0, jump: 0, jumpV: 0, lastLvl: 0 };
   function heroSkin() { const P = G.progress; return (G.heroes && G.heroes.skinFor && G.heroes.cur ? G.heroes.skinFor(G.heroes.cur) : null) || (P && P.equipped) || 'office'; }
@@ -24491,6 +24492,7 @@
     ctx.fillStyle = g; ctx.fillRect(p.cx - 110, p.feet - 180, 220, 190);
     ctx.restore();
     const ok3 = G.hero3d && G.hero3d.draw(ctx, p.cx, p.feet, s, H3.ang, { skin: heroSkin(), lift: Math.round(lift) });
+    if (G.pass && G.pass.pet) { const ph = Math.abs(Math.sin(M.t * 3.2)) * (Math.sin(M.t * 0.7) > 0.3 ? 4 : 0); G.pass.drawPet(ctx, G.pass.pet, p.cx - 38, p.feet + 3 - ph, 3, ph > 1 ? Math.floor(M.t * 8) % 2 : 0, false); }
     if (!ok3) { const img = U.spr('player', { skin: heroSkin(), dir: 'down', frame: 0 }); if (img) U.drawScaled(ctx, img, p.cx - img.width * 2, p.feet - img.height * 4, 4); }
     // підпис
     const P = G.progress, sk = P && P.skins ? P.skins.find((k) => k.id === heroSkin()) : null;
@@ -24534,7 +24536,16 @@
       const r2 = b.r, h2 = U.inRect(G.input.mouse.x, G.input.mouse.y, r2);
       pill(ctx, r2.x, r2.y, r2.w, r2.h, h2 ? 'rgba(72,52,86,0.97)' : 'rgba(30,20,40,0.9)');
       if (b.id === 'login') { U.icon(ctx, 'cal', r2.x + 4, r2.y + 4); U.text(ctx, 'БОНУС ДНЯ ' + (L ? L.day : 1) + '/7', r2.x + 15, r2.y + 4, { size: 7, color: '#fde98f' }); }
-      else { U.icon(ctx, 'check', r2.x + 4, r2.y + 5); U.text(ctx, 'ЗАВДАННЯ ' + done + '/' + (chal.length || 3), r2.x + 15, r2.y + 4, { size: 7, color: done >= (chal.length || 3) ? '#93c25b' : '#fbf6ea' }); }
+      else {
+        // «БІЛИЙ КВИТОК» — сезонний пас: квиток, рівень, смужка, «!» якщо є нагорода
+        const PS = G.pass, lv = PS ? PS.level : 1, sh = Math.sin(G.realTime * 3);
+        U.rect(ctx, '#c89a28', r2.x, r2.y, r2.w, r2.h); U.rect(ctx, h2 ? '#ffe070' : '#f7c948', r2.x + 1, r2.y + 1, r2.w - 2, r2.h - 2);
+        U.rect(ctx, 'rgba(255,255,255,' + (0.25 + 0.15 * sh) + ')', r2.x + 1, r2.y + 1, r2.w - 2, 6);
+        U.rect(ctx, '#fbf6ea', r2.x + 4, r2.y + 4, 14, 12); U.rect(ctx, '#2a5fb4', r2.x + 6, r2.y + 8, 10, 1); U.rect(ctx, '#f7d248', r2.x + 6, r2.y + 9, 10, 1); U.rect(ctx, '#c8302a', r2.x + 6, r2.y + 6, 4, 1);
+        U.text(ctx, 'БІЛИЙ КВИТОК', r2.x + 22, r2.y + 2, { size: 7, color: '#3a2410' });
+        U.text(ctx, 'рівень ' + lv + (PS && PS.canClaim ? ' · є нагорода!' : ''), r2.x + 22, r2.y + 11, { size: 7, color: PS && PS.canClaim ? '#a02018' : '#6a4a20' });
+        if (PS && PS.canClaim) { const on = Math.sin(G.realTime * 6) > -0.3, bx = r2.x + r2.w - 6, by = r2.y - 4; U.rect(ctx, '#1a0e20', bx - 1, by - 1, 9, 9); U.rect(ctx, on ? '#ff4a3a' : '#c8302a', bx, by, 7, 7); U.rect(ctx, '#fff8e0', bx + 3, by + 1, 1, 3); U.rect(ctx, '#fff8e0', bx + 3, by + 5, 1, 1); }
+      }
     });
   }
   function drawPop(ctx) {
@@ -24592,7 +24603,7 @@
     heroUpdate(realDt || dt);
     if (mm.clicked) {
       if (U.inRect(mm.x, mm.y, PROF_R()) && G.online && G.online.askName) { click(); G.online.askName(() => {}); return; }
-      for (const b of RBTN()) if (U.inRect(mm.x, mm.y, b.r)) { click(); M.pop = b.id; return; }
+      for (const b of RBTN()) if (U.inRect(mm.x, mm.y, b.r)) { click(); if (b.id === 'pass' && G.scenes.pass) G.setState('pass'); else M.pop = b.id; return; }
       if (U.inRect(mm.x, mm.y, LOOK_R())) { activate('wardrobe'); return; }
       if (U.inRect(mm.x, mm.y, HERO_R())) return; // тап по герою — стрибок (heroUpdate)
     }
@@ -30014,6 +30025,478 @@
 })();
 
 
+/* ===== 76_pass.js ===== */
+// ═══════════════════════════ 76_pass — сезонний пас «БІЛИЙ КВИТОК» ═══════════════════════════
+// Сезон 1 «Зима»: 30 рівнів, досвід пасу — за щоденні завдання (80_progress, 3 на день), тижневі завдання (5 на тиждень,
+// оновлюються щопонеділка), кожен зіграний забіг. Нагороди: гривні, одяг (шапки/бороди/кофти з гардеробу), улюбленці
+// (пес Патрон, кіт Бублик, голуб Валера — бігають поруч у грі й стоять поруч у меню). Усе безкоштовно (без донатів).
+// Зберігання: localStorage 'tck_pass' {s, xp, got:[рівень], wk:{key, list:[{id, cur, done}]}, pets:[id], pet}.
+// G.pass: {level, xp, info(), claim(lvl), claimAll(), canClaim, weekly(), pet, setPet(id), drawPet(ctx, id, x, y, sc, fr, dir)}
+// Сцена 'pass': вкладки НАГОРОДИ / ЗАВДАННЯ.
+(function () {
+  'use strict';
+  const SEASON = { id: 1, name: 'ЗИМА', start: '2026-11-20', end: '2027-02-28' };
+  const LV_XP = 400, MAXL = 30;
+  const XP = { daily: 60, dailyAll: 60, weekly: 150, run: 10, win: 15 };
+  const LS = 'tck_pass';
+  let st = { s: SEASON.id, xp: 0, got: [], wk: { key: '', list: [] }, pets: [], pet: null };
+  try { const r = JSON.parse(localStorage.getItem(LS) || 'null'); if (r && r.s === SEASON.id) st = Object.assign(st, r); } catch (e) { /* */ }
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) { /* */ } };
+  const sfx = (n) => { try { G.audio && G.audio.sfx && G.audio.sfx(n); } catch (e) { /* */ } };
+  const toast = (t, ms) => { try { G.ui && G.ui.toast && G.ui.toast(t, ms || 2400); } catch (e) { /* */ } };
+  const P = () => G.progress;
+
+  // ── нагороди за рівні ──
+  // k: 'money' (n грн), 'acc' (id одягу), 'pet' (id улюбленця)
+  const REW = [null,
+    { k: 'money', n: 50 }, { k: 'acc', id: 'hat_beanie_red' }, { k: 'money', n: 75 }, { k: 'acc', id: 'beard_stubble' }, { k: 'money', n: 100 },
+    { k: 'acc', id: 'top_hoodie' }, { k: 'money', n: 100 }, { k: 'acc', id: 'hat_cap' }, { k: 'money', n: 150 }, { k: 'pet', id: 'patron' },
+    { k: 'money', n: 150 }, { k: 'acc', id: 'beard_mustache' }, { k: 'money', n: 150 }, { k: 'acc', id: 'top_puffer_red' }, { k: 'money', n: 200 },
+    { k: 'acc', id: 'hat_panama' }, { k: 'money', n: 200 }, { k: 'acc', id: 'top_sport' }, { k: 'money', n: 250 }, { k: 'pet', id: 'cat' },
+    { k: 'money', n: 250 }, { k: 'acc', id: 'beard_goatee' }, { k: 'money', n: 300 }, { k: 'acc', id: 'hat_ushanka' }, { k: 'money', n: 300 },
+    { k: 'acc', id: 'top_deer' }, { k: 'money', n: 400 }, { k: 'acc', id: 'beard_cossack' }, { k: 'money', n: 500 }, { k: 'pet', id: 'pigeon' },
+  ];
+
+  // ── улюлбленці: піксельні спрайти (дивляться праворуч), 2 кадри бігу ──
+  const PETS = {
+    patron: { name: 'Пес Патрон', desc: 'Джек-рассел-тер\'єр. Шукає небезпеку, знаходить ковбасу.', pal: { w: '#f4efe4', s: '#d8cfbe', b: '#9a6232', d: '#5e3a1c', k: '#1a1418', n: '#2a1a1a', o: '#ef8a3b', y: '#f7d248', p: '#e88a9a' },
+      fr: [[
+        '................',
+        '..........dd....',
+        '.........dbbw...',
+        '.........bwwwk..',
+        '........wwwwwwn.',
+        '.......owwwwww..',
+        '.ww...ooowwp....',
+        'w.wwwwoyowww....',
+        '..wwbbwoowww....',
+        '..wwbbbwwwww....',
+        '..ww.s...s.w....',
+        '..w..s...w..w...',
+        '..s...s...s.....',
+      ], [
+        '................',
+        '..........dd....',
+        '.........dbbw...',
+        '.........bwwwk..',
+        '........wwwwwwn.',
+        '.......owwwwww..',
+        'w.....ooowwp....',
+        '.wwwwwoyowww....',
+        '..wwbbwoowww....',
+        '..wwbbbwwwww....',
+        '...w.s..ws......',
+        '..s..w..s.w.....',
+        '.......s...s....',
+      ]] },
+    cat: { name: 'Кіт Бублик', desc: 'Рудий. Ходить, де хоче. ТЦК його не цікавить, як і він їх.', pal: { o: '#e8893a', d: '#b8622a', l: '#f6c08a', k: '#1a1418', g: '#7fd05a', p: '#f0a0a8', w: '#fff4e0' },
+      fr: [[
+        '................',
+        '.........o...o..',
+        '.........oo.oo..',
+        '.........ooooo..',
+        '........oglogl..',
+        '.d......oolpoo..',
+        '.d.......lwwl...',
+        '..d.ooddoooo....',
+        '..dooooddoooo...',
+        '...oodooooooo...',
+        '...ol.l...ol....',
+        '...l..l...l.l...',
+        '................',
+      ], [
+        '................',
+        '.........o...o..',
+        '.........oo.oo..',
+        '.........ooooo..',
+        '........oglogl..',
+        '..d.....oolpoo..',
+        '..d......lwwl...',
+        '..d.ooddoooo....',
+        '...dooooddooo...',
+        '...oodooooooo...',
+        '....l.ol..l.o...',
+        '...l...l.l...l..',
+        '................',
+      ]] },
+    pigeon: { name: 'Голуб Валера', desc: 'Київський голуб. Бачив усе. Нікому не скаже.', pal: { g: '#8a93a6', d: '#5c6476', l: '#b8c0d0', t: '#4ea08a', v: '#8a5aa8', k: '#1a1418', o: '#e8a040', w: '#f0f0f0' },
+      fr: [[
+        '................',
+        '................',
+        '..........ddd...',
+        '.........dgwkd..',
+        '.........ggggoo.',
+        '.........tvtg...',
+        '...d....ttvgg...',
+        '..ddgggglgggg...',
+        '..ddgdddlggg....',
+        '....ggggggg.....',
+        '.......o.o......',
+        '......o..o......',
+        '................',
+      ], [
+        '................',
+        '...d............',
+        '...ddd....ddd...',
+        '....ddd..dgwkd..',
+        '.....ddggggggoo.',
+        '......gdddtvt...',
+        '.......gggvgg...',
+        '..ddggglgggg....',
+        '...ggggggg......',
+        '....ggggggg.....',
+        '.......o.o......',
+        '......o..o......',
+        '................',
+      ]] },
+  };
+  const petCache = new Map();
+  function petImg(id, fr, left) {
+    const key = id + fr + (left ? 'L' : 'R');
+    let c = petCache.get(key);
+    if (c) return c;
+    const d = PETS[id]; if (!d) return null;
+    const rows = d.fr[fr % d.fr.length], h = rows.length, w = rows[0].length;
+    c = G.util.makeCanvas(w, h); const x = c.getContext('2d');
+    // контур
+    const sol = (cx, cy) => cy >= 0 && cy < h && cx >= 0 && cx < w && rows[cy][cx] !== '.';
+    for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) {
+      const ch = rows[yy][xx];
+      const X = left ? w - 1 - xx : xx;
+      if (ch !== '.') { x.fillStyle = d.pal[ch] || '#f0f'; x.fillRect(X, yy, 1, 1); }
+      else if (sol(xx - 1, yy) || sol(xx + 1, yy) || sol(xx, yy - 1) || sol(xx, yy + 1)) { x.fillStyle = 'rgba(20,11,28,0.85)'; x.fillRect(X, yy, 1, 1); }
+    }
+    petCache.set(key, c);
+    return c;
+  }
+  function drawPet(ctx, id, x, y, sc, fr, left) {
+    const im = petImg(id, fr || 0, left); if (!im) return;
+    sc = sc || 1;
+    ctx.drawImage(im, Math.round(x - im.width * sc / 2), Math.round(y - im.height * sc), im.width * sc, im.height * sc);
+  }
+
+  // ── рівень і досвід ──
+  const level = () => Math.min(MAXL, 1 + Math.floor(st.xp / LV_XP));
+  const lvCur = () => (level() >= MAXL ? LV_XP : st.xp % LV_XP);
+  function addXp(n, why) {
+    if (!(n > 0) || seasonOver()) return;
+    const L0 = level();
+    st.xp += Math.round(n); save();
+    const L1 = level();
+    if (L1 > L0) { toast('БІЛИЙ КВИТОК: РІВЕНЬ ' + L1 + '! Забери нагороду', 3200); sfx('unlock'); }
+    else if (why) toast('+' + n + ' досвіду пасу · ' + why, 1800);
+  }
+  const canClaim = () => { const L = level(); for (let i = 1; i <= L; i++) if (st.got.indexOf(i) < 0) return true; return false; };
+  function rewName(r) {
+    if (!r) return '';
+    if (r.k === 'money') return '+' + r.n + ' грн';
+    if (r.k === 'pet') return PETS[r.id].name;
+    const a = P() && P().accInfo ? P().accInfo(r.id) : null; return a ? a.name : r.id;
+  }
+  function claim(L, quiet) {
+    if (L < 1 || L > level() || st.got.indexOf(L) >= 0) return false;
+    const r = REW[L]; if (!r) return false;
+    if (r.k === 'money') { P() && P().addMoney && P().addMoney(r.n); }
+    else if (r.k === 'acc') { if (!(P() && P().grantAcc && P().grantAcc(r.id)) && P() && P().addMoney) P().addMoney(150); } // уже було — компенсація
+    else if (r.k === 'pet') { if (st.pets.indexOf(r.id) < 0) st.pets.push(r.id); st.pet = r.id; }
+    st.got.push(L); save();
+    if (!quiet) { sfx('unlock'); toast('Отримано: ' + rewName(r) + (r.k === 'pet' ? ' — тепер бігає з тобою!' : ''), 2600); }
+    return true;
+  }
+  function claimAll() { let n = 0; for (let i = 1; i <= level(); i++) if (claim(i, true)) n++; if (n) { sfx('unlock'); toast('Забрано нагород: ' + n, 2200); } return n; }
+
+  // ── сезон: дати ──
+  const dayKey = (off) => (P() && P().dateKey ? P().dateKey(off || 0) : new Date().toISOString().slice(0, 10));
+  const dms = (k) => { const a = k.split('-').map(Number); return Date.UTC(a[0], a[1] - 1, a[2]); };
+  const daysLeft = () => Math.max(0, Math.round((dms(SEASON.end) - dms(dayKey(0))) / 864e5));
+  const seasonOver = () => dms(dayKey(0)) > dms(SEASON.end);
+  function weekKey() { // понеділок цього тижня
+    const t = dms(dayKey(0)), wd = (new Date(t).getUTCDay() + 6) % 7;
+    return new Date(t - wd * 864e5).toISOString().slice(0, 10);
+  }
+  const weekDaysLeft = () => { const t = dms(dayKey(0)), wd = (new Date(t).getUTCDay() + 6) % 7; return 7 - wd; };
+
+  // ── тижневі завдання ──
+  const WEEK = [
+    { id: 'w_vault', kind: 'vault', need: 50, text: 'Перестрибни 50 лавок' },
+    { id: 'w_ko', kind: 'ko', need: 25, text: 'Нокаутуй 25 ТЦК' },
+    { id: 'w_hide', kind: 'hide', need: 25, text: 'Сховайся 25 разів' },
+    { id: 'w_dash', kind: 'dash', need: 80, text: 'Зроби 80 ривків' },
+    { id: 'w_slip', kind: 'slip', need: 10, text: 'Посади 10 ТЦК на банан' },
+    { id: 'w_throw', kind: 'throw', need: 25, text: 'Кинь 25 предметів' },
+    { id: 'w_mission', kind: 'mission', need: 5, text: 'Пройди 5 місій' },
+    { id: 'w_star3', kind: 'star3', need: 3, text: 'Отримай 3 ★ у трьох місіях' },
+    { id: 'w_wave', kind: 'wave', need: 6, abs: true, text: 'Дійди до 6-ї хвилі у ВТЕЧІ' },
+    { id: 'w_surv', kind: 'survive', need: 300, abs: true, text: 'Протримайся 5 хв в одній ВТЕЧІ', fmt: (c, n) => Math.floor(c / 60) + ':' + String(Math.floor(c % 60)).padStart(2, '0') + '/' + Math.floor(n / 60) + ':00' },
+    { id: 'w_daily', kind: 'daily', need: 4, text: 'Зіграй щоденну втечу 4 рази' },
+    { id: 'w_esc', kind: 'escRun', need: 5, abs: true, text: 'Втечи 5 разів за один забіг' },
+    { id: 'w_combo', kind: 'combo', need: 8, abs: true, text: 'Зроби комбо ×8' },
+  ];
+  const WEEK_BY = {}; for (const w of WEEK) WEEK_BY[w.id] = w;
+  function hash(s) { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; }
+  function ensureWeek() {
+    const k = weekKey();
+    if (st.wk && st.wk.key === k && st.wk.list && st.wk.list.length) return;
+    const pool = WEEK.slice(); let h = hash('wk:' + k); const list = [];
+    while (list.length < 5 && pool.length) { h = Math.imul(h ^ (h >>> 13), 2654435761) >>> 0; list.push({ id: pool.splice(h % pool.length, 1)[0].id, cur: 0, done: false }); }
+    st.wk = { key: k, list }; save();
+  }
+  function weekly() {
+    ensureWeek();
+    return st.wk.list.map((q) => { const d = WEEK_BY[q.id] || { text: q.id, need: 1 }; const cur = Math.min(q.cur, d.need); return { id: q.id, text: d.text, cur, need: d.need, done: q.done, prog: d.fmt ? d.fmt(cur, d.need) : cur + '/' + d.need }; });
+  }
+  G.events.on('chal:event', (e) => {
+    if (!e || seasonOver()) return;
+    ensureWeek();
+    let ch = false;
+    for (const q of st.wk.list) {
+      const d = WEEK_BY[q.id]; if (!d || q.done || d.kind !== e.kind) continue;
+      const b = q.cur, n = Math.floor(e.n == null ? 1 : e.n);
+      if (d.abs || e.abs) q.cur = Math.max(q.cur, n); else q.cur += n;
+      if (q.cur === b) continue;
+      ch = true;
+      if (q.cur >= d.need) { q.done = true; save(); toast('✓ Тижневе: ' + d.text + ' (+' + XP.weekly + ' досвіду)', 3000); addXp(XP.weekly); }
+    }
+    if (ch) save();
+  });
+  // щоденні (80_progress) теж дають досвід пасу
+  G.events.on('challenge:done', () => {
+    addXp(XP.daily);
+    try { const all = P().challenges().every((c) => c.done); if (all) addXp(XP.dailyAll); } catch (e) { /* */ }
+  });
+  // кожен забіг
+  G.events.on('run:end', (d) => {
+    if (d && d.abandoned) return; // вийшов у меню посеред забігу — без досвіду
+    const m = G.run && G.run.mission;
+    if (!m || (G.coop && G.coop.role === 'guest')) { if (G.coop && G.coop.role === 'guest') addXp(XP.run); return; }
+    const win = d && (d.result === 'win' || d.result === 'late_win');
+    addXp(XP.run + (win ? XP.win : 0));
+  });
+
+  // ── улюбленець у грі: бігає за героєм ──
+  class Pet extends G.Entity {
+    constructor(id, x, y) { super(x, y, 6, 4, 'pet'); this.id = id; this.body = 'manual'; this.t = 0; this.fr = 0; this.faceL = false; this.hop = 0; }
+    update(dt) {
+      const p = G.player; if (!p) return;
+      this.t += dt;
+      const side = p.dir === 'left' ? 1 : p.dir === 'right' ? -1 : (this.x < p.x ? -1 : 1);
+      const tx = p.x + side * 16, ty = p.y + 5;
+      const dx = tx - this.x, dy = ty - this.y, d = Math.hypot(dx, dy);
+      if (d > 260 || p.inMetro || p.riding) { this.x = tx; this.y = ty; return; }
+      const sp = d > 30 ? 190 : d > 6 ? 110 : 0;
+      if (sp) { this.x += dx / d * Math.min(d, sp * dt); this.y += dy / d * Math.min(d, sp * dt); this.faceL = dx < 0; this.fr = Math.floor(this.t * 10) % 2; this.hop = Math.abs(Math.sin(this.t * 14)) * 2; }
+      else { this.fr = 0; this.hop = 0; if (Math.abs(p.x - this.x) > 2) this.faceL = p.x < this.x; }
+    }
+    draw(ctx) {
+      // рух — тут: G.updatePlay оновлює лише свої модулі, а не довільні сутності
+      const now = G.time != null ? G.time / (G.cfg.GAME_MIN_PER_SEC || 1) : G.realTime, dt = this._lt == null ? 0 : Math.max(0, Math.min(0.1, now - this._lt)); this._lt = now;
+      if (dt > 0) this.update(dt);
+      const p = G.player; if (p && (p.hidden || p.inMetro)) return;
+      if (G.drawShadow) G.drawShadow(ctx, Math.round(this.x), Math.round(this.y + 1), 9, 0.3);
+      drawPet(ctx, this.id, this.x, this.y + 2 - this.hop, 1, this.fr, this.faceL);
+    }
+  }
+  let petE = null;
+  G.events.on('run:start', () => {
+    if (petE) petE.alive = false; petE = null;
+    if (!st.pet || !PETS[st.pet]) return;
+    setTimeout(() => { const p = G.player; if (!p || !G.run || G.run.ended) return; petE = G.addEntity(new Pet(st.pet, p.x - 14, p.y + 5)); }, 0);
+  });
+  G.events.on('run:end', () => { if (petE) petE.alive = false; petE = null; });
+
+  G.pass = {
+    SEASON, MAXL, LV_XP, PETS, REW,
+    get level() { return level(); }, get xp() { return st.xp; }, get cur() { return lvCur(); },
+    get canClaim() { return canClaim(); }, get pet() { return st.pet; }, get pets() { return st.pets.slice(); },
+    got: (L) => st.got.indexOf(L) >= 0,
+    setPet(id) { st.pet = id && st.pets.indexOf(id) >= 0 ? id : null; save(); },
+    claim, claimAll, weekly, addXp, drawPet, daysLeft, weekDaysLeft, rewName,
+    _reset() { st = { s: SEASON.id, xp: 0, got: [], wk: { key: '', list: [] }, pets: [], pet: null }; save(); },
+  };
+
+  // ═══════════════ Екран «БІЛИЙ КВИТОК» ═══════════════
+  if (G.STATES.indexOf('pass') < 0) G.STATES.push('pass');
+  const U = () => G.ui.gfx, VW = () => G.cfg.VIEW_W, VH = () => G.cfg.VIEW_H;
+  const S = { tab: 0, sel: 1, scroll: 0, t: 0, drag: null, back: 'menu' };
+  const CW = 58, CG = 6, TY = 82, CH = 118;
+  const trackX0 = () => 14, trackW = () => VW() - 28;
+  const cardX = (L) => trackX0() + (L - 1) * (CW + CG) - S.scroll;
+  const maxScroll = () => Math.max(0, MAXL * (CW + CG) - CG - trackW());
+  const tabR = (i) => ({ x: 14 + i * 104, y: 58, w: 98, h: 18 });
+  const backR = () => ({ x: 14, y: VH() - 26, w: 80, h: 20 });
+  const allR = () => ({ x: VW() - 134, y: VH() - 26, w: 120, h: 20 });
+  function focusOn(L) { S.scroll = Math.max(0, Math.min(maxScroll(), (L - 1) * (CW + CG) - trackW() / 2 + CW / 2)); }
+  function rewPreview(ctx, r, cx, cy, owned) {
+    const u = U();
+    if (r.k === 'money') {
+      u.icon(ctx, 'coin', cx - 9, cy - 16, 3);
+      u.text(ctx, '+' + r.n, cx, cy + 6, { size: 10, align: 'center', color: '#f7c948', shadow: true });
+      u.text(ctx, 'грн', cx, cy + 18, { size: 7, align: 'center', color: '#c8b878' });
+    } else if (r.k === 'pet') {
+      const fr = Math.floor(G.realTime * 6) % 2;
+      drawPet(ctx, r.id, cx, cy + 10 - Math.abs(Math.sin(G.realTime * 5)) * 3, 3, fr, false);
+    } else {
+      const O = G.outfit, prev = O ? O.override : null;
+      let img = null;
+      try {
+        const cur = P() && P().outfit ? P().outfit() : {}; const a = P().accInfo(r.id);
+        if (O && a) { O.override = Object.assign({}, cur, { [a.slot]: r.id }); }
+        img = G.sprites.get('player', { skin: (P() && P().equipped) || 'office', dir: 'down', frame: 0 });
+      } catch (e) { img = null; } finally { if (O) O.override = prev; }
+      if (img) ctx.drawImage(img, Math.round(cx - img.width), Math.round(cy + 22 - img.height * 2), img.width * 2, img.height * 2);
+    }
+  }
+  function drawCard(ctx, L) {
+    const u = U(), x = Math.round(cardX(L)), y = TY, r = REW[L];
+    if (x + CW < 0 || x > VW()) return;
+    const lv = level(), got = st.got.indexOf(L) >= 0, open = L <= lv, avail = open && !got, f = S.sel === L, big = r.k === 'pet';
+    const pulse = 0.5 + 0.5 * Math.sin(G.realTime * 5);
+    u.rect(ctx, 'rgba(0,0,0,0.35)', x + 2, y + 3, CW, CH);
+    u.rect(ctx, f ? '#fde98f' : avail ? (pulse > 0.5 ? '#f7c948' : '#c89a28') : big ? '#c08af0' : '#120a18', x - 1, y - 1, CW + 2, CH + 2);
+    u.rect(ctx, got ? 'rgba(40,56,40,0.96)' : open ? 'rgba(58,42,72,0.97)' : 'rgba(28,22,36,0.96)', x, y, CW, CH);
+    if (big) { u.rect(ctx, 'rgba(192,138,240,0.18)', x, y, CW, CH); }
+    // номер рівня
+    u.rect(ctx, open ? '#f7c948' : '#4a4258', x, y, CW, 14);
+    u.text(ctx, 'РІВ ' + L, x + CW / 2, y + 3, { size: 7, align: 'center', color: open ? '#3a2410' : '#9a90a8' });
+    // нагорода
+    ctx.save(); if (!open) ctx.globalAlpha = 0.45;
+    rewPreview(ctx, r, x + CW / 2, y + 56, got);
+    ctx.restore();
+    let nm = rewName(r); while (nm.length > 4 && u.measure(nm, 7) > CW - 4) nm = nm.slice(0, -2) + '…';
+    if (r.k !== 'money') u.text(ctx, nm, x + CW / 2, y + 84, { size: 7, align: 'center', color: big ? '#e0c0ff' : '#e8dcc8' });
+    // стан
+    if (got) {
+      const isPet = r.k === 'pet', on = isPet && st.pet === r.id;
+      u.rect(ctx, on ? '#4f8a36' : '#2a3a2a', x + 4, y + CH - 20, CW - 8, 15);
+      u.text(ctx, isPet ? (on ? 'З ТОБОЮ' : 'ВЗЯТИ') : '✓ Є', x + CW / 2, y + CH - 17, { size: 7, align: 'center', color: '#c8f0a8' });
+    } else if (avail) {
+      u.rect(ctx, pulse > 0.5 ? '#6fb04a' : '#5a9a3c', x + 4, y + CH - 20, CW - 8, 15);
+      u.text(ctx, 'ЗАБРАТИ', x + CW / 2, y + CH - 17, { size: 7, align: 'center', color: '#fff8e0' });
+    } else {
+      u.icon(ctx, 'unlock', x + CW / 2 - 3, y + CH - 18);
+    }
+  }
+  function drawTrackLine(ctx) {
+    const u = U(), y = TY + CH + 10, lv = level();
+    const x0 = Math.round(cardX(1) + CW / 2), x1 = Math.round(cardX(MAXL) + CW / 2);
+    u.rect(ctx, '#120a18', x0 - 1, y - 1, x1 - x0 + 2, 6); u.rect(ctx, '#2a2030', x0, y, x1 - x0, 4);
+    const xl = cardX(lv) + CW / 2 + (lv < MAXL ? (CW + CG) * lvCur() / LV_XP : 0);
+    u.rect(ctx, '#f7c948', x0, y, Math.max(0, Math.round(xl - x0)), 4);
+    for (let L = 1; L <= MAXL; L++) { const cx = Math.round(cardX(L) + CW / 2); if (cx < -4 || cx > VW() + 4) continue; u.rect(ctx, '#120a18', cx - 3, y - 2, 7, 8); u.rect(ctx, L <= lv ? '#f7c948' : '#4a4258', cx - 2, y - 1, 5, 6); }
+  }
+  function header(ctx) {
+    const u = U(), W = VW();
+    // фон-стрічка
+    u.rect(ctx, '#1a1226', 0, 0, W, 54);
+    for (let i = 0; i < W; i += 24) u.rect(ctx, 'rgba(255,255,255,0.03)', i + ((S.t * 10) % 24), 0, 10, 54);
+    u.rect(ctx, '#f7c948', 0, 53, W, 1);
+    // квиток
+    const tx = 14, ty = 8;
+    u.rect(ctx, '#120a18', tx - 1, ty - 1, 40, 30); u.rect(ctx, '#fbf6ea', tx, ty, 38, 28); u.rect(ctx, '#e8dcc8', tx, ty + 20, 38, 8);
+    for (let k = 0; k < 4; k++) u.rect(ctx, '#c8302a', tx + 6 + k * 7, ty + 6, 4, 2);
+    u.rect(ctx, '#2a5fb4', tx + 6, ty + 12, 26, 2); u.rect(ctx, '#f7d248', tx + 6, ty + 14, 26, 2);
+    u.text(ctx, 'БІЛИЙ КВИТОК', 60, 6, { size: 18, color: '#fbf6ea', outline: '#120a18', shadow: true });
+    u.text(ctx, 'СЕЗОН ' + SEASON.id + ' · ' + SEASON.name + (seasonOver() ? ' · завершено' : ' · ще ' + daysLeft() + ' дн.'), 60, 30, { size: 8, color: '#8fc7e4' });
+    // рівень
+    const lv = level(), bx = W - 150;
+    u.rect(ctx, '#120a18', bx - 1, 9, 30, 30); u.rect(ctx, '#f7c948', bx, 10, 28, 28); u.rect(ctx, '#ffe58a', bx, 10, 28, 12);
+    u.text(ctx, String(lv), bx + 14, 13, { size: 16, align: 'center', color: '#5a3a10' });
+    u.text(ctx, 'РІВЕНЬ ПАСУ', bx + 36, 10, { size: 7, color: '#fde98f' });
+    const bw = 100;
+    u.rect(ctx, '#120a18', bx + 35, 21, bw + 2, 7); u.rect(ctx, '#2a2030', bx + 36, 22, bw, 5);
+    u.rect(ctx, '#7fd0ff', bx + 36, 22, Math.round(bw * (lv >= MAXL ? 1 : lvCur() / LV_XP)), 5);
+    u.text(ctx, lv >= MAXL ? 'МАКСИМУМ!' : lvCur() + '/' + LV_XP + ' досвіду', bx + 36, 30, { size: 7, color: '#b4abb2' });
+  }
+  function tabs(ctx) {
+    const u = U(), lab = ['НАГОРОДИ', 'ЗАВДАННЯ'];
+    for (let i = 0; i < 2; i++) {
+      const r = tabR(i), on = S.tab === i;
+      u.rect(ctx, '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2); u.rect(ctx, on ? '#4f8a36' : 'rgba(44,32,56,0.95)', r.x, r.y, r.w, r.h);
+      u.text(ctx, lab[i], r.x + r.w / 2, r.y + 5, { size: 8, align: 'center', color: on ? '#fff8e0' : '#b4abb2' });
+      if (i === 0 && canClaim()) { const on2 = Math.sin(G.realTime * 6) > -0.3; u.rect(ctx, '#1a0e20', r.x + r.w - 9, r.y - 4, 9, 9); u.rect(ctx, on2 ? '#ff4a3a' : '#c8302a', r.x + r.w - 8, r.y - 3, 7, 7); u.rect(ctx, '#fff8e0', r.x + r.w - 5, r.y - 2, 1, 3); u.rect(ctx, '#fff8e0', r.x + r.w - 5, r.y + 2, 1, 1); }
+    }
+  }
+  function taskRow(ctx, x, y, w, t, xp) {
+    const u = U();
+    u.rect(ctx, '#120a18', x - 1, y - 1, w + 2, 26); u.rect(ctx, t.done ? 'rgba(40,60,40,0.95)' : 'rgba(40,30,52,0.95)', x, y, w, 24);
+    if (t.done) u.icon(ctx, 'check', x + 5, y + 4); else u.rect(ctx, '#6a6070', x + 5, y + 5, 6, 6);
+    let tx = t.text; while (tx.length > 6 && u.measure(tx, 8) > w - 70) tx = tx.slice(0, -2) + '…';
+    u.text(ctx, tx, x + 16, y + 3, { size: 8, color: t.done ? '#a8d890' : '#fbf6ea' });
+    const bw = w - 80, k = Math.min(1, t.cur / t.need);
+    u.rect(ctx, '#2a2030', x + 16, y + 15, bw, 4); u.rect(ctx, t.done ? '#93c25b' : '#7fd0ff', x + 16, y + 15, Math.round(bw * k), 4);
+    u.text(ctx, t.prog || (t.cur + '/' + t.need), x + 20 + bw, y + 13, { size: 7, color: '#b4abb2' });
+    u.text(ctx, '+' + xp, x + w - 6, y + 3, { size: 8, align: 'right', color: '#7fd0ff' });
+  }
+  function drawTasks(ctx) {
+    const u = U(), W = VW(), colW = Math.floor((W - 42) / 2), x0 = 14, x1 = 14 + colW + 14, y0 = 86;
+    u.text(ctx, 'ЩОДЕННІ', x0, y0 - 2, { size: 10, color: '#fde98f', shadow: true });
+    u.text(ctx, 'нові щодня', x0 + colW, y0, { size: 7, align: 'right', color: '#8c8494' });
+    const ds = (P() && P().challenges) ? P().challenges() : [];
+    ds.forEach((t, i) => taskRow(ctx, x0, y0 + 14 + i * 30, colW, t, XP.daily));
+    u.text(ctx, 'усі три — ще +' + XP.dailyAll, x0, y0 + 14 + 3 * 30 + 2, { size: 7, color: '#7fd0ff' });
+    u.text(ctx, 'ТИЖНЕВІ', x1, y0 - 2, { size: 10, color: '#fde98f', shadow: true });
+    u.text(ctx, 'нові через ' + weekDaysLeft() + ' дн.', x1 + colW, y0, { size: 7, align: 'right', color: '#8c8494' });
+    weekly().forEach((t, i) => taskRow(ctx, x1, y0 + 14 + i * 28, colW, t, XP.weekly));
+    u.text(ctx, 'Кожен забіг: +' + XP.run + ' досвіду, перемога — ще +' + XP.win, x0, VH() - 42, { size: 7, color: '#8c8494' });
+  }
+  function clickCard(L) {
+    const r = REW[L]; if (!r) return;
+    if (st.got.indexOf(L) >= 0) { if (r.k === 'pet') { G.pass.setPet(st.pet === r.id ? null : r.id); sfx('click'); toast(st.pet ? PETS[r.id].name + ' тепер з тобою' : 'Улюбленець відпочиває вдома', 1800); } return; }
+    if (L <= level()) { claim(L); return; }
+    sfx('click'); toast('Відкриється на ' + L + '-му рівні пасу', 1600);
+  }
+  G.scenes.pass = {
+    enter(prev) { S.t = 0; S.drag = null; S.back = prev === 'pass' ? S.back : 'menu'; ensureWeek(); let L = 1; for (let i = 1; i <= MAXL; i++) if (i <= level() && st.got.indexOf(i) < 0) { L = i; break; } if (L === 1 && !canClaim()) L = Math.min(MAXL, level() + 1); S.sel = L; focusOn(L); if (G.ui) G.ui.reset(); },
+    exit() {},
+    update(dt, realDt) {
+      S.t += realDt || dt;
+      const I = G.input, m = I.mouse, rd = realDt || dt;
+      if (I.pressed('pause')) { I.consume('pause'); sfx('click'); G.setState('menu'); return; }
+      if (m.clicked) {
+        if (U().inRect(m.x, m.y, backR())) { sfx('click'); G.setState('menu'); return; }
+        for (let i = 0; i < 2; i++) if (U().inRect(m.x, m.y, tabR(i))) { S.tab = i; sfx('click'); return; }
+        if (S.tab === 0 && canClaim() && U().inRect(m.x, m.y, allR())) { claimAll(); return; }
+      }
+      if (S.tab === 0) {
+        if (I.pressed('left')) { S.sel = Math.max(1, S.sel - 1); sfx('click'); }
+        if (I.pressed('right')) { S.sel = Math.min(MAXL, S.sel + 1); sfx('click'); }
+        if (I.pressed('confirm') || I.pressed('attack')) clickCard(S.sel);
+        // перетягування стрічки
+        const inTrack = m.y >= TY - 4 && m.y <= TY + CH + 16;
+        if (m.down && !S.drag && inTrack) S.drag = { x: m.x, moved: 0 };
+        if (S.drag) {
+          if (!m.down) {
+            if (S.drag.moved < 4) for (let L = 1; L <= MAXL; L++) { const x = cardX(L); if (m.x >= x && m.x < x + CW && m.y >= TY && m.y < TY + CH) { S.sel = L; clickCard(L); break; } }
+            S.drag = null;
+          } else { const dx = m.x - S.drag.x; S.drag.x = m.x; S.drag.moved += Math.abs(dx); S.scroll = Math.max(0, Math.min(maxScroll(), S.scroll - dx)); }
+        } else {
+          // тримати вибрану картку в кадрі
+          const x = cardX(S.sel);
+          if (x < 14) S.scroll = Math.max(0, S.scroll - Math.min(600 * rd, 14 - x));
+          else if (x + CW > VW() - 14) S.scroll = Math.min(maxScroll(), S.scroll + Math.min(600 * rd, x + CW - VW() + 14));
+        }
+      } else if (I.pressed('left') || I.pressed('right')) { S.tab = 0; sfx('click'); }
+    },
+    draw(ctx) {
+      const u = U(), W = VW(), H = VH();
+      u.rect(ctx, '#211830', 0, 0, W, H);
+      for (let y = 54; y < H; y += 8) u.rect(ctx, 'rgba(140,200,255,0.025)', 0, y, W, 4);
+      // сніг
+      for (let i = 0; i < 40; i++) { const sx = (i * 97 + S.t * (12 + i % 5 * 4)) % W, sy = (i * 53 + S.t * (18 + i % 7 * 3)) % H; u.rect(ctx, 'rgba(255,255,255,0.25)', Math.round(sx), Math.round(sy), 1, 1); }
+      header(ctx); tabs(ctx);
+      if (S.tab === 0) {
+        for (let L = 1; L <= MAXL; L++) drawCard(ctx, L);
+        drawTrackLine(ctx);
+        u.text(ctx, G.touch && G.touch.active ? 'Гортай пальцем · торкнись картки' : '← → — гортати · Enter — забрати · можна тягнути мишкою', W / 2, TY + CH + 20, { size: 7, align: 'center', color: 'rgba(255,255,255,0.45)' });
+        if (canClaim()) { const r = allR(), p2 = 0.5 + 0.5 * Math.sin(G.realTime * 5); u.rect(ctx, '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2); u.rect(ctx, p2 > 0.5 ? '#6fb04a' : '#5a9a3c', r.x, r.y, r.w, r.h); u.text(ctx, 'ЗАБРАТИ ВСЕ', r.x + r.w / 2, r.y + 6, { size: 8, align: 'center', color: '#fff8e0' }); }
+      } else drawTasks(ctx);
+      u.button(ctx, backR(), 'Назад', false, { size: 8 });
+      G.ui.drawOverlay && G.ui.drawOverlay(ctx);
+    },
+  };
+})();
+
+
 /* ===== 80_progress.js ===== */
 // 80_progress.js — progression
 // Збереження (v2), лічильник втеч, 14 скінів з умовами і бонусами, кампанія з 15 місій (дані й логіка кроків —
@@ -30664,6 +31147,7 @@
   function chalEvent(kind, n, abs) {
     ensureChal();
     if (n == null) n = 1;
+    try { G.events.emit('chal:event', { kind, n, abs: !!abs }); } catch (e) { /* */ } // 76_pass: тижневі завдання сезону
     let changed = false;
     for (const c of D.chal.list) {
       const d = CHAL_BY_ID[c.id];
@@ -30823,6 +31307,9 @@
     get maxDay() { return D.maxDay; },
     get equipped() { return D.equipped; },
     // ── Round 33: одяг героя ──
+    // 76_pass: одяг у подарунок (нагорода сезону) → true, якщо видано
+    grantAcc(id) { const a = ACC_BY_ID[id]; if (!a || this.accOwned(id)) return false; D.acc.own.push(id); persist(); return true; },
+    accInfo(id) { const a = ACC_BY_ID[id]; return a ? { id: a.id, slot: a.slot, name: a.name } : null; },
     accOwned(id) { const a = ACC_BY_ID[id]; return !!a && (a.price === 0 || D.acc.own.indexOf(id) >= 0); },
     outfit() { const o = {}; for (const sl of ['hat', 'beard', 'top']) o[sl] = D.acc[sl] || accDefault(sl); return o; },
     accItems(slot) {
