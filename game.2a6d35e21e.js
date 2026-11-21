@@ -24637,7 +24637,7 @@
   const PASS_R = () => { const x0 = MENU_X + MENU_W + 10, x1 = VW() - 8 - 84 - 6; return { x: x0, y: 27, w: x1 - x0, h: 38 }; };
   const LOOK_R = () => { const p = POD(), w = 96; return { x: p.cx - w / 2, y: p.feet + 25, w, h: 15 }; };
   const H3 = { ang: 0.08, vel: 0, drag: null, idle: 0, jump: 0, jumpV: 0, lastLvl: 0 };
-  function heroSkin() { const P = G.progress; return (G.heroes && G.heroes.skinFor && G.heroes.cur ? G.heroes.skinFor(G.heroes.cur) : null) || (P && P.equipped) || 'office'; }
+  function heroSkin() { const P = G.progress; return (G.heroes && G.heroes.skinFor ? G.heroes.skinFor((P && P.heroSel) || 'andriy') : null) || (P && P.equipped) || 'office'; }
   function heroUpdate(dt) {
     const m = G.input.mouse, R = HERO_R();
     if (m.down && !H3.drag && U.inRect(m.x, m.y, R) && !M.pop) H3.drag = { x: m.x, moved: 0 };
@@ -25241,7 +25241,11 @@
       return;
     }
     if (WTABS[WD.tab].id === 'skins') {
-      if (it.unlocked) { if (P.equip && P.equip(it.id)) click('pickup'); return; }
+      if (it.unlocked) {
+        if (P.equip && P.equip(it.id)) click('pickup');
+        if (P.heroSel && P.heroSel !== 'andriy' && P.selectHero && P.selectHero('andriy')) wdMsg('Скін — для Андрія. Тепер граєш Андрієм');
+        return;
+      }
       if (!it.price) { click('click'); wdMsg('Цей скін лише за умову'); return; }
       const r = P.buySkin ? P.buySkin(it.id) : 'Нема';
       if (r === true) { click('unlock'); WD.flash = 0.6; wdMsg('Куплено: ' + (it.realName || it.name) + '!'); if (P.equip) P.equip(it.id); }
@@ -25357,7 +25361,10 @@
       U.text(ctx, WTABS[i].label, r.x + r.w / 2, r.y + 3, { size: 8, align: 'center', color: on ? '#fff8e0' : '#b4abb2' });
     }
     if (tabId === 'pets') { drawPetsTab(ctx); return; }
-    const list = wdList(), eq = equipped(), t = WD.t;
+    const list = wdList(), t = WD.t, eqSkin = equipped();
+    const own = !isSkins && G.outfit && G.outfit.ownLook && G.outfit.ownLook(eqSkin);
+    const eq = own ? 'office' : eqSkin; // на скіни пасу одяг не одягається — показуємо на звичайному
+    if (own) { U.text(ctx, 'Одяг — лише на звичайні скіни,', VW() - 8, 6, { size: 7, align: 'right', color: '#ef8a3b' }); U.text(ctx, 'на скіни пасу не одягається', VW() - 8, 15, { size: 7, align: 'right', color: '#ef8a3b' }); }
     const dirs = ['down', 'left', 'up', 'right'];
     for (let i = 0; i < list.length; i++) {
       const it = list[i], r = cellRect(i), sel = i === WD.sel && WD.focus === 'grid';
@@ -38855,6 +38862,7 @@
   };
 
   const OWN_LOOK = { president: 1, kozak: 1, cyber: 1, hero: 1, molfar: 1, mykolai: 1 };
+  O.ownLook = (id) => !!OWN_LOOK[id]; // скіни пасу — одяг з гардеробу на них не одягається
   const cache = new WeakMap();
   const origGet = G.sprites.get.bind(G.sprites);
   G.sprites.get = function (key, opts) {
