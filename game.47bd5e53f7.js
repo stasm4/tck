@@ -8050,7 +8050,7 @@
 
   const LOOKAHEAD = 0.2;   // сек: наскільки наперед плануємо ноти
   const FADE = 1.0;        // сек: кросфейд треків
-  const SFX_MAX = { shahed: 2, siren: 1, all_clear: 1, vibrate: 1, step: 2, type: 2, brakes: 2, horn: 2, hit: 2, shout: 2, pickup: 2, whistle_fab: 1, unlock: 1, explosion: 2 };
+  const SFX_MAX = { shahed: 2, siren: 1, all_clear: 1, vibrate: 1, step: 2, type: 2, brakes: 2, horn: 2, hit: 2, shout: 2, pickup: 2, whistle_fab: 1, unlock: 1, explosion: 2, shahed_dive: 1 };
   const SFX_MAX_DEFAULT = 3;
 
   let ac = null;           // AudioContext
@@ -8689,8 +8689,8 @@
       const near = o.near ? 1 : 0, rate = 0.86 + Math.random() * 0.18;
       const src = ac.createBufferSource(); src.buffer = warRec; src.playbackRate.value = rate;
       const len = (WAR.boomB - WAR.boomA) / rate;
-      const lp = filt('lowpass', near ? 5200 : 1500 + Math.random() * 900, 0.6), g = gain(near ? 1.0 : 0.85);
-      const dry = gain(0.85), wet = gain(near ? 0.35 : 0.5), rv = ac.createConvolver(); rv.buffer = streetIR();
+      const far = o.far == null ? 0.5 : o.far, lp = filt('lowpass', near ? 5200 : 700 + 2200 * (1 - far) + Math.random() * 500, 0.6), g = gain(near ? 1.0 : 0.85);
+      const dry = gain(0.85 - 0.25 * far), wet = gain(near ? 0.35 : 0.4 + 0.3 * far), rv = ac.createConvolver(); rv.buffer = streetIR();
       chain(src, lp, g); g.connect(dry); g.connect(rv); rv.connect(wet); dry.connect(v.out); wet.connect(v.out);
       src.start(t, WAR.boomA); src.stop(t + len);
       const n = noise(t + 0.05, 4), nf = filt('lowpass', 160, 0.6), ng = gain(0);   // низький гул, що довго стихає
@@ -8703,8 +8703,8 @@
     b.frequency.exponentialRampToValueAtTime(24, t + 1.2);
     envAD(bg.gain, t, 0.9, 0.02, 1.6);
     chain(b, bg, v.out);
-    const n = noise(t, 3.4), nf = filt('lowpass', 420, 0.6), ng = gain(0);
-    nf.frequency.setValueAtTime(420, t); nf.frequency.exponentialRampToValueAtTime(70, t + 2.8);
+    const far2 = o.far == null ? 0.5 : o.far, n = noise(t, 3.4), nf = filt('lowpass', 260 + 420 * (1 - far2), 0.6), ng = gain(0);
+    nf.frequency.setValueAtTime(260 + 420 * (1 - far2), t); nf.frequency.exponentialRampToValueAtTime(70, t + 2.8);
     envAD(ng.gain, t, 0.8, 0.03, 3.0);
     chain(n, nf, ng, v.out);
     // відлуння між будинками
@@ -8716,11 +8716,12 @@
     return 3.5;
   };
   // далека кулеметна черга (мобільна вогнева група): 6–12 глухих пострілів
-  R.distant_gun = (v, t) => {
+  R.distant_gun = (v, t, o) => {
+    const far = o && o.far != null ? o.far : 0.5; // 0 — стріляють за рогом (дзвінко), 1 — через пів міста (глухо)
     const N = 6 + Math.floor(Math.random() * 7), gap = 0.085 + Math.random() * 0.03;
     for (let i = 0; i < N; i++) {
       const tt = t + i * gap + Math.random() * 0.012;
-      const n = noise(tt, 0.12), f = filt('bandpass', 520 + Math.random() * 160, 1.1), g = gain(0);
+      const n = noise(tt, 0.12), f = filt('bandpass', 300 + 700 * (1 - far) + Math.random() * 160, 1.1), g = gain(0);
       envAD(g.gain, tt, 0.55, 0.002, 0.1);
       chain(n, f, g, v.out);
       const lo = osc('sine', 90, tt), lg = gain(0);
@@ -8762,7 +8763,7 @@
     env.gain.exponentialRampToValueAtTime(0.75 * near, tp);
     env.gain.exponentialRampToValueAtTime(0.06 * near, tp + (te - tp) * 0.65);
     env.gain.exponentialRampToValueAtTime(0.0001, te);
-    lp.frequency.setValueAtTime(700, t); lp.frequency.exponentialRampToValueAtTime(9000, tp); lp.frequency.exponentialRampToValueAtTime(600, te);
+    lp.frequency.setValueAtTime(700, t); lp.frequency.exponentialRampToValueAtTime(1800 + 7200 * Math.min(1, near), tp); lp.frequency.exponentialRampToValueAtTime(600, te); // далекий — глухий
     if (pan) { const p0 = o.pan == null ? -0.8 : o.pan; pan.pan.setValueAtTime(p0, t); pan.pan.linearRampToValueAtTime(-p0, te); }
     const dl = ac.createDelay(0.05), dg = gain(0.45);                // відбиття від землі → «шурхіт» при прольоті
     dl.delayTime.setValueAtTime(0.02, t); dl.delayTime.linearRampToValueAtTime(0.003, tp); dl.delayTime.linearRampToValueAtTime(0.022, te);
@@ -8784,7 +8785,7 @@
     env.gain.exponentialRampToValueAtTime(0.5 * near, tp);
     env.gain.exponentialRampToValueAtTime(0.05 * near, tp + (te - tp) * 0.65);
     env.gain.exponentialRampToValueAtTime(0.0001, te);
-    lp.frequency.setValueAtTime(450, t); lp.frequency.exponentialRampToValueAtTime(5200, tp); lp.frequency.exponentialRampToValueAtTime(380, te);
+    lp.frequency.setValueAtTime(450, t); lp.frequency.exponentialRampToValueAtTime(1400 + 3800 * Math.min(1, near), tp); lp.frequency.exponentialRampToValueAtTime(380, te);
     if (pan) { const p0 = o.pan == null ? -0.8 : o.pan; pan.pan.setValueAtTime(p0, t); pan.pan.linearRampToValueAtTime(-p0, te); }
     // частота з Доплером (+4% на підльоті → −5% після) і «плаванням» обертів
     const fq = (base, x) => { x.frequency.setValueAtTime(base * 1.04, t); x.frequency.linearRampToValueAtTime(base * 1.035, tp - 0.7); x.frequency.linearRampToValueAtTime(base * 0.955, tp + 1.0); x.frequency.linearRampToValueAtTime(base * 0.95, te); };
@@ -8811,6 +8812,44 @@
     return D + 0.1;
   };
   // поліцейська сирена (не тривога!): спершу «вау-вау» (wail ~650↔1450 Гц), далі швидке «yelp»; гучномовець — вузька смуга, легке перевантаження
+  // ── шахед пікірує (82_missions, прильот): мотор виходить на максимальні оберти (виття стає вищим і злішим),
+  // наростає свист повітря на крилах, гучність росте до самого удару, тоді — обрив (удар грає 'impact').
+  // o: {dur} — скільки триває піке до влучання
+  R.shahed_dive = (v, t, o) => {
+    o = o || {};
+    const D = Math.max(1.2, o.dur || 2.2), te = t + D;
+    const out = gain(1), comp = ac.createDynamicsCompressor ? ac.createDynamicsCompressor() : null;
+    if (comp) { comp.threshold.value = -14; comp.ratio.value = 4; chain(out, comp, v.out); v.add(comp); } else chain(out, v.out);
+    // 1) мотор: оберти ростуть (Доплер + газ) — з запису, якщо є, інакше синтез
+    const eg = gain(0); eg.gain.setValueAtTime(0.12, t); eg.gain.exponentialRampToValueAtTime(0.55, t + D * 0.6); eg.gain.exponentialRampToValueAtTime(0.95, te);
+    const elp = filt('lowpass', 1400, 0.7); elp.frequency.setValueAtTime(1400, t); elp.frequency.exponentialRampToValueAtTime(9000, te);
+    chain(elp, eg, out); v.add(eg, elp);
+    if (warLoop) {
+      const src = ac.createBufferSource(); src.buffer = warLoop; src.loop = true;
+      src.playbackRate.setValueAtTime(1.0, t); src.playbackRate.linearRampToValueAtTime(1.12, t + D * 0.5); src.playbackRate.exponentialRampToValueAtTime(1.42, te);
+      chain(src, elp); src.start(t, Math.random() * warLoop.duration); src.stop(te + 0.05); v.add(src);
+    } else {
+      const f0 = 118, eng = ac.createOscillator(), w = shahedWave();
+      if (w) eng.setPeriodicWave(w); else eng.type = 'sawtooth';
+      eng.frequency.setValueAtTime(f0, t); eng.frequency.linearRampToValueAtTime(f0 * 1.12, t + D * 0.5); eng.frequency.exponentialRampToValueAtTime(f0 * 1.45, te);
+      const prop = osc('triangle', f0 * 2, t); prop.frequency.linearRampToValueAtTime(f0 * 2.25, t + D * 0.5); prop.frequency.exponentialRampToValueAtTime(f0 * 2.9, te);
+      const pg = gain(0.18); chain(prop, pg, elp); chain(eng, elp); eng.start(t);
+      eng.stop(te + 0.05); prop.stop(te + 0.05); v.add(eng, prop, pg);
+    }
+    // 2) свист: високий тон, що повзе вгору й «пливе», двома трохи розстроєними голосами (биття)
+    const wg = gain(0); wg.gain.setValueAtTime(0.0001, t); wg.gain.exponentialRampToValueAtTime(0.05, t + D * 0.35); wg.gain.exponentialRampToValueAtTime(0.32, te - 0.02); wg.gain.linearRampToValueAtTime(0, te + 0.02);
+    const w1 = osc('sine', 820, t), w2 = osc('sine', 834, t);
+    for (const [x, k] of [[w1, 1], [w2, 1.017]]) { x.frequency.setValueAtTime(820 * k, t); x.frequency.exponentialRampToValueAtTime(1350 * k, t + D * 0.6); x.frequency.exponentialRampToValueAtTime(2150 * k, te); }
+    const vib = osc('sine', 5.5, t), vg = gain(22); chain(vib, vg, w1.frequency); vib.frequency.linearRampToValueAtTime(9, te);
+    chain(w1, wg); chain(w2, wg); chain(wg, out);
+    w1.stop(te + 0.05); w2.stop(te + 0.05); vib.stop(te + 0.05); v.add(wg, w1, w2, vib, vg);
+    // 3) шум повітря: ревучий потік, смуга рухається вгору
+    const n = noise(t, D + 0.05), nf = filt('bandpass', 700, 1.4), ng = gain(0);
+    nf.frequency.setValueAtTime(700, t); nf.frequency.exponentialRampToValueAtTime(2600, te);
+    ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(0.06, t + D * 0.4); ng.gain.exponentialRampToValueAtTime(0.4, te - 0.02); ng.gain.linearRampToValueAtTime(0, te + 0.02);
+    chain(n, nf, ng, out); v.add(n, nf, ng, out);
+    return D + 0.08;
+  };
   R.police_siren = (v, t, o) => {
     o = o || {};
     const D = Math.max(1.5, o.dur || 4), te = t + D;
@@ -13778,6 +13817,18 @@
       g.imageSmoothingEnabled = true;
       if (l.hy != null) { if (lq >= 1) spot(g, gw, cx, l.hy + 18, 64, 64, 0.5 * a); spot(g, gh, cx, l.hy + 2, 30, 26, 0.75 * a); }
     }
+    // динамічні вогні (прильоти, пожежі): L.fires = [{x, y, r, a, until}] — тепле мерехтливе світло, видно навіть уночі в блекаут
+    if (L.fires.length) {
+      const fw = glow('#ff8a30', true), fh = glow('#ffd090'), now = G.realTime || 0;
+      L.fires = L.fires.filter((f) => !f.until || f.until > now);
+      for (const f of L.fires) {
+        if (f.x < x0 - f.r || f.x > x1 + f.r || f.y < y0 - f.r || f.y > y1 + f.r) continue;
+        const fl = 0.82 + 0.18 * Math.sin(rt * 11 + f.x) * Math.sin(rt * 7.3 + f.y), A = (typeof f.a === 'function' ? f.a() : f.a) * fl;
+        if (A <= 0.02) continue;
+        spot(g, fw, f.x, f.y, f.r * 2, f.r * 1.6, Math.min(1, A));
+        spot(g, fh, f.x, f.y, f.r * 0.8, f.r * 0.7, Math.min(1, A * 0.9));
+      }
+    }
     // вітрини: сама вітрина освітлена (видно товар усередині) + прямокутна тепла смуга світла на тротуар
     const sf = shopFronts(r), spill = rectGlow('#ffdcaa', 'spill'), flat = rectGlow('#fff0d8', 'flat');
     for (const f of sf) {
@@ -14278,7 +14329,7 @@
     ctx.restore();
   }
   const L = G.lighting = {
-    ultraPost,
+    ultraPost, fires: [],
     enabled: true, sun, drawShadows, post, grade, glow, cone,
     night: 0, phase: 'day', blackout: 0,
     powerOff, generator, powerLevel,
@@ -14290,7 +14341,7 @@
     // оновити кеш пори доби/відключення без малювання (для логіки інших модулів)
     tick() { const S = sun(); L.night = S.night; L.phase = S.phase; L.blackout = 1 - powerLevel(0); return S; },
   };
-  if (G.events) G.events.on('run:start', () => {
+  if (G.events) G.events.on('run:start', () => { L.fires = [];
     gens = null; bwCache.clear(); L.tick();
     try { for (const l of allLamps()) if (l.virt === 'park') G.addEntity(new ParkLamp(l)); } catch (e) { console.error('park lamps', e); }
   });
@@ -34847,7 +34898,7 @@
     R.list = R.list.filter((f) => f.kind === 'shahed' ? (!f.gone && f.t < 45 && (f.t < f.life || shOnScreen(f))) : f.t < (f.kind === 'mg' ? 2.8 : 5.5));
     // рідко: шахед не збили — він пікірує в будинок поруч
     for (const f of R.list) if (f.kind === 'shahed' && f.dive && !f.down && !f.gone && f.t >= f.dive && !S.strikeOn) {
-      const pos = shWorld(f), b = pickStrikeBuilding(110, 260);
+      const pos = shWorld(f), b = pickStrikeBuilding(110, 260) || (f.must ? (pickStrikeBuilding(40, 260, null, true) || pickStrikeBuilding(40, 300) || pickStrikeBuilding(40, 320, null, 'any')) : null);
       if (b) { f.gone = true; if (G.audio && G.audio.stopSfx) G.audio.stopSfx('shahed', 0.3); startStrike(b, pos); } else f.dive = f.t + 1.5;
     }
     for (const f of R.list) if (f.kind === 'shahed' && f.downAt && !f.down && f.t >= f.downAt) { // збили
@@ -34858,7 +34909,12 @@
     }
     if (e.t < R.next || e.dur - e.t < 3) return;
     R.next = e.t + 1.1 + Math.random() * 2.2;          // пауза 1.1–3.3 с: Київ — вибухи й постріли весь час тривоги
-    const A = G.audio, snd = (name, ms, vol) => { if (A && A.sfx) G.after(ms, () => { if (S && S.ev.air_raid) A.sfx(name, { vol }); }, {}); };
+    // far 0..1: що далі — то тихіше, глухіше і пізніше доходить звук (у Києві щось гримить через пів міста, а щось — за рогом)
+    const A = G.audio, snd = (name, ms, vol, far) => {
+      if (far == null) far = Math.random();
+      const v = vol * (0.22 + 0.9 * Math.pow(1 - far, 1.4));
+      if (A && A.sfx) G.after(ms + far * 1400, () => { if (S && S.ev.air_raid) A.sfx(name, { vol: Math.min(1.1, v), far, near: far < 0.15 }); }, {});
+    };
     const roll = Math.random();
     if (roll < 0.3 && !R.list.some((q) => q.kind === 'shahed' && !q.down)) { shahedEpisode(R, snd); return; } // шахед: гул мопеда, силует у небі, ППО — іноді збиває
     if (roll < 0.6) {                                  // збиття: спалах, іскри, дим, потім глухий вибух
@@ -34892,15 +34948,28 @@
   function shWorld(f) { const p = shScreen(f), r = G.camera.rect(); return { x: r.x + p.x * r.w / G.cfg.VIEW_W, y: r.y + p.y * r.h / G.cfg.VIEW_H }; }
   // будинок для прильоту: фасад видно (обличчям до камери), перед героєм/камерою, на відстані minD..maxD
   const STRIKE_KIND = { panel: 1, khrush: 1, shop: 1, office: 1, tower: 1, np: 1, atb: 1 };
-  function pickStrikeBuilding(minD, maxD, from) {
+  // усі прильоти, що вже були (будинок лишається пошкодженим у наступних місіях і режимах): [{i, n}], n — номер місії (0 — режим)
+  function strikeList() { try { const a = JSON.parse(localStorage.getItem('tck_strikes') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function hitBefore(i) {
+    if (strikeList().some((q) => q.i === i)) return true;
+    try { const v = JSON.parse(localStorage.getItem('tck_strike') || 'null'); return !!(v && v.i === i); } catch (e) { return false; }
+  }
+  function addStrike(i) {
+    const a = strikeList().filter((q) => q.i !== i);
+    a.push({ i, n: S.n || 0 });
+    while (a.length > 5) a.shift();
+    try { localStorage.setItem('tck_strikes', JSON.stringify(a)); } catch (e) { /* */ }
+  }
+  function pickStrikeBuilding(minD, maxD, from, loose) {
     const W = G.world, p = from || G.player; if (!W || !W.buildings || !p) return null;
     const T = G.cfg.TILE, r = G.camera.rect();
     let best = null, bs = 1e9;
     W.buildings.forEach((b, i) => {
-      if (!STRIKE_KIND[b.kind] || b.face !== 's' || b.w < 4) return;
+      if (!STRIKE_KIND[b.kind] || b.face !== 's' || b.w < 4 || hitBefore(i)) return;
       const fx = (b.x + b.w / 2) * T, fy = (b.y + b.h) * T, d = Math.hypot(fx - p.x, fy - p.y), top = fy - Math.max(2, b.fh || 3) * T * 0.8;
       if (d < minD || d > maxD || (from && fy > p.y + 20)) return;
-      if (!from && (fx < r.x + 20 || fx > r.x + r.w - 20 || top < r.y - 60 || fy > r.y + r.h - 20)) return; // поруч із кадром (камера сама подивиться)
+      if (loose === true && (fy > p.y + 10 || p.y - fy > 150 || Math.abs(fx - p.x) > 150)) return; // сценарний: будинок попереду героя, щоб прильот було видно
+      if (!from && !loose && (fx < r.x + 20 || fx > r.x + r.w - 20 || top < r.y - 60 || fy > r.y + r.h - 20)) return; // поруч із кадром (камера сама подивиться)
       const sc = Math.abs(d - 90) + Math.abs(fx - p.x) * 0.4;
       if (sc < bs) { bs = sc; best = Object.assign({ _i: i }, b); best.ref = b; }
     });
@@ -34913,13 +34982,13 @@
       super((b.x + b.w / 2) * T, yb + 2, 2, 2, 'decor'); this.body = 'manual'; this.cam = null;
       this.b = b; this.ix = this.x + (Math.random() - 0.5) * Math.max(0, b.w * T - 48); this.iy = yb - fh * T * 0.65;
       const side = Math.random() < 0.5 ? -1 : 1;
-      this.fx = from ? from.x : this.ix + side * 150; this.fy = from ? from.y : this.iy - 230; this.t = 0; this.D = 2.0; this.hit = false; this.parts = []; this.smoke = [];
+      this.fx = from ? from.x : this.ix + side * 150; this.fy = from ? from.y : this.iy - 230; this.t = 0; this.D = from ? 2.6 : 2.2; this.hit = false; this.parts = []; this.smoke = [];
     }
     update(dt) {
       this.t += dt;
       const p0 = G.player;
       if (p0 && G.camera) { // камера плавно дивиться на прильот (і герой у кадрі), потім повертається
-        if (this.t < this.D + 2.2) {
+        if (this.t < this.D + 3.2) {
           if (!this.cam) { this.cam = { x: G.camera.x, y: G.camera.y, kind: 'cam' }; this.prevT = G.camera.target; G.camera.follow(this.cam); }
           const tx = (p0.x + this.ix) / 2, ty = (p0.y + this.iy) / 2, k = 1 - Math.exp(-3 * dt);
           this.cam.x += (tx - this.cam.x) * k; this.cam.y += (ty - this.cam.y) * k;
@@ -34930,10 +34999,15 @@
         S.boomFlash = 0.5;
         if (G.camera && G.camera.shake) G.camera.shake(12, 1100);
         if (G.slowmo) G.slowmo(0.45, 450);
-        if (G.audio) { G.audio.stopSfx && G.audio.stopSfx('shahed', 0.03); G.audio.sfx && G.audio.sfx('impact', { vol: 1 }); G.audio.sfx && G.audio.sfx('explosion', { x: this.ix, y: this.iy, vol: 1 }); }
+        if (G.audio) { G.audio.stopSfx && G.audio.stopSfx('shahed', 0.03); G.audio.stopSfx && G.audio.stopSfx('shahed_dive', 0.02); G.audio.sfx && G.audio.sfx('impact', { vol: 1 }); G.audio.sfx && G.audio.sfx('explosion', { x: this.ix, y: this.iy, vol: 1 }); }
         for (let i = 0; i < 46; i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 3.0, v = 70 + Math.random() * 200; this.parts.push({ x: this.ix, y: this.iy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 1 + Math.random() * 1.4, c: ['#6a625c', '#8a817a', '#4a4440', '#ffb030', '#e8e0d8', '#ff6a1a'][i % 6], s: 1 + (i % 3), spark: i % 6 >= 3 }); }
         for (let i = 0; i < 14; i++) this.smoke.push({ x: this.ix + (Math.random() - 0.5) * 20, y: this.iy, vx: (Math.random() - 0.5) * 30, vy: -25 - Math.random() * 45, r: 6 + Math.random() * 8, t: 0, life: 2.4 + Math.random() * 1.5 });
         if (G.kyivScenes && G.kyivScenes.strikeSite) G.kyivScenes.strikeSite(this.b.ref || this.b, 'burning', this.ix);
+        if (G.lighting && G.lighting.fires) { // світло: спалах вибуху (гасне за ~1 с) і пожежа, що світить до кінця забігу
+          const t0 = G.realTime || 0, ix = this.ix, iy = this.iy;
+          G.lighting.fires.push({ x: ix, y: iy + 10, r: 260, a: () => Math.max(0, 1.4 * (1 - ((G.realTime || 0) - t0) / 1.1)), until: t0 + 1.2 });
+          G.lighting.fires.push({ x: ix, y: iy + 14, r: 110, a: () => Math.min(0.85, ((G.realTime || 0) - t0) * 0.8 + 0.4) });
+        }
         const p = G.player, bd = p ? Math.hypot(p.x - this.ix, p.y - (this.iy + 30)) : 1e9;
         if (p && bd < 120 && p.hurt && !p.caught) { // вибухова хвиля: що ближче — то сильніше
           const dmg = Math.round(8 + 22 * Math.max(0, 1 - bd / 120)), inv = p.invuln; p.invuln = 0;
@@ -34992,8 +35066,10 @@
     S.strikeOn = true;
     const fx = new StrikeFx(b, from);
     G.addEntity(fx); S.ents.push(fx);
-    try { localStorage.setItem('tck_strike', JSON.stringify({ i: b._i })); } catch (e) { /* */ }
-    if (!from && G.audio && G.audio.sfx) G.audio.sfx('shahed', { vol: 1, dur: 2.1, peak: 0.95, pan: 0 });
+    if (S.n === 25) { try { localStorage.setItem('tck_strike', JSON.stringify({ i: b._i })); } catch (e) { /* */ } } // будинок місії 25 → наслідки в 26-й
+    else if (b._i != null) addStrike(b._i);
+    // піке: мотор на максимумі обертів + свист, гучнішає до самого удару
+    if (G.audio && G.audio.sfx) G.audio.sfx('shahed_dive', { vol: 1, dur: fx.D });
   }
   // місія 26: наслідки вчорашнього прильоту на тому самому будинку (або біля метро «Хрещатик», якщо 25-ту не грали)
   function hasStrike() { try { return !!localStorage.getItem('tck_strike'); } catch (e) { return false; } }
@@ -35008,33 +35084,50 @@
     const front = G.kyivScenes.strikeSite(b, mode || 'aftermath');
     if (front) { POI.strike_site.t = [Math.floor(front.x / T), Math.floor((front.y + 6) / T)]; delete poiCache.strike_site; }
   }
-  // місія 25: сценарний прильот перед героєм під час тривоги
+  // будинки інших прильотів (місія 13, випадкові пікірування): у пізніших місіях і в режимах — на ремонті
+  function setupOtherSites() {
+    const W = G.world; if (!W || !W.buildings || !G.kyivScenes || !G.kyivScenes.strikeSite) return;
+    let main = -1; try { const v = JSON.parse(localStorage.getItem('tck_strike') || 'null'); if (v) main = v.i; } catch (e) { /* */ }
+    for (const q of strikeList()) {
+      if (q.i === main) continue;
+      if (!(S.mode || (q.n > 0 && S.n > q.n))) continue;
+      const b = W.buildings[q.i];
+      if (b && STRIKE_KIND[b.kind] && b.face === 's') G.kyivScenes.strikeSite(b, 'repair');
+    }
+  }
+  // місія 25: сценарний прильот перед героєм під час тривоги; місія 13 («Тривожний четвер») — шахед летить через нічне
+  // небо і пікірує в будинок неподалік
   function updateStrike() {
     if (S && !S.siteDone) {
+      setupOtherSites();
       if (S.n === 26) setupAftermath('aftermath');
       else if (S.n >= 27 || (S.mode && hasStrike())) setupAftermath('repair');
       else S.siteDone = true;
     }
     if (!S || S.strikeOn) return;
     if (S.n === 25 && S.ev.air_raid && S.t > 3.5) { const b = pickStrikeBuilding(30, 220); if (b) startStrike(b); }
+    if (S.n === 13 && S.ev.air_raid && S.ev.air_raid.t > 2.5 && S.rfx && !S.m13) { S.m13 = true; shahedEpisode(S.rfx, () => {}, true); }
   }
   // шахед летить через небо (екранні частки): звук починається раніше, ніж його видно; 50% — мобільна група
   // відкриває вогонь трасерами в його бік і збиває (спалах, вибух), інакше пролітає і гул стихає
-  function shahedEpisode(R, snd) {
-    const dirR = Math.random() < 0.5, SPAN = 9 + Math.random() * 3, lead = 3.2;
+  function shahedEpisode(R, snd, must) {
+    const dirR = Math.random() < 0.5, SPAN = 9 + Math.random() * 3, lead = must ? 2.2 : 3.2;
     const y = 0.1 + Math.random() * 0.28, vx = (dirR ? 1 : -1) * 1.25 / SPAN;
     const x0 = (dirR ? -0.12 : 1.12) - vx * lead;
     const f = { kind: 'shahed', t: 0, x0, y, vx, life: lead + SPAN, dir: dirR ? 1 : -1 };
-    if (Math.random() < 0.12 && !S.strikeOn) f.dive = lead + SPAN * (0.3 + Math.random() * 0.25); // рідкісний прильот у будинок
+    if (must) { f.dive = lead + SPAN * 0.28; f.must = true; f.y = 0.12 + Math.random() * 0.1; }    // сценарний прильот (місія 13)
+    else if (Math.random() < 0.12 && !S.strikeOn) f.dive = lead + SPAN * (0.3 + Math.random() * 0.25); // рідкісний прильот у будинок
     else if (Math.random() < 0.5) {
       f.downAt = lead + SPAN * (0.35 + Math.random() * 0.3);
       const xs = x0 + vx * f.downAt;
       R.list.push(mgShot(xs, y, -(f.downAt - 1.7)));
-      snd('distant_gun', (f.downAt - 1.5) * 1000, 0.6);
-      snd('distant_gun', (f.downAt - 0.6) * 1000, 0.55);
+      snd('distant_gun', (f.downAt - 1.8) * 1000, 0.7, 0.2);   // мобільна група поруч — чути ближче
+      snd('distant_gun', (f.downAt - 0.9) * 1000, 0.65, 0.2);
     }
     R.list.push(f);
-    if (G.audio && G.audio.sfx) G.audio.sfx('shahed', { vol: 0.9, dur: f.downAt ? f.downAt + 0.2 : lead + SPAN + 2, peak: f.downAt ? 0.92 : (lead + SPAN * 0.5) / (lead + SPAN + 2), pan: dirR ? -0.8 : 0.8 });
+    // хтось летить просто над головою (гучно, дзвінко), а хтось — над сусіднім районом (тихо, глухо)
+    const near = f.dive ? 1 : Math.random() < 0.3 ? 0.85 + Math.random() * 0.15 : 0.2 + Math.random() * 0.45;
+    if (G.audio && G.audio.sfx) G.audio.sfx('shahed', { vol: 0.9, near, dur: f.downAt ? f.downAt + 0.2 : lead + SPAN + 2, peak: f.downAt ? 0.92 : (lead + SPAN * 0.5) / (lead + SPAN + 2), pan: dirR ? -0.8 : 0.8 });
   }
   // шахед знизу (як на фото): бежеве дельта-крило з рисками, циліндричний світлий ніс, кілі на кінцях крил,
   // мотор із гвинтом позаду. Спрайт 30×21 (ніс праворуч), кеш денної та нічної палітри; dir −1 — дзеркально.
