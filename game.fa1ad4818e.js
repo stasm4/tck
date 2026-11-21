@@ -14773,21 +14773,30 @@
         }
         ctx.restore();
       })));
-      // 2) уламки біля фасаду + вирва перед будинком
+      // 2) земля під фасадом: закопчена пляма, розкидані уламки бетону й цегли, арматура, скло, тліючі шматки
+      // (шахед влучив у стіну — ями нема, є те, що вилетіло з будинку)
+      const debris = [];
+      for (let i = 0; i < 70; i++) {
+        const a = Math.PI * (0.05 + 0.9 * hsh(i, 41, seed)), d = 6 + Math.pow(hsh(i, 42, seed), 1.6) * (burning ? 70 : 34);
+        debris.push({ x: cx + Math.cos(a) * d * 1.4 * (hsh(i, 43, seed) < 0.5 ? -1 : 1), y: yb + 2 + Math.sin(a) * d * 0.55, w: 1 + Math.floor(hsh(i, 44, seed) * (d < 25 ? 5 : 3)), h: 1 + Math.floor(hsh(i, 45, seed) * 3), k: i % 7 });
+      }
       this.list.push(G.addEntity(new Decor(cx, yb + 1, (ctx) => {
+        const t = rt();
         ctx.save();
-        const C = ['#6a625c', '#8a817a', '#4a4440', '#9a6a4a', '#b8b0a8'];
-        for (let i = 0; i < 30; i++) { const ox = (hsh(i, 21, seed) - 0.5) * 60, oy = hsh(i, 22, seed) * 10, w = 2 + Math.floor(hsh(i, 23, seed) * 4); ctx.fillStyle = C[i % C.length]; ctx.fillRect(Math.round(cx + ox), Math.round(yb + oy), w, 2 + (i % 2)); }
-        const fx = front.x, fy = front.y;
+        // кіптява на землі — нерівна, світліє до країв
+        for (let i = 0; i < 16; i++) { const ox = (hsh(i, 51, seed) - 0.5) * 90, oy = hsh(i, 52, seed) * 22, r = 6 + hsh(i, 53, seed) * 12; ctx.fillStyle = 'rgba(30,24,22,' + ((burning ? 0.22 : 0.14) * (1 - Math.abs(ox) / 60)) + ')'; ctx.beginPath(); ctx.ellipse(Math.round(cx + ox), Math.round(yb + 4 + oy), r, r * 0.45, 0, 0, Math.PI * 2); ctx.fill(); }
+        // купа біля стіни: великі плити й цегла
+        const P = ['#7a726a', '#9a928a', '#5a524c', '#a8664a', '#8a4e36', '#c8c0b8', '#3a3430'];
+        for (let i = 0; i < 12; i++) { const x = Math.round(cx - 22 + hsh(i, 61, seed) * 44), y = Math.round(yb - 1 + hsh(i, 62, seed) * 4), w = 4 + Math.floor(hsh(i, 63, seed) * 6); ctx.fillStyle = P[i % 3]; ctx.fillRect(x, y, w, 3); ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(x, y, w, 1); }
+        ctx.strokeStyle = '#4a3a30'; ctx.lineWidth = 1; ctx.beginPath(); // арматура
+        for (let i = 0; i < 4; i++) { const x = cx - 14 + hsh(i, 64, seed) * 28; ctx.moveTo(Math.round(x), Math.round(yb + 1)); ctx.lineTo(Math.round(x + (hsh(i, 65, seed) - 0.5) * 8), Math.round(yb - 5 - hsh(i, 66, seed) * 4)); }
+        ctx.stroke();
+        for (const d of debris) { ctx.fillStyle = P[d.k]; ctx.fillRect(Math.round(d.x), Math.round(d.y), d.w, d.h); }
         if (burning) {
-          ctx.fillStyle = 'rgba(10,8,8,0.85)'; ctx.beginPath(); ctx.ellipse(fx, fy, 15, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'rgba(255,120,40,0.35)'; ctx.beginPath(); ctx.ellipse(fx, fy, 6, 2, 0, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = 'rgba(40,32,28,0.9)'; ctx.beginPath(); ctx.ellipse(fx, fy - 1, 11, 4, 0, 0, Math.PI * 2); ctx.fill();
-          for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; ctx.fillStyle = C[i % 4]; ctx.fillRect(Math.round(fx + Math.cos(a) * 17), Math.round(fy + Math.sin(a) * 7), 2, 2); }
-          // блиск скла
-          const t = rt(); ctx.fillStyle = '#e8f4ff'; for (let i = 0; i < 10; i++) if (Math.sin(t * 3 + i * 1.7) > 0.7) ctx.fillRect(Math.round(cx + (hsh(i, 31, seed) - 0.5) * 70), Math.round(yb + 4 + hsh(i, 32, seed) * 18), 1, 1);
-        } else { // вирву закрили сталевим листом, конуси
-          ctx.fillStyle = '#5a5e64'; ctx.fillRect(Math.round(fx - 13), Math.round(fy - 4), 26, 8); ctx.fillStyle = '#7a7e86'; ctx.fillRect(Math.round(fx - 13), Math.round(fy - 4), 26, 1);
-          for (const dx of [-17, 17]) { ctx.fillStyle = '#ff7a1a'; ctx.fillRect(Math.round(fx + dx - 1), Math.round(fy - 6), 3, 6); ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(fx + dx - 1), Math.round(fy - 4), 3, 1); }
+          ctx.fillStyle = '#e8f4ff'; for (let i = 0; i < 16; i++) if (Math.sin(t * 3 + i * 1.7) > 0.6) ctx.fillRect(Math.round(cx + (hsh(i, 31, seed) - 0.5) * 110), Math.round(yb + 4 + hsh(i, 32, seed) * 30), 1, 1); // скло
+          for (let i = 0; i < 4; i++) { const d = debris[i * 9]; flames(ctx, Math.round(d.x - 2), Math.round(d.y + 1), 5, 5); } // тліючі уламки
+        } else { // наступного дня: уламки згорнуті в купу, конуси
+          for (const dx of [-30, 30]) { ctx.fillStyle = '#ff7a1a'; ctx.fillRect(Math.round(cx + dx - 1), Math.round(yb + 8), 3, 6); ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(cx + dx - 1), Math.round(yb + 10), 3, 1); }
         }
         ctx.restore();
       })));
@@ -34787,10 +34796,10 @@
     let best = null, bs = 1e9;
     W.buildings.forEach((b, i) => {
       if (!STRIKE_KIND[b.kind] || b.face !== 's' || b.w < 4) return;
-      const fx = (b.x + b.w / 2) * T, fy = (b.y + b.h) * T, d = Math.hypot(fx - p.x, fy - p.y);
-      if (d < minD || d > maxD || fy > p.y + 20) return;
-      if (!from && (fx < r.x + 30 || fx > r.x + r.w - 30 || fy < r.y + 50 || fy > r.y + r.h)) return; // має бути в кадрі
-      const sc = Math.abs(d - (minD + maxD) / 2) + Math.abs(fx - p.x) * 0.5;
+      const fx = (b.x + b.w / 2) * T, fy = (b.y + b.h) * T, d = Math.hypot(fx - p.x, fy - p.y), top = fy - Math.max(2, b.fh || 3) * T * 0.8;
+      if (d < minD || d > maxD || (from && fy > p.y + 20)) return;
+      if (!from && (fx < r.x + 20 || fx > r.x + r.w - 20 || top < r.y - 60 || fy > r.y + r.h - 20)) return; // поруч із кадром (камера сама подивиться)
+      const sc = Math.abs(d - 90) + Math.abs(fx - p.x) * 0.4;
       if (sc < bs) { bs = sc; best = Object.assign({ _i: i }, b); best.ref = b; }
     });
     return best;
@@ -34799,13 +34808,21 @@
   class StrikeFx extends G.Entity {
     constructor(b, from) {
       const T = G.cfg.TILE, fh = Math.max(2, b.fh || 3), yb = (b.y + b.h) * T;
-      super((b.x + b.w / 2) * T, yb + 2, 2, 2, 'decor'); this.body = 'manual';
+      super((b.x + b.w / 2) * T, yb + 2, 2, 2, 'decor'); this.body = 'manual'; this.cam = null;
       this.b = b; this.ix = this.x + (Math.random() - 0.5) * Math.max(0, b.w * T - 48); this.iy = yb - fh * T * 0.65;
       const side = Math.random() < 0.5 ? -1 : 1;
       this.fx = from ? from.x : this.ix + side * 150; this.fy = from ? from.y : this.iy - 230; this.t = 0; this.D = 2.0; this.hit = false; this.parts = []; this.smoke = [];
     }
     update(dt) {
       this.t += dt;
+      const p0 = G.player;
+      if (p0 && G.camera) { // камера плавно дивиться на прильот (і герой у кадрі), потім повертається
+        if (this.t < this.D + 2.2) {
+          if (!this.cam) { this.cam = { x: G.camera.x, y: G.camera.y, kind: 'cam' }; this.prevT = G.camera.target; G.camera.follow(this.cam); }
+          const tx = (p0.x + this.ix) / 2, ty = (p0.y + this.iy) / 2, k = 1 - Math.exp(-3 * dt);
+          this.cam.x += (tx - this.cam.x) * k; this.cam.y += (ty - this.cam.y) * k;
+        } else if (this.cam) { if (G.camera.target === this.cam) G.camera.follow(p0); this.cam = null; }
+      }
       if (!this.hit && this.t >= this.D) {
         this.hit = true;
         S.boomFlash = 0.5;
@@ -34815,6 +34832,13 @@
         for (let i = 0; i < 46; i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 3.0, v = 70 + Math.random() * 200; this.parts.push({ x: this.ix, y: this.iy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 1 + Math.random() * 1.4, c: ['#6a625c', '#8a817a', '#4a4440', '#ffb030', '#e8e0d8', '#ff6a1a'][i % 6], s: 1 + (i % 3), spark: i % 6 >= 3 }); }
         for (let i = 0; i < 14; i++) this.smoke.push({ x: this.ix + (Math.random() - 0.5) * 20, y: this.iy, vx: (Math.random() - 0.5) * 30, vy: -25 - Math.random() * 45, r: 6 + Math.random() * 8, t: 0, life: 2.4 + Math.random() * 1.5 });
         if (G.kyivScenes && G.kyivScenes.strikeSite) G.kyivScenes.strikeSite(this.b.ref || this.b, 'burning', this.ix);
+        const p = G.player, bd = p ? Math.hypot(p.x - this.ix, p.y - (this.iy + 30)) : 1e9;
+        if (p && bd < 120 && p.hurt && !p.caught) { // вибухова хвиля: що ближче — то сильніше
+          const dmg = Math.round(8 + 22 * Math.max(0, 1 - bd / 120)), inv = p.invuln; p.invuln = 0;
+          p.hurt(dmg, { x: this.ix, y: this.iy, source: 'blast', knock: 160 + 140 * Math.max(0, 1 - bd / 120), force: true });
+          if (!(p.invuln > 0)) p.invuln = inv;
+          if (G.ui && G.ui.bubble) G.ui.bubble(p, ['Ай! Вуха!..', 'Мене контузило!', 'Пронесло… майже'][Math.floor(Math.random() * 3)], 1800, { style: 'shout' });
+        }
         S.strikeOn = true;
 
         // перехожі в паніці
@@ -34884,7 +34908,7 @@
   function updateStrike() {
     if (S && S.n === 26 && !S.siteDone) setupAftermath();
     if (!S || S.strikeOn) return;
-    if (S.n === 25 && S.ev.air_raid && S.t > 16) { const b = pickStrikeBuilding(80, 240); if (b) startStrike(b); }
+    if (S.n === 25 && S.ev.air_raid && S.t > 3.5) { const b = pickStrikeBuilding(30, 220); if (b) startStrike(b); }
   }
   // шахед летить через небо (екранні частки): звук починається раніше, ніж його видно; 50% — мобільна група
   // відкриває вогонь трасерами в його бік і збиває (спалах, вибух), інакше пролітає і гул стихає
