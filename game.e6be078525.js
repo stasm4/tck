@@ -30592,10 +30592,16 @@
     return { faces, W, H, D, foot, top, dz: DZ, up: F.up || 1 };
   }
   function outfitKey() { try { return JSON.stringify(G.progress && G.progress.outfit ? G.progress.outfit() : null); } catch (e) { return ''; } }
-  function model(skin) {
-    const key = skin + '|' + outfitKey();
+  // of — одяг іншого гравця (онлайн-кімната); без нього — свій із гардероба
+  function model(skin, of) {
+    const key = skin + '|' + (of !== undefined ? JSON.stringify(of) : outfitKey());
     let m = models.get(key);
-    if (m === undefined) { m = build(skin); if (models.size > 12) { models.clear(); frames.clear(); } models.set(key, m); }
+    if (m === undefined) {
+      const O = G.outfit, prev = O ? O.override : null;
+      if (O && of !== undefined) O.override = of;
+      try { m = build(skin); } finally { if (O) O.override = prev; }
+      if (models.size > 16) { models.clear(); frames.clear(); } models.set(key, m);
+    }
     return { m, key };
   }
   const NORM = [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0], [0, -1, 0]];
@@ -30655,12 +30661,12 @@
   }
   function draw(ctx, cx, feetY, s, ang, o) {
     o = o || {};
-    const { m, key } = model(o.skin || 'office');
+    const { m, key } = model(o.skin || 'office', o.outfit);
     if (!m) return false;
     let k = Math.round(((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2) * STEPS) % STEPS;
     const fk = key + '|' + s + '|' + k;
     let fr = frames.get(fk);
-    if (!fr) { fr = renderFrame(m, k, s / (m.up || 1)); if (frames.size > STEPS * 3) frames.clear(); frames.set(fk, fr); }
+    if (!fr) { fr = renderFrame(m, k, s / (m.up || 1)); if (frames.size > STEPS * 8) frames.clear(); frames.set(fk, fr); }
     ctx.drawImage(fr.cv, Math.round(cx - fr.ox), Math.round(feetY - fr.footY - (o.lift || 0)));
     return true;
   }
@@ -39809,7 +39815,37 @@
   const myName = () => (G.online && G.online.name) || 'Гравець';
   const myOutfit = () => { try { return G.progress && G.progress.outfit ? G.progress.outfit() : null; } catch (e) { return null; } };
   function mySkin() { const p = G.progress; return (G.heroes && G.heroes.skinFor && G.heroes.cur ? G.heroes.skinFor(G.heroes.cur) : null) || (p && p.equipped) || 'office'; }
+  const myPet = () => (G.pass && G.pass.pet) || null;
+  const myLv = () => { try { return G.ui && G.ui.level ? G.ui.level().L : 1; } catch (e) { return 1; } };
   const DIRS = ['down', 'up', 'left', 'right'];
+  // ── плавний рух чужих об'єктів: знімки з часом відправника, малюємо з затримкою IDELAY між двома знімками
+  // (раніше — «наздоганяння» з прогнозом: при нерівному інтернеті ТЦК і буси смикались туди-сюди)
+  const IDELAY = 140;
+  function addS(e, t, x, y, a) {
+    const H = e._h || (e._h = []), L = H[H.length - 1];
+    if (L && t <= L.t) { L.x = x; L.y = y; L.a = a; return; }
+    H.push({ t, x, y, a }); if (H.length > 12) H.shift();
+  }
+  const angD = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
+  function interp(e) {
+    const H = e._h; if (!H || !H.length) return null;
+    const rt = performance.now() - IDELAY, L = H[H.length - 1];
+    if (rt <= H[0].t) return H[0];
+    if (rt >= L.t) { const ex = Math.min(0.12, (rt - L.t) / 1000); return { x: L.x + (e._vx || 0) * ex, y: L.y + (e._vy || 0) * ex, a: L.a }; }
+    for (let i = H.length - 1; i > 0; i--) {
+      const A = H[i - 1], B = H[i];
+      if (rt >= A.t) { const k = (rt - A.t) / Math.max(1, B.t - A.t); return { x: A.x + (B.x - A.x) * k, y: A.y + (B.y - A.y) * k, a: A.a == null ? null : A.a + angD(A.a, B.a) * k }; }
+    }
+    return L;
+  }
+  // час знімка в нашому годиннику: зсув = найменша затримка (повільно «пливе» вгору, якщо годинники розходяться)
+  function rxTime(o, ts) {
+    const now = performance.now();
+    if (ts == null) return now;
+    const d = now - ts;
+    if (o.off == null || d < o.off) o.off = d; else o.off += (d - o.off) * 0.02;
+    return ts + o.off;
+  }
   const dirI = (d) => Math.max(0, DIRS.indexOf(d));
   const r1 = (v) => Math.round(v * 10) / 10;
 
@@ -39931,8 +39967,8 @@
 
   function rosterNow() {
     if (C.role === 'host') {
-      const out = [{ id: sig ? sig.id : 'me', name: myName(), skin: mySkin(), outfit: myOutfit(), host: true }];
-      for (const P of peers.values()) out.push({ id: P.id, name: P.info.name, skin: P.info.skin, outfit: P.info.outfit });
+      const out = [{ id: sig ? sig.id : 'me', name: myName(), skin: mySkin(), outfit: myOutfit(), pet: myPet(), lv: myLv(), host: true }];
+      for (const P of peers.values()) out.push({ id: P.id, name: P.info.name, skin: P.info.skin, outfit: P.info.outfit, pet: P.info.pet || null, lv: P.info.lv || 0 });
       return out;
     }
     if (C.role === 'guest') return roster;
@@ -39949,7 +39985,7 @@
       if (m.v !== VER) { sig.send({ t: 'old', to: m.from }); return; }
       if (C.inGame) { sig.send({ t: 'busy', to: m.from }); return; }
       if (peers.size >= MAXP - 1) { sig.send({ t: 'full', to: m.from }); return; }
-      const P = { id: m.from, info: { name: String(m.name || 'Гравець').slice(0, 16), skin: m.skin, outfit: m.outfit }, pr: null, lastRx: performance.now(), p2pT: 0, relayT: 0, av: null };
+      const P = { id: m.from, info: { name: String(m.name || 'Гравець').slice(0, 16), skin: m.skin, outfit: m.outfit, pet: m.pet || null, lv: m.lv | 0 }, pr: null, lastRx: performance.now(), p2pT: 0, relayT: 0, av: null };
       peers.set(P.id, P);
       C.linked = true; C.status = 'linked'; sfx('pickup');
       toast(P.info.name + ' зайшов у кімнату', 1800);
@@ -40007,7 +40043,7 @@
     let n = 0;
     const tryHello = () => {
       if (C.role !== 'guest' || hostId || C.room !== code || C.status !== 'join') return;
-      sig.send({ t: 'hello', v: VER, name: myName(), skin: mySkin(), outfit: myOutfit() });
+      sig.send({ t: 'hello', v: VER, name: myName(), skin: mySkin(), outfit: myOutfit(), pet: myPet(), lv: myLv() });
       if (++n < 8) setTimeout(tryHello, 1200); else if (!hostId) C.status = 'nobody';
     };
     setTimeout(tryHello, 300);
@@ -40054,7 +40090,7 @@
     }
     C.relay = relay;
     if (!C.role) return;
-    if (!C.inGame && now - pingT > 700) { pingT = now; send(C.role === 'guest' ? { t: 'ping', sk: mySkin(), of: myOutfit() } : { t: 'ping' }); }
+    if (!C.inGame && now - pingT > 700) { pingT = now; send(C.role === 'guest' ? { t: 'ping', sk: mySkin(), of: myOutfit(), pt: myPet() || '', lv: myLv() } : { t: 'ping' }); }
     if (C.role === 'host' && !C.inGame && now - rosterT > 2000) { rosterT = now; pushRoster(); }
     if (!C.inGame) return;
     if (C.role === 'host') send(hostSnap(), true);
@@ -40065,7 +40101,7 @@
     P.lastRx = performance.now(); C.dbg.rx++;
     if (!d || !d.t) return;
     if (d.t === 'ping') {
-      if (C.role === 'host' && (d.sk || d.of)) { if (d.sk) P.info.skin = d.sk; if (d.of) P.info.outfit = d.of; }
+      if (C.role === 'host' && (d.sk || d.of)) { if (d.sk) P.info.skin = d.sk; if (d.of) P.info.outfit = d.of; if (d.pt != null) P.info.pet = d.pt || null; if (d.lv) P.info.lv = d.lv | 0; }
       return;
     }
     if (C.role === 'host') hostRx(P, d); else guestRx(d);
@@ -40082,7 +40118,8 @@
     }
     get shadow() { return !this.hidden && !this.out; }
     get up() { return this.alive && !this.caught && !this.out; }
-    apply(a) { // [x, y, dir, frame, flags, hp, maxHp, vis, skin]
+    apply(a, t) { // [x, y, dir, frame, flags, hp, maxHp, vis, skin, pet]
+      if (t != null) addS(this, t, a[0], a[1]);
       this.tx = a[0]; this.ty = a[1]; this.dir = DIRS[a[2]] || 'down'; this.frame = a[3];
       const f = a[4]; this.punch = !!(f & 1); this.hidden = !!(f & 2); this.running = !!(f & 4); this.riding = (f & 8) ? {} : null; this.invuln = (f & 16) ? 0.5 : 0;
       const caught = !!(f & 32);
@@ -40092,16 +40129,31 @@
       this.visibility = a[7] != null ? a[7] / 100 : 1;
       this.hideSpot = this.hidden ? { x: this.tx, y: this.ty } : null;
       if (a[8]) this.info = Object.assign({}, this.info, { skin: a[8] });
+      if (a.length > 9 && (a[9] || null) !== (this.info.pet || null)) this.info = Object.assign({}, this.info, { pet: a[9] || null });
     }
     arr() {
       const f = (this.punch ? 1 : 0) | (this.hidden ? 2 : 0) | (this.running ? 4 : 0) | (this.riding ? 8 : 0) | (this.invuln > 0 ? 16 : 0) | (this.caught ? 32 : 0) | (this.out ? 64 : 0);
-      return [r1(this.x), r1(this.y), dirI(this.dir), this.frame | 0, f, this.hp, this.maxHp, Math.round(this.visibility * 100), this.info.skin || null];
+      return [r1(this.x), r1(this.y), dirI(this.dir), this.frame | 0, f, this.hp, this.maxHp, Math.round(this.visibility * 100), this.info.skin || null, this.info.pet || null];
     }
     update(dt) {
-      const dx = this.tx - this.x, dy = this.ty - this.y;
-      if (dx * dx + dy * dy > 120 * 120) { this.x = this.tx; this.y = this.ty; } else { const k = Math.min(1, dt * 14); this.x += dx * k; this.y += dy * k; }
-      this.vx = dx * 6; this.vy = dy * 6;
+      const ip = interp(this);
+      if (ip) { this.vx = (ip.x - this.x) / Math.max(dt, 0.001); this.vy = (ip.y - this.y) / Math.max(dt, 0.001); this.x = ip.x; this.y = ip.y; }
+      else {
+        const dx = this.tx - this.x, dy = this.ty - this.y;
+        if (dx * dx + dy * dy > 120 * 120) { this.x = this.tx; this.y = this.ty; } else { const k = Math.min(1, dt * 14); this.x += dx * k; this.y += dy * k; }
+        this.vx = dx * 6; this.vy = dy * 6;
+      }
       if (this.caught && this.kind === 'buddy') this.caughtT += dt;
+      // улюбленець друга: біжить слідом трохи позаду
+      if (this.info.pet) {
+        const face = this.dir === 'left' ? -1 : this.dir === 'right' ? 1 : (this.pFace || 1);
+        if (this.dir === 'left' || this.dir === 'right') this.pFace = face;
+        if (this.px == null || Math.hypot(this.px - this.x, this.py - this.y) > 160) { this.px = this.x - face * 14; this.py = this.y + 3; }
+        const tx = this.x - face * 14, ty = this.y + 3, dx = tx - this.px, dy = ty - this.py, d = Math.hypot(dx, dy);
+        this.pMove = d > 3;
+        if (d > 2) { const sp = Math.min(d, (d > 40 ? 230 : 120) * dt); this.px += dx / d * sp; this.py += dy / d * sp; if (Math.abs(dx) > 1) this.pLeft = dx < 0; }
+        this.pT = (this.pT || 0) + dt;
+      }
     }
     // протокол «гравця» для ШІ ТЦК (лише аватари гостей на хості)
     hurt(dmg, o) { if (this.caught || this.out || this.hidden || this.invuln > 0) return false; C.dbg.hurt++; sendTo(this.peer, { t: 'hurt', dmg, x: o && o.x, y: o && o.y, k: o && o.knock }); this.invuln = 0.6; return true; }
@@ -40109,7 +40161,17 @@
     unhide() { if (this.hidden) sendTo(this.peer, { t: 'unhide' }); }
     forceUnhide() { this.unhide(); }
     exposed() { if (!this.hidden) return false; this.unhide(); return true; }
+    drawPetOf(ctx) {
+      if (!this.info.pet || this.px == null || !G.pass || !G.pass.drawPet || this.out) return;
+      const hop = this.pMove ? Math.abs(Math.sin(this.pT * 12)) * 2 : 0;
+      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(Math.round(this.px), Math.round(this.py), 6, 2, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      G.pass.drawPet(ctx, this.info.pet, Math.round(this.px), Math.round(this.py - hop), 1, this.pMove ? Math.floor(this.pT * 8) : 0, !!this.pLeft);
+    }
     draw(ctx) {
+      if (this.py != null && this.py < this.y) this.drawPetOf(ctx);
+      try { this.drawBody(ctx); } finally { if (this.py != null && this.py >= this.y) this.drawPetOf(ctx); }
+    }
+    drawBody(ctx) {
       if (this.hidden || this.out) return;
       if (this.invuln > 0 && !this.caught && Math.floor(G.realTime * 16) % 2 === 0) return;
       const O = G.outfit, prev = O ? O.override : null;
@@ -40155,8 +40217,8 @@
   }
   function hostSnap() {
     const p = G.player, S = G.modes && G.modes.state;
-    const out = { t: 's', q: ++snapSeq, st: G.state, tm: Math.round(G.time * 100) / 100 };
-    if (p) out.p = [r1(p.x), r1(p.y), dirI(p.dir), p.frame | 0, (p.punchT > 0 ? 1 : 0) | (p.hidden ? 2 : 0) | (p.running ? 4 : 0) | (p.riding ? 8 : 0) | (p.invuln > 0 ? 16 : 0) | (p.caught ? 32 : 0) | (hostOut ? 64 : 0), p.hp, p.maxHp, 100, p.skin || mySkin()];
+    const out = { t: 's', q: ++snapSeq, st: G.state, tm: Math.round(G.time * 100) / 100, ts: Math.round(performance.now()) };
+    if (p) out.p = [r1(p.x), r1(p.y), dirI(p.dir), p.frame | 0, (p.punchT > 0 ? 1 : 0) | (p.hidden ? 2 : 0) | (p.running ? 4 : 0) | (p.riding ? 8 : 0) | (p.invuln > 0 ? 16 : 0) | (p.caught ? 32 : 0) | (hostOut ? 64 : 0), p.hp, p.maxHp, 100, p.skin || mySkin(), myPet()];
     if (snapSeq % 10 === 1) out.of = myOutfit();
     const bs = buddies(), near = (x, y) => (p && Math.abs(x - p.x) < 900) || bs.some((b) => Math.abs(x - b.x) < 900);
     const k = [];
@@ -40190,7 +40252,7 @@
       if (!P.av) return;
       if (d.of) { P.info.outfit = d.of; P.av.info = Object.assign({}, P.av.info, { outfit: d.of }); }
       const b = P.av, wasCaught = b.caught;
-      b.apply(d.a);
+      b.apply(d.a, rxTime(P, d.ts));
       if (wasCaught && !b.caught) b.caught = true; // відпускає лише хост (revive)
       if (b._revived > 0) b.caught = false;
     } else if (d.t === 'hit' && G.tck) {
@@ -40425,14 +40487,17 @@
   function guestSnap() {
     const p = G.player;
     if (!p || !G.run) return { t: 'ping' };
-    return { t: 'p', a: [r1(p.x), r1(p.y), dirI(p.dir), p.frame | 0, (p.punchT > 0 ? 1 : 0) | (p.hidden || p.inMetro ? 2 : 0) | (p.running ? 4 : 0) | (p.riding || p.inMetro ? 8 : 0) | (p.invuln > 0 ? 16 : 0) | (guestCaught ? 32 : 0) | (guestOut ? 64 : 0), p.hp, p.maxHp, Math.round((p.visibility == null ? 1 : p.visibility) * 100), p.skin || null], of: (++gSeq % 10 === 1) ? myOutfit() : undefined };
+    return { t: 'p', a: [r1(p.x), r1(p.y), dirI(p.dir), p.frame | 0, (p.punchT > 0 ? 1 : 0) | (p.hidden || p.inMetro ? 2 : 0) | (p.running ? 4 : 0) | (p.riding || p.inMetro ? 8 : 0) | (p.invuln > 0 ? 16 : 0) | (guestCaught ? 32 : 0) | (guestOut ? 64 : 0), p.hp, p.maxHp, Math.round((p.visibility == null ? 1 : p.visibility) * 100), p.skin || null, myPet()], ts: Math.round(performance.now()), of: (++gSeq % 10 === 1) ? myOutfit() : undefined };
   }
   function mirrorTck(dt) {
+    const ip = interp(this); if (ip) { this.x = ip.x; this.y = ip.y; return; }
     this._tx += (this._vx || 0) * dt; this._ty += (this._vy || 0) * dt; // рух між знімками — за швидкістю
     const dx = this._tx - this.x, dy = this._ty - this.y;
     if (dx * dx + dy * dy > 100 * 100) { this.x = this._tx; this.y = this._ty; } else { const k = Math.min(1, dt * 10); this.x += dx * k; this.y += dy * k; }
   }
   function mirrorBus(dt) {
+    const ip = interp(this);
+    if (ip) { this.x = ip.x; this.y = ip.y; if (ip.a != null) this.angle = ip.a; this.hx = Math.cos(this.angle); this.hy = Math.sin(this.angle); if (this.dust) this.dust.length = 0; return; }
     this._tx += (this._vx || 0) * dt; this._ty += (this._vy || 0) * dt;
     const dx = this._tx - this.x, dy = this._ty - this.y, k = Math.min(1, dt * 12);
     if (dx * dx + dy * dy > 160 * 160) { this.x = this._tx; this.y = this._ty; this.angle = this._ta; }
@@ -40440,29 +40505,30 @@
     this.hx = Math.cos(this.angle); this.hy = Math.sin(this.angle);
     if (this.dust) this.dust.length = 0;
   }
-  function mateAv(id, a) {
+  function mateAv(id, a, t) {
     let av = avs.get(id);
     if (!av || !av.alive) {
       const inf = id === 'H' ? roster.find((r) => r.host) : infoOf(id);
       av = G.addEntity(new Avatar(a[0], a[1], Object.assign({}, inf || { name: 'Гравець' }), false, null));
       avs.set(id, av);
     }
-    av.apply(a);
+    av.apply(a, t);
     return av;
   }
   function guestApply(s) {
     if (s.q) { if (s.q <= lastSeq && lastSeq - s.q < 1000) return; lastSeq = s.q; }
     N.snap = s; N.snapAt = performance.now(); N.hostState = s.st;
     if (!C.inGame || !G.run || G.run.ended) return;
+    const sT = rxTime(N, s.ts);
     if (s.tm != null) G.time = s.tm;
     const seenA = new Set();
     if (s.p) {
-      const h = mateAv('H', s.p); seenA.add('H');
+      const h = mateAv('H', s.p, sT); seenA.add('H');
       if (s.of) h.info = Object.assign({}, h.info, { outfit: s.of });
       if (G.player && !N.placed) { N.placed = true; G.player.x = s.p[0] + 14; G.player.y = s.p[1]; G.player.invuln = 3; if (G.camera && G.camera.follow) G.camera.follow(G.player, true); }
     }
     const me = sig && sig.id;
-    for (const o of s.o || []) { if (o[0] === me) continue; mateAv(o[0], o.slice(1)); seenA.add(o[0]); }
+    for (const o of s.o || []) { if (o[0] === me) continue; mateAv(o[0], o.slice(1), sT); seenA.add(o[0]); }
     for (const [id, a] of avs) if (!seenA.has(id)) { a.alive = false; avs.delete(id); }
     const bc = s.bc || {};
     for (const [id, a] of avs) { const v = bc[id]; if (v) { a.caughtT = v[0]; a.revT = v[1]; } else { a.caughtT = 0; a.revT = 0; } }
@@ -40480,7 +40546,7 @@
         t.hurt = function (dmg, fx, fy, o) { sendTo(hostP(), { t: 'hit', id: this.id, k: 'hurt', i: { damage: dmg, stun: o && o.stun } }); return true; };
         mirrors.set(id, t); G.addEntity(t); G.tck.list.push(t);
       }
-      t._tx = a[2]; t._ty = a[3]; t.type = a[1]; t.dir = DIRS[a[4]] || 'down'; t.frame = a[5]; t.state = a[6];
+      addS(t, sT, a[2], a[3]); t._tx = a[2]; t._ty = a[3]; t.type = a[1]; t.dir = DIRS[a[4]] || 'down'; t.frame = a[5]; t.state = a[6];
       t.stun = a[7] ? 1 : 0; t.ko = !!a[8]; t.koSide = a[9]; t.hp = a[10]; t.maxHp = a[11]; t.alpha = a[12] / 100; t.notice = a[13] / 10; t.grabAnim = a[14] ? 0.2 : 0; t.pant = a[15] ? 1 : 0; t._vx = a[16] || 0; t._vy = a[17] || 0;
     }
     for (const [id, t] of mirrors) if (!seen.has(id)) { t.alive = false; mirrors.delete(id); }
@@ -40495,7 +40561,7 @@
         v.update = mirrorBus; v.id = id; v.slamT = 0; v.C = null; v._mirror = true;
         busM.set(id, v); G.addEntity(v); G.bus.list.push(v);
       }
-      v._tx = a[1]; v._ty = a[2]; v._ta = a[3]; v.doorOpen = !!(a[4] & 1); v.braking = !!(a[4] & 2); v.siren = !!(a[4] & 4); v._vx = a[5] || 0; v._vy = a[6] || 0; v.speed = Math.hypot(v._vx, v._vy);
+      addS(v, sT, a[1], a[2], a[3]); v._tx = a[1]; v._ty = a[2]; v._ta = a[3]; v.doorOpen = !!(a[4] & 1); v.braking = !!(a[4] & 2); v.siren = !!(a[4] & 4); v._vx = a[5] || 0; v._vy = a[6] || 0; v.speed = Math.hypot(v._vx, v._vy);
     }
     for (const [id, v] of busM) if (!seenB.has(id)) { v.alive = false; busM.delete(id); }
     G.bus.list = G.bus.list.filter((v) => v.alive);
@@ -40556,7 +40622,7 @@
   const teamName = () => 'ГРА ОНЛАЙН · ' + C.players + ' ' + (C.players >= 5 ? 'гравців' : 'гравці');
   function guestStart() {
     if (C.role !== 'guest' || C.inGame) return;
-    mirrors.clear(); busM.clear(); clearAvs(); pick = null; lastSeq = 0; N.holdT = 0; myBc = null;
+    mirrors.clear(); busM.clear(); clearAvs(); pick = null; lastSeq = 0; N.holdT = 0; myBc = null; N.off = null;
     for (const k in gPerks) delete gPerks[k]; for (const k in gPicked) delete gPicked[k]; guestOut = false; guestCaught = false; goalSent = -1; N.placed = false; N.allowEnd = false;
     C.inGame = true;
     G.modes.start('escape');
@@ -40806,6 +40872,7 @@
     if (C.role === 'host') out.push({ id: 'go', label: C.linked ? 'ПОЧАТИ ГРУ' : 'ЧЕКАЄМО ГРАВЦІВ…', r: { x: cx - 85, y: H - 62, w: 170, h: 26 }, big: true, hot: C.linked, dis: !C.linked });
     if (C.role === 'host') out.push({ id: 'priv', label: C.priv ? 'ЗАКРИТА · лише за кодом' : 'ВІДКРИТА · бачать усі', r: { x: cx - 85, y: H - 86, w: 170, h: 17 }, lock: true });
     out.push({ id: 'cancel', label: bad ? 'Назад до кімнат' : 'Вийти з кімнати', r: { x: cx - 65, y: H - 30, w: 130, h: 20 } });
+    if (G.social && G.scenes.friends && (C.role === 'host' || C.linked) && C.players < MAXP) out.push({ id: 'invite', label: '+ ЗАПРОСИТИ ДРУЗІВ', r: { x: 14, y: H - 30, w: Math.min(130, cx - 65 - 24), h: 20 } });
     return out;
   }
   // нік питаємо лише раз; відмовився — граєш під автоніком («Втікач 1234»), змінити можна в «Лідерах»
@@ -40826,6 +40893,7 @@
       if (b.room.n >= MAXP) { toast('Кімната заповнена (5/5)', 1800); return; }
       needName(() => join(b.room.code));
     } else if (id === 'cancel') { leave(); openLobby(); }
+    else if (id === 'invite' && G.scenes.friends) { if (G.social) G.social.inviteMode = true; G.setState('friends'); }
     else if (id === 'priv' && C.role === 'host') { C.setPrivate(!C.priv); toast(C.priv ? 'Кімната закрита — зайти можна лише за кодом ' + C.room : 'Кімната відкрита — її видно в списку серверів', 2200); }
     else if (id === 'go' && C.role === 'host' && C.linked) {
       C.inGame = true; snapSeq = 0; hostDown = null; hostOut = false; allDownT = 0; ending = false;
@@ -40937,7 +41005,7 @@
     U.text(ctx, 'код кімнати', W - 14, 4, { size: 7, align: 'right', color: '#8c8494' });
     U.text(ctx, C.room, W - 14, 12, { size: 14, align: 'right', color: '#fde98f', outline: '#120a18' });
     // 5 місць
-    const sw = 80, gap = 8, x0 = Math.round(W / 2 - (sw * MAXP + gap * (MAXP - 1)) / 2), y0 = 42, sh = 92;
+    const sw = Math.min(88, Math.floor((W - 24 - 4 * 6) / MAXP)), gap = 6, x0 = Math.round(W / 2 - (sw * MAXP + gap * (MAXP - 1)) / 2), y0 = 40, sh = Math.min(108, H - 40 - 122);
     for (let i = 0; i < MAXP; i++) {
       const x = x0 + i * (sw + gap), pl = list[i];
       const isMe = pl && (pl.id === me || (C.role === 'host' && pl.host));
@@ -40951,12 +41019,28 @@
         continue;
       }
       U.rect(ctx, pl.host ? '#f7c948' : '#93c25b', x, y0, sw, 2);
-      const img = heroImg(pl, 'down', Math.floor(LB.t * 6 + i * 2) % 4);
-      if (img) { if (G.drawShadow) G.drawShadow(ctx, x + sw / 2, y0 + 64, 12, 0.35); ctx.drawImage(img, Math.round(x + sw / 2 - img.width), y0 + 64 - img.height * 2, img.width * 2, img.height * 2); }
+      // подіум + 3D-герой у своєму скіні й одязі (повільно крутиться), поруч — улюбленець
+      const fy = y0 + sh - 24, fx = x + sw / 2 + (pl.pet ? 8 : 0), ang = 0.35 * Math.sin(LB.t * 0.7 + i * 1.3) + (isMe ? 0 : 0.15);
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(x + sw / 2, fy + 2, 30, 6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = pl.host ? '#4a3a24' : '#2f3a2a'; ctx.beginPath(); ctx.ellipse(x + sw / 2, fy, 28, 5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = pl.host ? 'rgba(247,201,72,0.6)' : 'rgba(147,194,91,0.55)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(x + sw / 2, fy, 25, 4, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+      const lift = Math.max(0, Math.sin(LB.t * 2.2 + i)) * 1.2, hs = Math.max(1.8, Math.min(2.5, (sh - 34) / 30));
+      ctx.save(); ctx.beginPath(); ctx.rect(x, y0 + 2, sw, sh - 2); ctx.clip();
+      const ok3 = G.hero3d && G.hero3d.draw(ctx, fx, fy, hs, ang, { skin: pl.skin || 'office', outfit: isMe ? undefined : (pl.outfit || null), lift: Math.round(lift) });
+      if (!ok3) { const img = heroImg(pl, 'down', Math.floor(LB.t * 6 + i * 2) % 4); if (img) ctx.drawImage(img, Math.round(fx - img.width), fy - img.height * 2, img.width * 2, img.height * 2); }
+      if (pl.pet) { // улюбленець — попереду ліворуч, підстрибує
+        const hop = Math.abs(Math.sin(LB.t * 3 + i)) * (Math.sin(LB.t * 0.8 + i) > 0.4 ? 3 : 0), px = x + sw / 2 - 20;
+        ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(px, fy + 3, 9, 2, 0, 0, Math.PI * 2); ctx.fill();
+        if (!(G.hero3d && G.hero3d.drawPet && G.hero3d.drawPet(ctx, pl.pet, px, fy + 4, 2.1, ang + 0.6, Math.round(hop))) && G.pass && G.pass.drawPet) G.pass.drawPet(ctx, pl.pet, px, fy + 3 - hop, 2, 0, false);
+      }
+      ctx.restore();
+      if (pl.lv) { const lt = 'рів ' + pl.lv, ly = pl.host ? y0 + 17 : y0 + 5; U.rect(ctx, '#1a0e20', x + 3, ly, U.measure(lt, 7) + 6, 10); U.text(ctx, lt, x + 6, ly + 1, { size: 7, color: '#f7c948' }); }
       if (pl.host) { U.rect(ctx, '#1a0e20', x + 3, y0 + 5, 30, 10); U.text(ctx, 'ХОСТ', x + 18, y0 + 6, { size: 7, align: 'center', color: '#f7c948' }); }
       if (isMe) { U.rect(ctx, '#1a0e20', x + sw - 19, y0 + 5, 16, 10); U.text(ctx, 'ти', x + sw - 11, y0 + 6, { size: 7, align: 'center', color: '#fde98f' }); }
       let nm = String(pl.name || 'Гравець'); while (nm.length > 3 && U.measure(nm, 8) > sw - 6) nm = nm.slice(0, -2) + '.';
-      U.text(ctx, nm, x + sw / 2, y0 + sh - 18, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
+      U.text(ctx, nm, x + sw / 2, y0 + sh - 13, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
     }
     // складність
     const n = Math.max(1, list.length), yS = y0 + sh + 10;
@@ -41267,7 +41351,7 @@
   const hit = (r, fn, o) => LS_.hits.push(Object.assign({ r, fn }, o || {}));
 
   function act(id) {
-    if (id === 'back') { sfx(); LS_.card = null; G.setState('menu'); }
+    if (id === 'back') { sfx(); LS_.card = null; const toRoom = inviteMode && G.coop && G.coop.role && !G.coop.inGame; inviteMode = false; G.setState(toRoom ? 'coop' : 'menu'); }
     else if (id === 'me' || id === 'friends') { if (LS_.tab !== id) { sfx(); LS_.tab = id; LS_.scroll = 0; LS_.confirm = null; if (id === 'friends') loadFriends(); } }
   }
   // профіль друга (картка поверх списку): аватарка, рівень, у грі чи ні, рекорд ВТЕЧІ, друзі; дії
@@ -41324,7 +41408,7 @@
       u.rect(ctx, '#1c1830', 0, 0, W, H);
       for (let y = 0; y < H; y += 8) u.rect(ctx, 'rgba(143,199,228,0.03)', 0, y, W, 4);
       u.icon(ctx, 'person', 14, 10, 2);
-      u.text(ctx, LS_.solo ? 'ДРУЗІ' : 'ПРОФІЛЬ', 32, 8, { size: 18, color: '#fde98f', shadow: true });
+      u.text(ctx, LS_.solo ? (inviteMode ? 'ЗАПРОСИ ДРУЗІВ' : 'ДРУЗІ') : 'ПРОФІЛЬ', 32, 8, { size: 18, color: '#fde98f', shadow: true });
       const n = incoming();
       if (LS_.solo) { // окремий екран друзів: підсумок + кнопка свого профілю
         const fr = S.friends.filter((f) => f.rel === 'friend'), on = fr.filter((f) => f.online).length;
@@ -41396,9 +41480,11 @@
     const by = y + h - 24, busy = !!S.busy[r.pid], B = (i, n, label, col, fn2) => { const bw = (w - 24 - (n - 1) * 6) / n; smallBtn(ctx, { x: x + 12 + i * (bw + 6), y: by, w: bw, h: 16 }, label, col, fn2); };
     if (busy) u.text(ctx, '…', x + w / 2, by + 3, { size: 9, align: 'center', color: '#b4abb2' });
     else if (r.rel === 'friend') {
-      if (c.confirm) B(0, 2, 'ТОЧНО ВИДАЛИТИ?', '#c8302a', () => { unfriend(r); LS_.card = null; });
-      else B(0, 2, 'ВИДАЛИТИ З ДРУЗІВ', '#5a3a4a', () => { sfx(); c.confirm = true; });
-      B(1, 2, 'ЗАКРИТИ', '#3f7fae', () => { sfx(); LS_.card = null; });
+      if (c.confirm) B(0, 3, 'ТОЧНО?', '#c8302a', () => { unfriend(r); LS_.card = null; });
+      else B(0, 3, 'ВИДАЛИТИ', '#5a3a4a', () => { sfx(); c.confirm = true; });
+      if (r.online) B(1, 3, 'ГРАТИ РАЗОМ', '#4f8a36', () => { LS_.card = null; invite(r); });
+      else B(1, 3, 'НЕ В ГРІ', '#3a3446', () => toast(r.name + ' зараз не в грі — запроси, коли зайде'));
+      B(2, 3, 'ЗАКРИТИ', '#3f7fae', () => { sfx(); LS_.card = null; });
     } else if (r.rel === 'in') {
       B(0, 3, 'ПРИЙНЯТИ', '#5e9846', () => answer(r, true)); B(1, 3, 'ВІДХИЛИТИ', '#6a4a56', () => { answer(r, false); LS_.card = null; }); B(2, 3, 'ЗАКРИТИ', '#3f7fae', () => { sfx(); LS_.card = null; });
     } else if (r.rel === 'out') {
@@ -41570,6 +41656,7 @@
       else if (r.rel === 'in') { const a = R(52, 56), b = R(0, 48); if (vis(a)) smallBtn(ctx, a, 'ПРИЙНЯТИ', '#5e9846', () => answer(r, true)); if (vis(b)) smallBtn(ctx, b, 'НІ', '#6a4a56', () => answer(r, false)); }
       else if (r.rel === 'friend') {
         if (it.from === 'search') u.text(ctx, 'у друзях', lr.x + lr.w - 10, y + 8, { size: 7, align: 'right', color: '#93c25b' });
+        else if (r.online && G.coop && G.coop.enabled) { const a = R(0, 64); if (vis(a)) smallBtn(ctx, a, inviteMode ? 'ЗАПРОСИТИ' : 'ГРАТИ', '#4f8a36', () => invite(r)); }
         else { u.text(ctx, 'профіль', lr.x + lr.w - 18, y + 8, { size: 7, align: 'right', color: '#7a8aa8' }); u.tri(ctx, lr.x + lr.w - 11, y + 12, 'right', 3, '#8fc7e4'); }
       } else if (r.rel === 'out') { const a = R(0, 74); if (vis(a)) smallBtn(ctx, a, it.from === 'search' ? 'НАДІСЛАНО' : 'СКАСУВАТИ', '#4a3a56', () => { if (it.from !== 'search') unfriend(r); }); }
       else { const a = R(0, 74); if (vis(a)) smallBtn(ctx, a, '+ ДОДАТИ', '#5e9846', () => add(r)); }
@@ -41579,7 +41666,94 @@
     if (maxS > 0) { const k = LS_.scroll / maxS, th = Math.max(16, lr.h * lr.h / (rows.length * ROW)); u.rect(ctx, 'rgba(143,199,228,0.35)', lr.x + lr.w - 4, lr.y + 2 + (lr.h - 4 - th) * k, 2, th); }
   }
 
+  // ═══════════════ Запрошення в гру (особистий канал u<ID> через Supabase Realtime) ═══════════════
+  let inviteMode = false, chan = null, chanPid = null, inv = null;
+  const invSent = {};
+  function listen() {
+    if (!G.coop || !G.coop._signal || !G.coop.enabled || !st.pid || !hasNick()) return;
+    if (chan && chanPid === st.pid) return;
+    if (chan) { try { chan.close(); } catch (e) {} }
+    chanPid = st.pid;
+    chan = G.coop._signal('u' + st.pid, (m) => {
+      if (!m || m.t !== 'inv' || !m.code) return;
+      const known = !S.fAt || S.friends.some((f) => f.pid === m.pid && f.rel === 'friend');
+      if (!known) return;                                  // кликати можуть лише друзі
+      if (G.coop.role && G.coop.room === String(m.code)) return; // уже в цій кімнаті
+      inv = { code: String(m.code).slice(0, 6), name: String(m.name || 'Друг').slice(0, 16), pid: m.pid, av: m.av, fr: m.fr, at: Date.now(), t: 0 };
+      sfx('pickup');
+      if (G.state === 'play' || G.state === 'paused') toast(inv.name + ' кличе грати онлайн! Вийди в меню, щоб зайти', 4000);
+    });
+  }
+  function invite(row) {
+    const C = G.coop;
+    if (!C || !C.enabled) { toast('Онлайн-гра зараз недоступна'); return; }
+    if (!hasNick()) { askNick(); return; }
+    if (C.inGame) { toast('Ви вже в грі'); return; }
+    if (invSent[row.pid] && Date.now() - invSent[row.pid] < 5000) { toast('Запрошення вже летить до ' + row.name); return; }
+    sfx('pickup');
+    if (!C.role) { C.create(); C.setPrivate(true); }      // своя закрита кімната — друг зайде за запрошенням
+    const code = C.room, ch = C._signal('u' + row.pid, () => {});
+    ch.send({ t: 'inv', code, name: G.online.realName, pid: st.pid, av: myAvatar(), fr: myFrame() });
+    setTimeout(() => { try { ch.close(); } catch (e) {} }, 5000);
+    invSent[row.pid] = Date.now();
+    toast('Запрошення надіслано: ' + row.name, 2200);
+    if (!inviteMode) { inviteMode = false; G.setState('coop'); }
+  }
+  function acceptInv() {
+    const v = inv; inv = null; if (!v || !G.coop) return;
+    sfx('pickup');
+    if (G.coop.role) G.coop.leave(true);
+    G.setState('coop');
+    G.coop.join(v.code);
+  }
+  // вікно «Тебе кличуть грати» — поверх меню, друзів, профілю й онлайн-екрана
+  function invRects() {
+    const W = VW(), H = VH(), w = Math.min(280, W - 30), h = 92, x = Math.round((W - w) / 2), y = Math.round(H / 2 - h / 2);
+    return { box: { x, y, w, h }, ok: { x: x + 14, y: y + h - 26, w: (w - 40) / 2, h: 18 }, no: { x: x + 26 + (w - 40) / 2, y: y + h - 26, w: (w - 40) / 2, h: 18 } };
+  }
+  function invUpdate(d) {
+    if (!inv) return false;
+    inv.t += d || 0.016;
+    if (Date.now() - inv.at > 60000) { inv = null; return false; }
+    const I = G.input, m = I.mouse, R2 = invRects(), u = U();
+    if (I.pressed('pause')) { I.consume('pause'); inv = null; sfx(); return true; }
+    if (I.pressed('confirm')) { acceptInv(); return true; }
+    if (m.clicked) { if (u.inRect(m.x, m.y, R2.ok)) acceptInv(); else if (u.inRect(m.x, m.y, R2.no)) { inv = null; sfx(); } }
+    return true;
+  }
+  function invDraw(ctx) {
+    if (!inv) return;
+    const u = U(), W = VW(), H = VH(), R2 = invRects(), b = R2.box, k = Math.min(1, inv.t / 0.18);
+    ctx.save(); ctx.globalAlpha = 0.6 * k; u.rect(ctx, '#0a0612', 0, 0, W, H); ctx.restore();
+    const pulse = 0.5 + 0.5 * Math.sin(G.realTime * 5);
+    u.rect(ctx, 'rgba(147,194,91,' + (0.25 + 0.25 * pulse) + ')', b.x - 4, b.y - 4, b.w + 8, b.h + 8);
+    u.rect(ctx, '#120a18', b.x - 2, b.y - 2, b.w + 4, b.h + 4); u.rect(ctx, '#241a3a', b.x, b.y, b.w, b.h);
+    u.rect(ctx, '#4f8a36', b.x, b.y, b.w, 3);
+    drawAvatar(ctx, inv.av || 'skin:office', inv.fr || 'blue', b.x + 12, b.y + 12, 34);
+    u.text(ctx, inv.name, b.x + 56, b.y + 12, { size: 10, color: '#fde98f', shadow: true });
+    u.text(ctx, 'кличе тебе грати разом!', b.x + 56, b.y + 26, { size: 8, color: '#fbf6ea' });
+    u.text(ctx, 'Онлайн-втеча · кімната ' + inv.code, b.x + 56, b.y + 38, { size: 7, color: '#8fc7e4' });
+    const left = Math.max(0, 60 - Math.floor((Date.now() - inv.at) / 1000));
+    u.text(ctx, left + 'с', b.x + b.w - 10, b.y + 8, { size: 7, align: 'right', color: '#7a7280' });
+    const n0 = LS_.hits.length; // кнопки лише малюємо (натискання — в invUpdate)
+    smallBtn(ctx, R2.ok, 'ГРАТИ!', '#4f8a36', () => {});
+    smallBtn(ctx, R2.no, 'НЕ ЗАРАЗ', '#5a3a4a', () => {});
+    LS_.hits.length = n0;
+  }
+  setTimeout(() => {
+    for (const k of ['menu', 'friends', 'profile', 'coop']) {
+      const sc = G.scenes[k]; if (!sc || sc._inv) continue; sc._inv = 1;
+      const up = sc.update, dr = sc.draw;
+      sc.update = function (dt, rdt) { if (inv && invUpdate(rdt || dt)) return; return up.apply(this, arguments); };
+      sc.draw = function (ctx) { dr.apply(this, arguments); if (inv) invDraw(ctx); };
+    }
+  }, 0);
+  // «у грі» на сервері — раз на хвилину, навіть під час забігу (інакше через 3 хв друзі бачать «не в мережі»)
+  setInterval(() => { if (ON() && hasNick()) hello(true).then(listen); }, 60000);
+  G.events.on('state:change', (d) => { if (d && d.to === 'menu' && ON()) hello().then(listen); });
+
   G.social = {
+    get inviteMode() { return inviteMode; }, set inviteMode(v) { inviteMode = !!v; }, invite, get invitation() { return inv; },
     get pid() { return st.pid; }, get avatar() { return myAvatar(); }, get frame() { return myFrame(); },
     get incoming() { return incoming(); }, get friends() { return S.friends.slice(); }, get nosql() { return S.nosql; },
     drawAvatar, hello, loadFriends, find, FRAMES, avatarList,
