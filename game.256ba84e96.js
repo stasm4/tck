@@ -25009,7 +25009,7 @@
       U.text(ctx, String(lv.L), r.x + 13, r.y + 4, { size: lv.L > 9 ? 10 : 14, align: 'center', color: '#5a3a10' });
       U.text(ctx, 'РІВ', r.x + 13, r.y + 17, { size: 7, align: 'center', color: '#7a5418' });
     }
-    const nm = (G.online && G.online.name) || '';
+    const nm = (G.online && (G.online.realName != null ? G.online.realName : G.online.name)) || '';
     if (nm) U.text(ctx, nm, r.x + 30, r.y + 3, { size: 10, color: '#fbf6ea', shadow: true });
     else U.text(ctx, 'Тисни — введи нік', r.x + 30, r.y + 4, { size: 8, color: Math.sin(G.realTime * 4) > 0 ? '#fde98f' : '#c8b878' });
     U.text(ctx, lv.cur + '/' + lv.need, r.x + r.w - 5, r.y + 4, { size: 7, align: 'right', color: '#b4abb2' });
@@ -39493,6 +39493,8 @@
   function ckGet() { try { const m = document.cookie.match(/(?:^|; )tck_nick=([^;]*)/); return m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) { return null; } }
   function ckSet() { try { if (st.name) document.cookie = CK + '=' + encodeURIComponent(JSON.stringify({ n: st.name, id: st.id })) + ';path=/;max-age=' + 60 * 60 * 24 * 400 + ';SameSite=Lax'; } catch (e) {} }
   if (!st.name) { const c = ckGet(); if (c && c.n) { st.name = String(c.n).slice(0, 16); if (c.id) st.id = c.id; } }
+  // нік «Втікач 1234» гра ставила сама (онлайн-режим, профіль) — це не справжній нік гравця: просимо обрати свій
+  if (st.auto == null && /^Втікач \d{4}$/.test(st.name || '')) st.auto = 1;
   const persist = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {} ckSet(); };
   persist();
 
@@ -39559,12 +39561,12 @@
     runTok = null; persist();
     return submitPend();
   }
-  function autoName() { if (!st.name) { st.name = 'Втікач ' + (1000 + Math.floor(Math.random() * 9000)); persist(); } return st.name; }
+  function autoName() { if (!st.name) { st.name = 'Втікач ' + (1000 + Math.floor(Math.random() * 9000)); st.auto = 1; persist(); } return st.name; }
   function setName(n) {
     const c = cleanName(n);
     if (!c) return false;
     const had = !!st.name;
-    st.name = c; persist();
+    st.name = c; st.auto = 0; persist();
     if (G.events) G.events.emit('online:name', c);
     if (!enabled) return true;
     if (st.pend) submitPend();
@@ -39589,7 +39591,7 @@
       '<button class="o" style="flex:1;font:bold 14px monospace;padding:9px;background:#93c25b;color:#1a0e20;border:2px solid #120a18">ГОТОВО</button></div></div>';
     document.body.appendChild(box);
     const inp = box.querySelector('input'), err = box.querySelector('.e');
-    inp.value = st.name || '';
+    inp.value = st.auto ? '' : (st.name || '');
     const close = () => { if (box) { box.remove(); box = null; } };
     const ok = () => {
       if (setName(inp.value)) { close(); if (done) done(true); }
@@ -39604,7 +39606,7 @@
 
   G.online = {
     get enabled() { return enabled; }, get name() { return st.name; }, get device() { return st.id; },
-    get data() { return L; }, cfg: enabled ? { url: SUPA_URL, key: SUPA_KEY } : null, setName, autoName, get asked() { return !!st.asked; }, submit, refresh, askName, cleanName, _api: api,
+    get data() { return L; }, cfg: enabled ? { url: SUPA_URL, key: SUPA_KEY } : null, setName, autoName, get asked() { return !!st.asked; }, get isAuto() { return !!st.auto; }, get realName() { return st.auto ? '' : st.name; }, submit, refresh, askName, cleanName, _api: api,
   };
 
   // ── старт забігу ВТЕЧІ: взяти номер забігу на сервері ──
@@ -41118,7 +41120,8 @@
     if (!ON()) return Promise.resolve(null);
     if (!force && Date.now() - S.hAt < 60000 && st.pid) return Promise.resolve(st.pid);
     S.hAt = Date.now();
-    const name = G.online.name || G.online.autoName();
+    const name = G.online.realName;
+    if (!name) return Promise.resolve(st.pid); // без справжнього ніку профіль на сервері не створюємо
     return api('tck_hello', { p_device: dev(), p_name: name, p_avatar: myAvatar(), p_frame: myFrame(), p_level: lvl() })
       .then((pid) => { S.nosql = false; if (pid) { st.pid = pid; save(); } return st.pid; })
       .catch((e) => { if (/404/.test(String(e && e.message))) S.nosql = true; S.hAt = 0; return st.pid; });
@@ -41203,6 +41206,11 @@
     ['keyup', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click'].forEach((t) => box.addEventListener(t, (e) => e.stopPropagation()));
     setTimeout(() => inp.focus(), 50);
   }
+  const hasNick = () => !!(G.online && G.online.realName);
+  function askNick() {
+    sfx();
+    if (G.online && G.online.askName) G.online.askName((ok) => { if (ok) { hello(true).then(() => loadFriends()); } });
+  }
   function link() { return 'https://stasm4.github.io/tck/?add=' + st.pid; }
   function copyId() {
     if (!st.pid) { toast('ID ще не отримано — перевір інтернет'); return; }
@@ -41240,6 +41248,7 @@
       if (G.ui) G.ui.reset();
       if (ON()) { hello(true); loadFriends(); }
       pollT = 0;
+      if (!hasNick() && G.online && G.online.askName) setTimeout(() => { if (G.state === 'profile' && !hasNick()) askNick(); }, 250); // свій нік — один раз, і все
     },
     exit() { if (box) { box.remove(); box = null; } },
     update(dt, realDt) {
@@ -41310,6 +41319,12 @@
   function serverNote(ctx, r) {
     const u = U(), cx = r.x + r.w / 2, cy = r.y + r.h / 2;
     if (!G.online || !G.online.enabled) { u.text(ctx, 'СКОРО', cx, cy - 8, { size: 10, align: 'center', color: '#fde98f' }); u.text(ctx, 'Друзі запрацюють з наступним оновленням', cx, cy + 8, { size: 8, align: 'center', color: '#b4abb2' }); return true; }
+    if (!hasNick()) {
+      u.text(ctx, 'Спочатку обери свій нік', cx, cy - 16, { size: 10, align: 'center', color: '#fde98f' });
+      u.text(ctx, 'Під ним тебе знайдуть друзі', cx, cy - 2, { size: 8, align: 'center', color: '#b4abb2' });
+      smallBtn(ctx, { x: cx - 50, y: cy + 12, w: 100, h: 17 }, 'ОБРАТИ НІК', '#c8302a', askNick);
+      return true;
+    }
     if (S.nosql) { u.text(ctx, 'СЕРВЕР ДРУЗІВ ОНОВЛЮЄТЬСЯ', cx, cy - 8, { size: 9, align: 'center', color: '#fde98f' }); u.text(ctx, 'Зазирни трохи пізніше', cx, cy + 8, { size: 8, align: 'center', color: '#b4abb2' }); return true; }
     return false;
   }
@@ -41326,14 +41341,14 @@
     u.rect(ctx, '#120a18', ax + AS - lw + 3, ay + AS - 9, lw + 2, 13); u.rect(ctx, '#f7c948', ax + AS - lw + 4, ay + AS - 8, lw, 11);
     u.text(ctx, lt, ax + AS - lw / 2 + 4, ay + AS - 7, { size: 8, align: 'center', color: '#5a3a10' });
     let y = ay + AS + 8;
-    const nm = (G.online && G.online.name) || '—';
+    const nm = (G.online && G.online.realName) || 'Без ніку';
     u.text(ctx, nm, c.x + c.w / 2, y, { size: 10, align: 'center', color: '#fbf6ea', shadow: true }); y += 14;
     u.text(ctx, st.pid ? 'ID: ' + st.pid : (S.nosql || !ON() ? 'ID: —' : 'ID: …'), c.x + c.w / 2, y, { size: 10, align: 'center', color: '#fde98f', shadow: true }); y += 13;
     u.text(ctx, 'рівень ' + L.L + ' · ' + L.cur + '/' + L.need, c.x + c.w / 2, y, { size: 7, align: 'center', color: '#b4abb2' }); y += 13;
     const bw = c.w - 16;
     smallBtn(ctx, { x: c.x + 8, y, w: (bw - 4) / 2, h: 15 }, 'КОПІЮВАТИ ID', '#3f7fae', copyId);
     smallBtn(ctx, { x: c.x + 8 + (bw + 4) / 2, y, w: (bw - 4) / 2, h: 15 }, 'ПОДІЛИТИСЯ', '#5e9846', share); y += 20;
-    smallBtn(ctx, { x: c.x + 8, y, w: bw, h: 15 }, 'ЗМІНИТИ НІК', '#6a4a86', () => { sfx(); if (G.online && G.online.askName) G.online.askName((ok) => { if (ok) hello(true); }); });
+    smallBtn(ctx, { x: c.x + 8, y, w: bw, h: 15 }, G.online && G.online.realName ? 'ЗМІНИТИ НІК' : 'ОБРАТИ НІК', G.online && G.online.realName ? '#6a4a86' : '#c8302a', askNick);
     y += 20;
     if (y + 10 < c.y + c.h) u.text(ctx, 'Скинь ID другу — і грайте разом', c.x + c.w / 2, Math.min(c.y + c.h - 11, y + 2), { size: 7, align: 'center', color: '#7a7280' });
 
@@ -41383,7 +41398,7 @@
   }
 
   // ── вкладка ДРУЗІ ──
-  function openSearch() { sfx(); askText('ЗНАЙТИ ДРУГА', 'Введи ID (6 цифр) або нік гравця', 'напр. 482715 або Андрій', (v) => find(v)); }
+  function openSearch() { if (!hasNick()) { askNick(); return; } sfx(); askText('ЗНАЙТИ ДРУГА', 'Введи ID (6 цифр) або нік гравця', 'напр. 482715 або Андрій', (v) => find(v)); }
   function listRows() {
     if (S.search) {
       const out = [{ hdr: 'ПОШУК «' + S.search.q + '»', close: true }];
