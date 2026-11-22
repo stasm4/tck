@@ -30842,12 +30842,24 @@
   }
   // ── «Намальований» герой: сам спрайт гри, чіткий (ціле збільшення), повертається на 4 боки ──
   // ang: 0 — обличчям; на межі сектора «картка» коротко звужується й перевертається на інший бік
+  const turns = {}, silC = new Map();
+  function sil(img, col) { // силует спрайта одним кольором (для контурного світла), з кешем
+    const key = col; let m = silC.get(img); if (!m) { m = {}; silC.set(img, m); }
+    if (m[key]) return m[key];
+    const c = G.util.makeCanvas(img.width, img.height), x = c.getContext('2d');
+    x.drawImage(img, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height);
+    if (silC.size > 60) silC.clear();
+    return (m[key] = c);
+  }
   function drawCrisp(ctx, cx, feetY, s, ang, o) {
     o = o || {};
     const TAU = Math.PI * 2, a = ((ang % TAU) + TAU) % TAU, sector = Math.round(a / (Math.PI / 2)) % 4;
     const dir = ['down', 'right', 'up', 'left'][sector];
-    const off = a - sector * Math.PI / 2, rel = Math.abs(Math.atan2(Math.sin(off), Math.cos(off)));
-    const t = Math.max(0, Math.min(1, (rel - 0.32) / (Math.PI / 4 - 0.32))), f = 1 - 0.86 * t * t;
+    // без «картонки»: бік перемикається одразу, а сам поворот — коротка пружинка (трохи присів і випрямився)
+    const ks = o.id || (Math.round(cx) + '|' + Math.round(feetY)), ts = turns[ks] || (turns[ks] = { sec: sector, t: -1e9 });
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    if (ts.sec !== sector) { ts.sec = sector; ts.t = now; }
+    const el = (now - ts.t) / 160, sq = el < 1 ? Math.sin(el * Math.PI) * 0.07 : 0, f = 1 + sq;
     const O = G.outfit, prev = O ? O.override : null;
     let img = null;
     try { if (O && o.outfit !== undefined) O.override = o.outfit; img = G.sprites.get('player', { skin: o.skin || 'office', dir, frame: 0 }); } catch (e) { img = null; } finally { if (O) O.override = prev; }
@@ -30855,8 +30867,14 @@
     const k = Math.max(1, Math.floor(s + 0.01)), w = img.width * k, h = img.height * k;
     ctx.save(); ctx.imageSmoothingEnabled = false;
     ctx.translate(Math.round(cx), Math.round(feetY - (o.lift || 0)));
-    if (f < 0.999) ctx.scale(f, 1);
-    ctx.drawImage(img, -Math.round(w / 2), -h + k, w, h);
+    if (sq) ctx.scale(f, 1 - sq);
+    const x0 = -Math.round(w / 2), y0 = -h + k;
+    if (o.rim !== false) { // контурне світло: тепле праворуч-згори, холодне ліворуч — фігура «відривається» від тла
+      ctx.globalAlpha = 0.85; ctx.drawImage(sil(img, '#ffd27a'), x0 + k, y0 - k, w, h);
+      ctx.globalAlpha = 0.6; ctx.drawImage(sil(img, '#7fb4ff'), x0 - k, y0, w, h);
+      ctx.globalAlpha = 1;
+    }
+    ctx.drawImage(img, x0, y0, w, h);
     ctx.restore();
     return true;
   }
