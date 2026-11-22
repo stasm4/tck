@@ -24985,6 +24985,68 @@
   const PASS_R = () => { const x0 = MENU_X + MENU_W + 10, x1 = VW() - 8 - 84 - 6; return { x: x0, y: 27, w: x1 - x0, h: 38 }; };
   const LOOK_R = () => { const p = POD(), w = 96; return { x: p.cx - w / 2, y: p.feet + 25, w, h: 15 }; };
   const H3 = { ang: 0.08, vel: 0, drag: null, idle: 0, jump: 0, jumpV: 0, lastLvl: 0 };
+  // ═══ ЛОБІ на головному екрані: друзі стоять поруч на подіумі, «+» — запросити, «ГРАТИ РАЗОМ» — онлайн-втеча ═══
+  const PARTY_POS = [{ dx: 84, k: 3 }, { dx: -84, k: 3 }, { dx: 122, k: 2 }, { dx: -122, k: 2 }];
+  const lobbyOn = () => !!(G.coop && G.coop.enabled && G.social && G.scenes.friends);
+  function partyOthers() { const C = G.coop; if (!C || !C.role) return []; const me = C.myId; return (C.roster || []).filter((r, i) => (me ? r.id !== me : !(C.role === 'host' && i === 0))).slice(0, 4); }
+  function partySlots() { // [{pos, pl|null}] — хто де стоїть і де «+»
+    if (!lobbyOn()) return [];
+    const others = partyOthers(), out = [];
+    for (let i = 0; i < PARTY_POS.length; i++) {
+      if (others[i]) out.push({ pos: PARTY_POS[i], pl: others[i] });
+      else if (i < 2 && (G.coop.players || 1) < 5) out.push({ pos: PARTY_POS[i], pl: null }); // як у Brawl Stars: «+» з обох боків
+    }
+    return out;
+  }
+  const slotR = (sl) => { const p = POD(); return { x: p.cx + sl.pos.dx - 24, y: p.feet - 30 * sl.pos.k - 14, w: 48, h: 30 * sl.pos.k + 18 }; };
+  const LEAVE_R = () => { const p = POD(); return { x: p.cx + 18, y: p.feet + 44, w: 46, h: 13 }; };
+  function inviteToLobby() {
+    click('pickup');
+    if (G.online && !G.online.realName && G.online.askName) { G.online.askName((ok) => { if (ok) inviteToLobby(); }); return; }
+    G.social.inviteMode = true; G.setState('friends');
+  }
+  function drawParty(ctx) {
+    const sl = partySlots(); if (!sl.length) return;
+    const p = POD(), mh = G.input.mouse;
+    // спершу дальні (менші), потім ближні
+    for (const s2 of sl.slice().sort((a, b) => a.pos.k - b.pos.k)) {
+      const x = p.cx + s2.pos.dx, k = s2.pos.k, fy = p.feet + (k === 3 ? 6 : 2), r = slotR(s2), hov = U.inRect(mh.x, mh.y, r);
+      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x, fy + 1, 9 * k / 2 + 6, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      if (s2.pl) {
+        const pl = s2.pl, i = PARTY_POS.indexOf(s2.pos), ang = 0.25 * Math.sin(M.t * 0.6 + i * 1.7) + (s2.pos.dx > 0 ? -0.55 : 0.55); // трохи повернуті до героя
+        const bob = Math.max(0, Math.sin(M.t * 2.2 + i)) * 1;
+        if (G.hero3d) G.hero3d.drawCrisp(ctx, x, fy, k, ang, { skin: pl.skin || 'office', outfit: pl.outfit || null, lift: Math.round(bob), id: 'party' + i });
+        if (pl.pet && G.hero3d && G.hero3d.drawPetCrisp) G.hero3d.drawPetCrisp(ctx, pl.pet, x + (s2.pos.dx > 0 ? 22 : -22) * k / 3, fy + 4, k - 1, s2.pos.dx > 0 ? Math.PI : 0, 0, 0); // улюбленець друга — попереду збоку
+        let nm = String(pl.name || 'Гравець'); while (nm.length > 3 && U.measure(nm, 7) > 70) nm = nm.slice(0, -2) + '…';
+        const ty = fy - 30 * k - 6, w = U.measure(nm, 7) + 8;
+        U.rect(ctx, 'rgba(18,10,24,0.8)', x - w / 2, ty - 1, w, 10);
+        U.text(ctx, nm, x, ty, { size: 7, align: 'center', color: pl.host ? '#fde98f' : '#93c25b' });
+        if (pl.host) U.text(ctx, 'ХОСТ', x, ty - 9, { size: 6, align: 'center', color: '#f7c948', outline: '#1a0e20' });
+      } else {
+        // порожнє місце — напівпрозора плитка з «+», як у Brawl Stars
+        const cy = fy - 15 * k - 6, b = 15 + (hov ? 1 : 0), fl = Math.sin(M.t * 1.6 + s2.pos.dx) * 1.5;
+        ctx.save(); ctx.globalAlpha = hov ? 0.95 : 0.7;
+        U.rect(ctx, 'rgba(18,10,24,0.55)', x - b + 2, cy - b + 3 + fl, b * 2, b * 2);
+        U.rect(ctx, 'rgba(255,255,255,0.28)', x - b, cy - b + fl, b * 2, b * 2);
+        U.rect(ctx, 'rgba(255,255,255,0.5)', x - b, cy - b + fl, b * 2, 2); U.rect(ctx, 'rgba(255,255,255,0.18)', x - b, cy - b + fl, 2, b * 2);
+        U.rect(ctx, '#ffffff', x - 2, cy - 9 + fl, 4, 18); U.rect(ctx, '#ffffff', x - 9, cy - 2 + fl, 18, 4);
+        ctx.restore();
+        const t = 'ЗАПРОСИТИ', w = U.measure(t, 6) + 6;
+        U.rect(ctx, 'rgba(18,10,24,0.75)', x - w / 2, cy + b + 4 + fl, w, 9); U.text(ctx, t, x, cy + b + 5 + fl, { size: 6, align: 'center', color: '#fff8e0' });
+      }
+    }
+    // рядок лобі під подіумом
+    const C = G.coop;
+    if (C && C.role) {
+      const n = C.players || 1, t = 'ЛОБІ ' + n + '/5' + (C.role === 'guest' && !C.linked ? ' · підключаємось…' : '');
+      U.text(ctx, t, p.cx - 26, p.feet + 46, { size: 7, align: 'center', color: '#93c25b', shadow: true });
+      const lr = LEAVE_R(), lh = U.inRect(mh.x, mh.y, lr);
+      U.rect(ctx, '#120a18', lr.x - 1, lr.y - 1, lr.w + 2, lr.h + 2); U.rect(ctx, lh ? '#a8484a' : '#7a3438', lr.x, lr.y, lr.w, lr.h);
+      U.text(ctx, 'ВИЙТИ', lr.x + lr.w / 2, lr.y + 3, { size: 6, align: 'center', color: '#fff8e0' });
+    }
+  }
+  // кнопка ГРАТИ в лобі: хост із друзями — «ГРАТИ РАЗОМ», гість — чекає на хоста
+  const partyPlay = () => { const C = G.coop; return !!(C && C.role && C.linked && C.players > 1); };
   function heroSkin() { const P = G.progress; return (G.heroes && G.heroes.skinFor ? G.heroes.skinFor((P && P.heroSel) || 'andriy') : null) || (P && P.equipped) || 'office'; }
   function heroUpdate(dt) {
     const m = G.input.mouse, R = HERO_R();
@@ -25005,6 +25067,7 @@
   }
   function drawHero3d(ctx) {
     const p = POD(), s = 4.5;
+    let petLater = null;
     // подіум
     const breathe = Math.sin(M.t * 2.2);
     const lift = Math.max(0, H3.jump) + (H3.jump > 0 ? 0 : Math.max(0, breathe) * 1.5);
@@ -25024,11 +25087,12 @@
     if (legend) G.pass.legendFx(ctx, p.cx, p.feet - 62, 86, M.t);
     if (G.pass && G.pass.pet && G.hero3d && G.hero3d.drawPet) { // улюбленець — теж 3D, поруч на подіумі, крутиться разом із героєм
       const ph = Math.abs(Math.sin(M.t * 3.2)) * (Math.sin(M.t * 0.7) > 0.3 ? 4 : 0);
-      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(p.cx - 40, p.feet + 3, 14, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      G.hero3d.drawPetCrisp(ctx, G.pass.pet, p.cx - 40, p.feet + 3, 3, H3.ang, Math.round(ph), ph > 0 || Math.abs(H3.vel) > 0.5 ? Math.floor(M.t * 8) : 0);
+      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(p.cx + 38, p.feet + 7, 14, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      petLater = () => G.hero3d.drawPetCrisp(ctx, G.pass.pet, p.cx + 38, p.feet + 7, 3, H3.ang + Math.PI, Math.round(ph), ph > 0 || Math.abs(H3.vel) > 0.5 ? Math.floor(M.t * 8) : 0); // попереду праворуч, як у Brawl Stars
     }
     const ok3 = G.hero3d && G.hero3d.drawCrisp(ctx, p.cx, p.feet, s, H3.ang, { skin: heroSkin(), lift: Math.round(lift) });
     if (!ok3) { const img = U.spr('player', { skin: heroSkin(), dir: 'down', frame: 0 }); if (img) U.drawScaled(ctx, img, p.cx - img.width * 2, p.feet - img.height * 4, 4); }
+    if (petLater) petLater();
     // підпис
     const P = G.progress, sk = P && P.skins ? P.skins.find((k) => k.id === heroSkin()) : null;
     if (legend) {
@@ -25040,7 +25104,7 @@
     pill(ctx, lr.x, lr.y, lr.w, lr.h, lh ? '#3f7fae' : '#2d5f86');
     U.icon(ctx, 'shirt', lr.x + 5, lr.y + 4);
     U.text(ctx, 'ЗМІНИТИ ОБРАЗ', lr.x + lr.w / 2 + 6, lr.y + 4, { size: 7, align: 'center', color: '#fff8e0' });
-    if (H3.idle > 1.5 && M.t < 20) U.text(ctx, isTouch() ? '« крути пальцем »' : '« крути мишкою »', p.cx, p.feet + 43, { size: 7, align: 'center', color: 'rgba(255,255,255,0.55)' });
+    if (H3.idle > 1.5 && M.t < 20 && !(G.coop && G.coop.role)) U.text(ctx, isTouch() ? '« крути пальцем »' : '« крути мишкою »', p.cx, p.feet + 43, { size: 7, align: 'center', color: 'rgba(255,255,255,0.55)' });
   }
   function pill(ctx, x, y, w, h, fill) { U.rect(ctx, 'rgba(0,0,0,0.35)', x + 1, y + 2, w, h); U.rect(ctx, '#120a18', x - 1, y - 1, w + 2, h + 2); U.rect(ctx, fill, x, y, w, h); U.rect(ctx, 'rgba(255,255,255,0.18)', x, y, w, 1); }
   function drawTopBar(ctx) {
@@ -25144,6 +25208,10 @@
     if (n !== M.day) { M.day = n; click(); }
   }
   function activate(id) {
+    if (id === 'start' && partyPlay()) {
+      if (G.coop.role === 'host') { click('pickup'); G.coop.begin(); } else { click(); G.ui.toast('Чекаємо, поки хост натисне «ГРАТИ РАЗОМ»', 2200); }
+      return;
+    }
     if (id === 'start') {
       click();
       if (G.progress && G.progress.selectDay) G.progress.selectDay(M.day);
@@ -25182,6 +25250,10 @@
     M.t += realDt;
     const mm = G.input.mouse;
     if (M.pop) { if (mm.clicked || back() || ok()) { G.input.consume && G.input.consume('pause'); M.pop = null; click(); } return; }
+    if (mm.clicked) { // лобі: «+» — запросити, «ВИЙТИ» — покинути лобі
+      for (const sl of partySlots()) if (!sl.pl && U.inRect(mm.x, mm.y, slotR(sl))) { inviteToLobby(); return; }
+      if (G.coop && G.coop.role && U.inRect(mm.x, mm.y, LEAVE_R())) { click(); G.coop.leave(); return; }
+    }
     heroUpdate(realDt || dt);
     if (mm.clicked) {
       if (U.inRect(mm.x, mm.y, PROF_R())) { click(); if (G.scenes.profile) G.setState('profile'); else if (G.online && G.online.askName) G.online.askName(() => {}); return; }
@@ -25478,6 +25550,7 @@
     U.text(ctx, 'БУСИФІКАЦІЯ', MENU_X + MENU_W / 2, 34, { size: 16, align: 'center', color: pulse ? '#ff5a4a' : '#d8443a', outline: '#1a0e20' });
     { const period = 14, ph = M.t % period, bx2 = VW() + 70 - ph * 60; if (bx2 > -80) U.drawBus(ctx, bx2, 271, 1.1, 'left', M.t); } // бус їде нижньою смугою дороги, під кнопками й героєм
     drawHero3d(ctx);
+    drawParty(ctx);
     drawTopBar(ctx);
     const P = G.progress;
     const bd = (P && P.badges) ? P.badges() : {};
@@ -25502,10 +25575,11 @@
           U.tri(ctx, r.x + r.w - 8, r.y + 24, 'right', 4, M.day < maxDay ? '#fde98f' : '#8a4a4a');
         }
         const ms = P && P.mission ? P.mission(M.day) : null;
-        const gw = U.measure('ГРАТИ', 16);
+        const pp = partyPlay(), gT = pp ? (G.coop.role === 'host' ? 'ГРАТИ РАЗОМ' : 'ЧЕКАЄМО ХОСТА') : 'ГРАТИ', gS = pp ? (G.coop.role === 'host' ? 12 : 10) : 16;
+        const gw = U.measure(gT, gS);
         U.tri(ctx, Math.round(r.x + r.w / 2 - gw / 2 - 4), r.y + 11, 'right', 5, '#fff8e0');
-        U.text(ctx, 'ГРАТИ', r.x + r.w / 2 + 6, r.y + 2, { size: 16, align: 'center', color: '#fff8e0', outline: '#5a1410' });
-        let lbl = (M.day > camp ? 'День ' + M.day : 'Місія ' + M.day) + (ms && ms.short && M.day <= camp ? ': ' + ms.short : '');
+        U.text(ctx, gT, r.x + r.w / 2 + 6, r.y + (pp ? 5 : 2), { size: gS, align: 'center', color: '#fff8e0', outline: '#5a1410' });
+        let lbl = pp ? 'Онлайн-втеча · ' + G.coop.players + ' гравці' : (M.day > camp ? 'День ' + M.day : 'Місія ' + M.day) + (ms && ms.short && M.day <= camp ? ': ' + ms.short : '');
         while (lbl.length > 6 && U.measure(lbl, 7) > r.w - 26) lbl = lbl.slice(0, -2) + '…';
         U.text(ctx, lbl, r.x + r.w / 2, r.y + 23, { size: 7, align: 'center', color: '#ffe4cc' });
         if (f) { const blink = Math.floor(G.realTime * 3) % 2 ? 0 : 1; U.tri(ctx, r.x - 6 - blink, r.y + r.h / 2, 'right', 4, '#fde98f'); }
@@ -40188,6 +40262,7 @@
   Object.defineProperty(C, 'picking', { get: () => !!pick });
   Object.defineProperty(C, 'rooms', { get: () => roomList() });
   Object.defineProperty(C, 'roster', { get: () => rosterNow() });
+  Object.defineProperty(C, 'myId', { get: () => (sig ? sig.id : null) });
   C.dbg = { rx: 0, tx: 0, hits: 0, caught: 0, revive: 0, out: 0, goal: 0, hurt: 0 };
 
   function rosterNow() {
@@ -40908,7 +40983,7 @@
   setTimeout(() => {
     wrapEnd(); wrapUpdate();
     // «Ще раз» після спільного забігу — назад у кімнату (хост знову натисне «ПОЧАТИ»)
-    if (G.modes && G.modes.restart) { const rs = G.modes.restart; G.modes.restart = function () { if (C.role && C.linked) { G.setState('coop'); return; } return rs.apply(this, arguments); }; }
+    if (G.modes && G.modes.restart) { const rs = G.modes.restart; G.modes.restart = function () { if (C.role && C.linked) { G.setState('menu'); return; } return rs.apply(this, arguments); }; }
   }, 0);
   G.events.on('run:start', () => { if (C.role === 'host' && C.inGame) { for (const P of peers.values()) P.av = null; hostDown = null; hostOut = false; allDownT = 0; ending = false; } });
 
@@ -41335,7 +41410,7 @@
   // з екрана результату «Ще раз»/«Меню» — назад у кімнату, якщо команда ще тут
   G.events.on('state:change', (d) => {
     if (!d || !C.role) return;
-    if (d.to === 'menu' && C.role && !C.inGame && d.from === 'result') G.setState('coop');
+    void d; // після спільного забігу — у головне меню: лобі з командою видно там
   });
 })();
 
@@ -41577,7 +41652,7 @@
   const hit = (r, fn, o) => LS_.hits.push(Object.assign({ r, fn }, o || {}));
 
   function act(id) {
-    if (id === 'back') { sfx(); LS_.card = null; const toRoom = inviteMode && G.coop && G.coop.role && !G.coop.inGame; inviteMode = false; G.setState(toRoom ? 'coop' : 'menu'); }
+    if (id === 'back') { sfx(); LS_.card = null; const to = inviteMode && inviteFrom === 'coop' && G.coop && G.coop.role && !G.coop.inGame ? 'coop' : 'menu'; inviteMode = false; G.setState(to); }
     else if (id === 'me' || id === 'friends') { if (LS_.tab !== id) { sfx(); LS_.tab = id; LS_.scroll = 0; LS_.confirm = null; if (id === 'friends') loadFriends(); } }
   }
   // профіль друга (картка поверх списку): аватарка, рівень, у грі чи ні, рекорд ВТЕЧІ, друзі; дії
@@ -41893,7 +41968,7 @@
   }
 
   // ═══════════════ Запрошення в гру (особистий канал u<ID> через Supabase Realtime) ═══════════════
-  let inviteMode = false, chan = null, chanPid = null, inv = null;
+  let inviteMode = false, inviteFrom = 'menu', chan = null, chanPid = null, inv = null;
   const invSent = {};
   function listen() {
     if (!G.coop || !G.coop._signal || !G.coop.enabled || !st.pid || !hasNick()) return;
@@ -41923,13 +41998,13 @@
     setTimeout(() => { try { ch.close(); } catch (e) {} }, 5000);
     invSent[row.pid] = Date.now();
     toast('Запрошення надіслано: ' + row.name, 2200);
-    if (!inviteMode) { inviteMode = false; G.setState('coop'); }
+    if (!inviteMode) G.setState('menu'); // лобі — на головному екрані
   }
   function acceptInv() {
     const v = inv; inv = null; if (!v || !G.coop) return;
     sfx('pickup');
     if (G.coop.role) G.coop.leave(true);
-    G.setState('coop');
+    G.setState('menu'); // заходиш у лобі друга — ви стоїте разом на головному екрані
     G.coop.join(v.code);
   }
   // вікно «Тебе кличуть грати» — поверх меню, друзів, профілю й онлайн-екрана
@@ -41981,7 +42056,7 @@
   // підтвердження посилань автора: видно, що спрацювало
   if (G._bootMsg) setTimeout(() => { if (G.ui && G.ui.banner) G.ui.banner(G._bootMsg === 'fresh' ? 'Збереження стерто — гра з нуля' : 'Режим автора: усе відкрито', 3500); }, 1500);
   G.social = {
-    get inviteMode() { return inviteMode; }, set inviteMode(v) { inviteMode = !!v; }, invite, get invitation() { return inv; },
+    get inviteMode() { return inviteMode; }, set inviteMode(v) { inviteMode = !!v; if (v) inviteFrom = G.state === 'coop' ? 'coop' : 'menu'; }, invite, get invitation() { return inv; },
     get pid() { return st.pid; }, get avatar() { return myAvatar(); }, get frame() { return myFrame(); },
     get incoming() { return incoming(); }, get friends() { return S.friends.slice(); }, get nosql() { return S.nosql; },
     drawAvatar, hello, loadFriends, find, FRAMES, avatarList,
