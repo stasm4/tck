@@ -25,6 +25,18 @@
   };
   try { if (/[?&#]winter=0\b/.test(String(window.location && window.location.search || '') + String(window.location && window.location.hash || ''))) G.cfg.WINTER = false; } catch (e) { /* */ }
 
+  // ── посилання автора (для тестів, лише на цьому пристрої) ──
+  // ?author=КЛЮЧ — режим автора: усі місії пройдені, усе куплено, пас «Білий квиток» повний (преміум + 30 рівнів)
+  // ?fresh=КЛЮЧ  — стерти все збереження гри на цьому пристрої (як новий гравець; режим автора теж вимикається)
+  try {
+    const AK = 'avtor-87de3a', q = new URLSearchParams(window.location.search);
+    let clean = false;
+    if (q.get('fresh') === AK) { for (const k of Object.keys(localStorage)) if (/^tck/.test(k)) localStorage.removeItem(k); document.cookie = 'tck_nick=;path=/;max-age=0'; clean = true; }
+    if (q.get('author') === AK) { localStorage.setItem('tck_author', '1'); clean = true; }
+    if (clean && history.replaceState) history.replaceState(null, '', window.location.pathname);
+  } catch (e) { /* без location (тести) */ }
+  G.author = (() => { try { return localStorage.getItem('tck_author') === '1'; } catch (e) { return false; } })();
+
   G.state = 'boot';
   G.prevState = null;
   G.time = G.cfg.START_MIN;   // ігровий час, хв від півночі
@@ -30795,7 +30807,8 @@
   // преміум не видається нічим: ні тестовим посиланням, ні з консолі. Хто отримав його раніше безкоштовно (тест-посилання),
   // втрачає преміум, улюбленців і скіни пасу; «накручений» тестом досвід скидається — рівні треба заробити завданнями.
   const PAID = false;
-  if (!PAID && (st.prem || st.xp > LV_XP * 29)) {
+  if (G.author) { st.prem = true; st.xp = Math.max(st.xp, LV_XP * MAXL); } // посилання автора: повний пас для тестів
+  else if (!PAID && (st.prem || st.xp > LV_XP * 29)) {
     st.prem = false; st.gotP = []; st.pets = []; st.pet = null;
     if (st.xp > LV_XP * 29) { st.xp = 0; st.got = []; }
     st.revoke = 1;
@@ -30993,6 +31006,7 @@
       const ids = FREE.concat(PREM).filter((r) => r && r.k === 'skin').map((r) => r.id);
       P().revokeSkins(ids); st.revoke = 0; save();
     }
+    if (G.author) { for (let L = 1; L <= MAXL; L++) { claim(L, 'f', true); claim(L, 'p', true); } save(); } // автор: усі нагороди вже забрані
     let ch = false;
     const owns = (r) => r && ((r.k === 'skin' && P().skins.some((q) => q.id === r.id && q.unlocked)) || (r.k === 'pet' && st.pets.indexOf(r.id) >= 0) || (r.k === 'acc' && P().accOwned && P().accOwned(r.id)));
     for (let L = 1; L <= MAXL; L++) {
@@ -32372,8 +32386,8 @@
       D = r.data;
       // тест: ?dev=vsi2026 — усі 30 місій сюжету пройдені на 3 зірки (лише на цьому пристрої), параметр прибирається з адреси
       try {
-        const q = new URLSearchParams(location.search);
-        if (q.get('dev') === 'vsi2026') {
+        let devQ = false; try { devQ = new URLSearchParams(location.search).get('dev') === 'vsi2026'; } catch (e) { /* */ }
+        if (devQ || G.author) {
           D.done = D.done || {}; D.stars = D.stars || {};
           for (let n = 1; n <= 30; n++) { D.done[n] = 1; D.stars[n] = Math.max(D.stars[n] || 0, 3); }
           D.maxDay = Math.max(D.maxDay || 1, 30);
@@ -32381,8 +32395,12 @@
           for (const sk of SKINS) if (sk.kind !== 'pass' && D.unlocked.indexOf(sk.id) < 0) D.unlocked.push(sk.id);
           D.acc = D.acc || { own: [] }; D.acc.own = D.acc.own || [];
           for (const a of ACC) if (a.price > 0 && D.acc.own.indexOf(a.id) < 0) D.acc.own.push(a.id);
+          if (G.author) { // автор: ще й уся прокачка на максимум і гроші на тести крамниці
+            D.upg = D.upg || {}; for (const u of UPG) D.upg[u.id] = u.max;
+            D.money = Math.max(D.money || 0, 100000);
+          }
           r.migrated = true;
-          if (history.replaceState) history.replaceState(null, '', location.pathname);
+          try { if (devQ && history.replaceState) history.replaceState(null, '', location.pathname); } catch (e) { /* */ }
         }
       } catch (e) { /* без location (тести) */ }
       clampCampaign();
