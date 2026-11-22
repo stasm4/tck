@@ -24933,6 +24933,30 @@
   const POD = () => { const x0 = MENU_X + MENU_W + 16, x1 = VW() - 8; return { cx: Math.round((x0 + x1) / 2), feet: 200, x0, x1 }; };
   const HERO_R = () => { const p = POD(); return { x: p.cx - 64, y: 72, w: 128, h: 140 }; };
   const RBTN = () => { const w = 84, x = VW() - 8 - w; return [{ id: 'login', r: { x, y: 30, w, h: 17 } }]; };
+  // окрема кнопка ДРУЗІ під бонусом дня: аватарки друзів (хто в грі — першими), скільки в грі, запити
+  const FRIEND_R = () => { const w = 84; return { x: VW() - 8 - w, y: 51, w, h: 27 }; };
+  function drawFriendsBtn(ctx) {
+    if (!G.social || !G.scenes.friends) return;
+    const r = FRIEND_R(), hov = U.inRect(G.input.mouse.x, G.input.mouse.y, r);
+    const fr = G.social.friends.filter((f) => f.rel === 'friend').sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0));
+    const on = fr.filter((f) => f.online).length, inc = G.social.incoming;
+    pill(ctx, r.x, r.y, r.w, r.h, hov ? 'rgba(58,96,140,0.97)' : 'rgba(34,56,92,0.95)');
+    U.rect(ctx, '#8fc7e4', r.x, r.y + r.h - 1, r.w, 1);
+    U.icon(ctx, 'person', r.x + 4, r.y + 3);
+    U.text(ctx, 'ДРУЗІ', r.x + 13, r.y + 2, { size: 8, color: '#fde98f', shadow: true });
+    if (on) { U.rect(ctx, '#120a18', r.x + r.w - 37, r.y + 4, 6, 6); U.rect(ctx, '#5ee05a', r.x + r.w - 36, r.y + 5, 4, 4); U.text(ctx, on + ' у грі', r.x + r.w - 4, r.y + 3, { size: 7, align: 'right', color: '#93c25b' }); }
+    else if (fr.length) U.text(ctx, String(fr.length), r.x + r.w - 4, r.y + 3, { size: 7, align: 'right', color: '#b4abb2' });
+    if (fr.length) {
+      const n = Math.min(fr.length > 6 ? 5 : 6, fr.length);
+      for (let i = 0; i < n; i++) {
+        const ax = r.x + 4 + i * 13, ay = r.y + 13;
+        G.social.drawAvatar(ctx, fr[i].avatar, fr[i].frame, ax, ay, 11);
+        if (fr[i].online) { U.rect(ctx, '#120a18', ax + 8, ay + 8, 4, 4); U.rect(ctx, '#5ee05a', ax + 9, ay + 9, 3, 3); }
+      }
+      if (fr.length > n) U.text(ctx, '+' + (fr.length - n), r.x + 4 + n * 13 + 1, r.y + 15, { size: 7, color: '#b4abb2' });
+    } else U.text(ctx, '+ додай друга', r.x + 6, r.y + 15, { size: 7, color: Math.sin(G.realTime * 3) > 0 ? '#fde98f' : '#e8d8a8' });
+    if (inc) { const on2 = Math.sin(G.realTime * 6) > -0.3, t = String(Math.min(inc, 9)); U.rect(ctx, '#120a18', r.x - 5, r.y - 4, 11, 11); U.rect(ctx, on2 ? '#ff4a3a' : '#c8302a', r.x - 4, r.y - 3, 9, 9); U.text(ctx, t, r.x + 0.5, r.y - 2, { size: 7, align: 'center', color: '#fff8e0' }); }
+  }
   // великий банер сезонного пасу — між лого і кнопками праворуч, одразу кидається в око
   const PASS_R = () => { const x0 = MENU_X + MENU_W + 10, x1 = VW() - 8 - 84 - 6; return { x: x0, y: 27, w: x1 - x0, h: 38 }; };
   const LOOK_R = () => { const p = POD(), w = 96; return { x: p.cx - w / 2, y: p.feet + 25, w, h: 15 }; };
@@ -25013,7 +25037,7 @@
     if (nm) U.text(ctx, nm, r.x + 30, r.y + 3, { size: 10, color: '#fbf6ea', shadow: true });
     else U.text(ctx, 'Тисни — введи нік', r.x + 30, r.y + 4, { size: 8, color: Math.sin(G.realTime * 4) > 0 ? '#fde98f' : '#c8b878' });
     U.text(ctx, lv.cur + '/' + lv.need, r.x + r.w - 5, r.y + 4, { size: 7, align: 'right', color: '#b4abb2' });
-    const inc = G.social ? G.social.incoming : 0;
+    const inc = G.social && !G.scenes.friends ? G.social.incoming : 0; // запити показує кнопка ДРУЗІ
     if (inc) { const on = Math.sin(G.realTime * 6) > -0.3, t = String(Math.min(inc, 9)); U.rect(ctx, '#120a18', r.x + r.w - 6, r.y - 4, 11, 11); U.rect(ctx, on ? '#ff4a3a' : '#c8302a', r.x + r.w - 5, r.y - 3, 9, 9); U.text(ctx, t, r.x + r.w - 0.5, r.y - 2, { size: 7, align: 'center', color: '#fff8e0' }); }
     const bw = r.w - 36, k = lv.cur / lv.need;
     U.rect(ctx, '#120a18', r.x + 30, r.y + 17, bw, 5); U.rect(ctx, '#2a2030', r.x + 31, r.y + 18, bw - 2, 3);
@@ -25030,6 +25054,7 @@
       U.text(ctx, st, sx + sw / 2, 10, { size: 8, align: 'center', color: '#fde98f' });
     }
     drawPassBanner(ctx);
+    drawFriendsBtn(ctx);
     // кнопки праворуч: нагорода за вхід / завдання дня
     const chal = P && P.challenges ? P.challenges() : [], done = chal.filter((c) => c.done).length;
     const L = P && P.login;
@@ -25136,6 +25161,7 @@
     heroUpdate(realDt || dt);
     if (mm.clicked) {
       if (U.inRect(mm.x, mm.y, PROF_R())) { click(); if (G.scenes.profile) G.setState('profile'); else if (G.online && G.online.askName) G.online.askName(() => {}); return; }
+      if (G.scenes.friends && G.social && U.inRect(mm.x, mm.y, FRIEND_R())) { click(); G.setState('friends'); return; }
       if (G.scenes.pass && U.inRect(mm.x, mm.y, PASS_R())) { click('pickup'); G.setState('pass'); return; }
       for (const b of RBTN()) if (U.inRect(mm.x, mm.y, b.r)) { click(); if (b.id === 'pass' && G.scenes.pass) G.setState('pass'); else M.pop = b.id; return; }
       if (U.inRect(mm.x, mm.y, LOOK_R())) { activate('wardrobe'); return; }
@@ -41145,6 +41171,7 @@
     }).catch((e) => { if (S.search) { S.search.status = 'err'; S.search.rows = []; } if (/404/.test(String(e && e.message))) S.nosql = true; });
   }
   function setRel(pid, rel) {
+    if (LS_.card && LS_.card.r.pid === pid) LS_.card.r.rel = rel;
     for (const r of S.friends) if (r.pid === pid) r.rel = rel;
     if (S.search && S.search.rows) for (const r of S.search.rows) if (r.pid === pid) r.rel = rel;
   }
@@ -41229,7 +41256,8 @@
   // ═══════════════════════════ Сцена ПРОФІЛЬ ═══════════════════════════
   if (G.STATES.indexOf('profile') < 0) G.STATES.push('profile');
   const VW = () => G.cfg.VIEW_W, VH = () => G.cfg.VIEW_H;
-  const LS_ = { tab: 'me', scroll: 0, drag: null, confirm: null, t: 0, hits: [] };
+  const LS_ = { tab: 'me', scroll: 0, drag: null, confirm: null, t: 0, hits: [], solo: false, card: null };
+  if (G.STATES.indexOf('friends') < 0) G.STATES.push('friends');
   const TAB_R = (k) => ({ x: 14 + k * 104, y: 30, w: 100, h: 18 });
   const BACK_R = () => ({ x: VW() - 94, y: VH() - 26, w: 80, h: 20 });
   const CARD_R = () => ({ x: 14, y: 54, w: 150, h: VH() - 54 - 32 });
@@ -41239,28 +41267,39 @@
   const hit = (r, fn, o) => LS_.hits.push(Object.assign({ r, fn }, o || {}));
 
   function act(id) {
-    if (id === 'back') { sfx(); G.setState('menu'); }
+    if (id === 'back') { sfx(); LS_.card = null; G.setState('menu'); }
     else if (id === 'me' || id === 'friends') { if (LS_.tab !== id) { sfx(); LS_.tab = id; LS_.scroll = 0; LS_.confirm = null; if (id === 'friends') loadFriends(); } }
   }
+  // профіль друга (картка поверх списку): аватарка, рівень, у грі чи ні, рекорд ВТЕЧІ, друзі; дії
+  function openCard(r) {
+    sfx(); LS_.card = { r: Object.assign({}, r), x: null, t: 0, confirm: false };
+    const pid = r.pid;
+    if (ON()) api('tck_profile', { p_device: dev(), p_pid: pid }).then((rows) => {
+      const q = Array.isArray(rows) ? rows[0] : null;
+      if (q && LS_.card && LS_.card.r.pid === pid) { Object.assign(LS_.card.r, q); LS_.card.x = { best: q.best, waves: q.waves, friends: q.friends }; }
+    }).catch(() => { if (LS_.card && LS_.card.r.pid === pid) LS_.card.x = { na: true }; }); // старий SQL без tck_profile — просто без статистики
+  }
+  function enterScene(solo) {
+    LS_.solo = solo; if (solo) LS_.tab = 'friends';
+    LS_.t = 0; LS_.scroll = 0; LS_.confirm = null; LS_.card = null;
+    if (G.ui) G.ui.reset();
+    if (ON()) { hello(true); loadFriends(); }
+    pollT = 0;
+    if (!hasNick() && G.online && G.online.askName) setTimeout(() => { if ((G.state === 'profile' || G.state === 'friends') && !hasNick()) askNick(); }, 250); // свій нік — один раз, і все
+  }
   G.scenes.profile = {
-    enter() {
-      LS_.t = 0; LS_.scroll = 0; LS_.confirm = null;
-      if (G.ui) G.ui.reset();
-      if (ON()) { hello(true); loadFriends(); }
-      pollT = 0;
-      if (!hasNick() && G.online && G.online.askName) setTimeout(() => { if (G.state === 'profile' && !hasNick()) askNick(); }, 250); // свій нік — один раз, і все
-    },
+    enter() { enterScene(false); },
     exit() { if (box) { box.remove(); box = null; } },
     update(dt, realDt) {
       const d = realDt || dt; LS_.t += d;
       if (box) return;
       const I = G.input, m = I.mouse;
-      if (I.pressed('pause')) { I.consume('pause'); act('back'); return; }
-      if (I.pressed('left')) act('me');
-      if (I.pressed('right')) act('friends');
+      if (LS_.card) LS_.card.t += d;
+      if (I.pressed('pause')) { I.consume('pause'); if (LS_.card) { LS_.card = null; sfx(); } else act('back'); return; }
+      if (!LS_.solo && !LS_.card) { if (I.pressed('left')) act('me'); if (I.pressed('right')) act('friends'); }
       pollT += d; if (pollT > 25 && ON()) { pollT = 0; loadFriends(); }
       // прокрутка списку друзів
-      if (LS_.tab === 'friends') {
+      if (LS_.tab === 'friends' && !LS_.card) {
         const lr = LIST_R(), n = listRows().length, maxS = Math.max(0, n * ROW - lr.h + 6);
         const inL = U().inRect(m.x, m.y, lr);
         if (m.down && (LS_.drag || inL)) {
@@ -41277,7 +41316,7 @@
         for (let i = LS_.hits.length - 1; i >= 0; i--) { const h = LS_.hits[i]; if (U().inRect(m.x, m.y, h.r)) { h.fn(); return; } }
         LS_.confirm = null;
       }
-      if (I.pressed('confirm') && LS_.tab === 'friends' && !S.search) openSearch();
+      if (I.pressed('confirm') && LS_.tab === 'friends' && !S.search && !LS_.card) openSearch();
     },
     draw(ctx) {
       const u = U(), W = VW(), H = VH();
@@ -41285,10 +41324,21 @@
       u.rect(ctx, '#1c1830', 0, 0, W, H);
       for (let y = 0; y < H; y += 8) u.rect(ctx, 'rgba(143,199,228,0.03)', 0, y, W, 4);
       u.icon(ctx, 'person', 14, 10, 2);
-      u.text(ctx, 'ПРОФІЛЬ', 32, 8, { size: 18, color: '#fde98f', shadow: true });
+      u.text(ctx, LS_.solo ? 'ДРУЗІ' : 'ПРОФІЛЬ', 32, 8, { size: 18, color: '#fde98f', shadow: true });
+      const n = incoming();
+      if (LS_.solo) { // окремий екран друзів: підсумок + кнопка свого профілю
+        const fr = S.friends.filter((f) => f.rel === 'friend'), on = fr.filter((f) => f.online).length;
+        let x = 16; const y = 35;
+        if (on) { u.rect(ctx, '#120a18', x - 1, y, 7, 7); u.rect(ctx, '#5ee05a', x, y + 1, 5, 5); x += 9; }
+        u.text(ctx, on ? on + ' у грі зараз' : 'Ніхто з друзів не в грі', x, y, { size: 8, color: on ? '#93c25b' : '#7a7280' }); x += u.measure(on ? on + ' у грі зараз' : 'Ніхто з друзів не в грі', 8) + 12;
+        u.text(ctx, 'Друзів: ' + fr.length, x, y, { size: 8, color: '#b4abb2' }); x += u.measure('Друзів: ' + fr.length, 8) + 12;
+        if (n) u.text(ctx, 'Нові запити: ' + n, x, y, { size: 8, color: '#ff9a7a' });
+        const pr = { x: W - 14 - 96, y: 8, w: 96, h: 18 };
+        smallBtn(ctx, pr, 'МІЙ ПРОФІЛЬ', '#6a4a86', () => { sfx(); LS_.tab = 'me'; G.setState('profile'); });
+        drawAvatar(ctx, myAvatar(), myFrame(), pr.x - 22, pr.y - 1, 20);
+      } else {
       if (st.pid) u.text(ctx, 'Твій ID: ' + st.pid, W - 14, 12, { size: 9, align: 'right', color: '#8fc7e4', shadow: true });
       // вкладки
-      const n = incoming();
       [['me', 'ПРОФІЛЬ'], ['friends', 'ДРУЗІ']].forEach(([id, label], k) => {
         const r = TAB_R(k), on = LS_.tab === id;
         u.rect(ctx, '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
@@ -41298,11 +41348,65 @@
         if (id === 'friends' && n) badge(ctx, r.x + r.w - 4, r.y - 4, n);
         hit(r, () => act(id));
       });
+      }
       if (LS_.tab === 'me') drawMe(ctx); else drawFriends(ctx);
       const br = BACK_R(); u.button(ctx, br, 'Назад', false, { size: 8 }); hit(br, () => act('back'));
+      if (LS_.card) drawCard(ctx);
       G.ui.drawOverlay && G.ui.drawOverlay(ctx);
     },
   };
+  G.scenes.friends = Object.assign({}, G.scenes.profile, { enter() { enterScene(true); } });
+
+  function drawCard(ctx) {
+    const u = U(), W = VW(), H = VH(), c = LS_.card, r = c.r, f = frameDef(r.frame);
+    hit({ x: 0, y: 0, w: W, h: H }, () => { LS_.card = null; }); // тап поза карткою — закрити
+    ctx.save(); ctx.globalAlpha = Math.min(0.7, c.t * 5); u.rect(ctx, '#0a0612', 0, 0, W, H); ctx.restore();
+    const k = Math.min(1, c.t / 0.16), sc = 0.85 + 0.15 * (1 - Math.pow(1 - k, 3));
+    const w = Math.min(300, W - 30), h = 178, x = Math.round((W - w) / 2), y = Math.round((H - h) / 2);
+    ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(sc, sc); ctx.translate(-W / 2, -H / 2);
+    hit({ x, y, w, h }, () => { c.confirm = false; }); // всередині картки — не закривати
+    u.rect(ctx, '#120a18', x - 2, y - 2, w + 4, h + 4);
+    u.rect(ctx, '#241a3a', x, y, w, h);
+    // шапка кольору рамки
+    u.rect(ctx, f.c[0], x, y, w, 30); u.rect(ctx, f.c[1], x, y, w, 2); u.rect(ctx, 'rgba(0,0,0,0.25)', x, y + 26, w, 4);
+    if (f.flag) { u.rect(ctx, '#2a5fb4', x, y, w, 15); u.rect(ctx, '#f7d248', x, y + 15, w, 15); }
+    const AS = 58, ax = x + 14, ay = y + 10;
+    if (f.anim === 'rainbow' && G.pass && G.pass.legendFx) G.pass.legendFx(ctx, ax + AS / 2, ay + AS / 2, 42, G.realTime);
+    drawAvatar(ctx, r.avatar, r.frame, ax, ay, AS);
+    if (r.online) { u.rect(ctx, '#120a18', ax + AS - 9, ay + AS - 9, 12, 12); u.rect(ctx, '#5ee05a', ax + AS - 8, ay + AS - 8, 10, 10); }
+    const tx = ax + AS + 12;
+    u.text(ctx, r.name || '—', tx, y + 36, { size: 12, color: '#fbf6ea', shadow: true });
+    u.text(ctx, 'ID ' + r.pid, tx, y + 52, { size: 8, color: '#8fc7e4' });
+    // рівень
+    const lt = 'РІВЕНЬ ' + (r.level || 1), lw = u.measure(lt, 8) + 10;
+    u.rect(ctx, '#120a18', tx - 1, y + 63, lw + 2, 13); u.rect(ctx, '#f7c948', tx, y + 64, lw, 11);
+    u.text(ctx, lt, tx + lw / 2, y + 65, { size: 8, align: 'center', color: '#5a3a10' });
+    u.text(ctx, r.online ? 'у грі зараз' : ago(r.ago) || 'не в мережі', tx + lw + 8, y + 65, { size: 8, color: r.online ? '#93c25b' : '#7a7280' });
+    // статистика
+    let sy = y + 84;
+    u.rect(ctx, 'rgba(143,199,228,0.15)', x + 12, sy, w - 24, 1); sy += 7;
+    const fn = (G.modes && G.modes.fmtNum) || String, X = c.x;
+    const stat = (label, val, col, i) => { const cx = x + 12 + (w - 24) * (i + 0.5) / 3; u.text(ctx, val, cx, sy, { size: 10, align: 'center', color: col, shadow: true }); u.text(ctx, label, cx, sy + 14, { size: 7, align: 'center', color: '#7a7280' }); };
+    stat('рекорд ВТЕЧІ', X ? (X.best ? fn(X.best) : '—') : '…', '#fde98f', 0);
+    stat('хвиля', X ? (X.waves || '—') + '' : '…', '#8fc7e4', 1);
+    stat('друзів', X ? (X.na ? '—' : String(X.friends || 0)) : '…', '#93c25b', 2);
+    sy += 30;
+    u.text(ctx, 'Рамка: ' + f.name, x + w / 2, sy, { size: 7, align: 'center', color: '#7a7280' });
+    // дії
+    const by = y + h - 24, busy = !!S.busy[r.pid], B = (i, n, label, col, fn2) => { const bw = (w - 24 - (n - 1) * 6) / n; smallBtn(ctx, { x: x + 12 + i * (bw + 6), y: by, w: bw, h: 16 }, label, col, fn2); };
+    if (busy) u.text(ctx, '…', x + w / 2, by + 3, { size: 9, align: 'center', color: '#b4abb2' });
+    else if (r.rel === 'friend') {
+      if (c.confirm) B(0, 2, 'ТОЧНО ВИДАЛИТИ?', '#c8302a', () => { unfriend(r); LS_.card = null; });
+      else B(0, 2, 'ВИДАЛИТИ З ДРУЗІВ', '#5a3a4a', () => { sfx(); c.confirm = true; });
+      B(1, 2, 'ЗАКРИТИ', '#3f7fae', () => { sfx(); LS_.card = null; });
+    } else if (r.rel === 'in') {
+      B(0, 3, 'ПРИЙНЯТИ', '#5e9846', () => answer(r, true)); B(1, 3, 'ВІДХИЛИТИ', '#6a4a56', () => { answer(r, false); LS_.card = null; }); B(2, 3, 'ЗАКРИТИ', '#3f7fae', () => { sfx(); LS_.card = null; });
+    } else if (r.rel === 'out') {
+      B(0, 2, 'СКАСУВАТИ ЗАПИТ', '#6a4a56', () => { unfriend(r); }); B(1, 2, 'ЗАКРИТИ', '#3f7fae', () => { sfx(); LS_.card = null; });
+    } else if (r.rel === 'me') B(0, 1, 'ЗАКРИТИ', '#3f7fae', () => { sfx(); LS_.card = null; });
+    else { B(0, 2, '+ ДОДАТИ В ДРУЗІ', '#5e9846', () => add(r)); B(1, 2, 'ЗАКРИТИ', '#3f7fae', () => { sfx(); LS_.card = null; }); }
+    ctx.restore();
+  }
   function U() { return G.ui.gfx; }
   function badge(ctx, x, y, n) {
     const u = U(), t = String(Math.min(n, 9)) + (n > 9 ? '+' : ''), w = Math.max(9, u.measure(t, 7) + 5);
@@ -41451,6 +41555,8 @@
       if (it.msg) { u.text(ctx, it.msg, lr.x + lr.w / 2, y + 8, { size: 8, align: 'center', color: '#b4abb2' }); return; }
       const r = it.row;
       if (i % 2) u.rect(ctx, 'rgba(255,255,255,0.03)', lr.x + 3, y, lr.w - 6, ROW - 1);
+      const rowR = { x: lr.x + 3, y, w: lr.w - 6, h: ROW - 1 };
+      if (vis(rowR)) { hit(rowR, () => openCard(r)); if (U().inRect(G.input.mouse.x, G.input.mouse.y, rowR)) u.rect(ctx, 'rgba(143,199,228,0.08)', rowR.x, rowR.y, rowR.w, rowR.h); }
       drawAvatar(ctx, r.avatar, r.frame, lr.x + 8, y + 2, 21);
       if (r.online) { u.rect(ctx, '#120a18', lr.x + 25, y + 17, 7, 7); u.rect(ctx, '#5ee05a', lr.x + 26, y + 18, 5, 5); }
       u.text(ctx, r.name, lr.x + 36, y + 3, { size: 9, color: r.rel === 'me' ? '#93c25b' : '#fbf6ea', shadow: true });
@@ -41463,9 +41569,8 @@
       if (r.rel === 'me') u.text(ctx, 'це ти', lr.x + lr.w - 10, y + 8, { size: 7, align: 'right', color: '#93c25b' });
       else if (r.rel === 'in') { const a = R(52, 56), b = R(0, 48); if (vis(a)) smallBtn(ctx, a, 'ПРИЙНЯТИ', '#5e9846', () => answer(r, true)); if (vis(b)) smallBtn(ctx, b, 'НІ', '#6a4a56', () => answer(r, false)); }
       else if (r.rel === 'friend') {
-        if (LS_.confirm === r.pid) { const a = R(0, 92); if (vis(a)) smallBtn(ctx, a, 'ТОЧНО ВИДАЛИТИ?', '#c8302a', () => unfriend(r)); }
-        else if (it.from === 'search') u.text(ctx, 'у друзях', lr.x + lr.w - 10, y + 8, { size: 7, align: 'right', color: '#93c25b' });
-        else { const a = R(0, 18); if (vis(a)) smallBtn(ctx, a, 'X', '#4a3a56', () => { sfx(); LS_.confirm = r.pid; }); }
+        if (it.from === 'search') u.text(ctx, 'у друзях', lr.x + lr.w - 10, y + 8, { size: 7, align: 'right', color: '#93c25b' });
+        else { u.text(ctx, 'профіль', lr.x + lr.w - 18, y + 8, { size: 7, align: 'right', color: '#7a8aa8' }); u.tri(ctx, lr.x + lr.w - 11, y + 12, 'right', 3, '#8fc7e4'); }
       } else if (r.rel === 'out') { const a = R(0, 74); if (vis(a)) smallBtn(ctx, a, it.from === 'search' ? 'НАДІСЛАНО' : 'СКАСУВАТИ', '#4a3a56', () => { if (it.from !== 'search') unfriend(r); }); }
       else { const a = R(0, 74); if (vis(a)) smallBtn(ctx, a, '+ ДОДАТИ', '#5e9846', () => add(r)); }
     });
@@ -41478,7 +41583,7 @@
     get pid() { return st.pid; }, get avatar() { return myAvatar(); }, get frame() { return myFrame(); },
     get incoming() { return incoming(); }, get friends() { return S.friends.slice(); }, get nosql() { return S.nosql; },
     drawAvatar, hello, loadFriends, find, FRAMES, avatarList,
-    _state: S, _st: st,
+    _state: S, _st: st, _ls: LS_,
   };
 })();
 
