@@ -39552,12 +39552,12 @@
     if (!enabled) return Promise.resolve();
     L.status = 'load';
     // колонку device сервер не віддає (щоб ніхто не підробив чужий пристрій) — «це я» визначаємо за своїм місцем
-    const pTop = api('/rest/v1/esc_scores?select=name,score,waves&order=score.desc,updated_at.asc&limit=50');
+    const pTop = api('/rest/v1/rpc/esc_top', {}).catch((e) => { if (/404/.test(String(e && e.message))) return api('/rest/v1/esc_scores?select=name,score,waves&order=score.desc,updated_at.asc&limit=50'); throw e; });
     const pMe = api('/rest/v1/rpc/my_rank', { p_device: st.id });
     return Promise.all([pTop, pMe]).then(([top, me]) => {
       const m = Array.isArray(me) ? me[0] : me;
       L.me = m && m.rank ? { rank: m.rank, score: m.score, total: m.total } : null;
-      L.top = (top || []).map((r, i) => ({ name: r.name, score: r.score, waves: r.waves, me: !!(L.me && L.me.rank === i + 1) }));
+      L.top = (top || []).map((r, i) => ({ name: r.name, score: r.score, waves: r.waves, avatar: r.avatar, frame: r.frame, level: r.level, me: !!(L.me && L.me.rank === i + 1) }));
       L.status = 'ok'; L.at = Date.now();
     }).catch((e) => { L.status = 'err'; L.err = String(e && e.message || e); });
   }
@@ -39593,6 +39593,35 @@
     runTok = null; persist();
     return submitPend();
   }
+  // ── ЛІДЕРИ ДНЯ (щоденна втеча) і КОМАНДИ (онлайн) ──
+  const LD = { top: [], me: null, status: 'idle', at: 0, day: '' }, LT = { top: [], status: 'idle', at: 0 };
+  const today = () => (G.progress && G.progress.dateKey ? G.progress.dateKey(0) : new Date().toISOString().slice(0, 10));
+  const is404 = (e) => /404/.test(String(e && e.message));
+  function refreshDaily() {
+    if (!enabled) return Promise.resolve();
+    const day = today(); LD.status = 'load'; LD.day = day;
+    return Promise.all([api('/rest/v1/rpc/daily_top', { p_device: st.id, p_day: day }), api('/rest/v1/rpc/daily_rank', { p_device: st.id, p_day: day })]).then(([top, me]) => {
+      const m = Array.isArray(me) ? me[0] : me;
+      LD.me = m && m.rank ? { rank: m.rank, score: m.score, total: m.total } : null;
+      LD.top = Array.isArray(top) ? top : []; LD.status = 'ok'; LD.at = Date.now();
+    }).catch((e) => { LD.status = is404(e) ? 'nosql' : 'err'; });
+  }
+  function refreshTeam() {
+    if (!enabled) return Promise.resolve();
+    LT.status = 'load';
+    return api('/rest/v1/rpc/team_top', {}).then((top) => { LT.top = Array.isArray(top) ? top : []; LT.status = 'ok'; LT.at = Date.now(); })
+      .catch((e) => { LT.status = is404(e) ? 'nosql' : 'err'; });
+  }
+  function submitDaily(score, sec, day) {
+    score = Math.floor(score || 0);
+    if (!enabled || score <= 0 || !st.name) return Promise.resolve();
+    return api('/rest/v1/rpc/submit_daily', { p_device: st.id, p_name: st.name, p_day: day || today(), p_score: score, p_sec: Math.max(3, sec | 0) }).then(refreshDaily).catch(() => {});
+  }
+  function submitTeam(names, score, waves, sec) { // надсилає хост онлайн-кімнати
+    score = Math.floor(score || 0);
+    if (!enabled || score <= 0 || !names || names.length < 2) return Promise.resolve();
+    return api('/rest/v1/rpc/submit_team', { p_device: st.id, p_names: names.slice(0, 5).map((n) => String(n || 'Гравець').slice(0, 16)), p_score: score, p_waves: Math.max(1, waves | 0), p_sec: Math.max(0, sec | 0) }).then(refreshTeam).catch(() => {});
+  }
   function autoName() { if (!st.name) { st.name = 'Втікач ' + (1000 + Math.floor(Math.random() * 9000)); st.auto = 1; persist(); } return st.name; }
   function setName(n) {
     const c = cleanName(n);
@@ -39601,9 +39630,9 @@
     st.name = c; st.auto = 0; persist();
     if (G.events) G.events.emit('online:name', c);
     if (!enabled) return true;
+    void had;
     if (st.pend) submitPend();
-    else if (had) api('/rest/v1/rpc/set_name', { p_device: st.id, p_name: c }).then(refresh).catch(() => refresh());
-    else refresh();
+    api('/rest/v1/rpc/set_name', { p_device: st.id, p_name: c }).then(() => { refresh(); refreshDaily(); }).catch(() => refresh());
     return true;
   }
 
@@ -39638,7 +39667,7 @@
 
   G.online = {
     get enabled() { return enabled; }, get name() { return st.name; }, get device() { return st.id; },
-    get data() { return L; }, cfg: enabled ? { url: SUPA_URL, key: SUPA_KEY } : null, setName, autoName, get asked() { return !!st.asked; }, get isAuto() { return !!st.auto; }, get realName() { return st.auto ? '' : st.name; }, submit, refresh, askName, cleanName, _api: api,
+    get data() { return L; }, cfg: enabled ? { url: SUPA_URL, key: SUPA_KEY } : null, setName, autoName, get asked() { return !!st.asked; }, get isAuto() { return !!st.auto; }, get realName() { return st.auto ? '' : st.name; }, submit, refresh, askName, cleanName, _api: api, submitTeam, submitDaily, refreshDaily, refreshTeam, get daily() { return LD; }, get team() { return LT; },
   };
 
   // ── старт забігу ВТЕЧІ: взяти номер забігу на сервері ──
@@ -39652,121 +39681,152 @@
     L.onResult = false;
     if (d.to !== 'result') return;
     const s = d.data || {};
-    if (s.mode !== 'escape' || s.practice) { runTok = null; return; }
+    if (s.mode === 'daily' && !s.practice) { if (enabled && st.name) submitDaily(s.score, s.sec, s.date); runTok = null; return; }
+    const coop = G.coop && G.coop.role; // онлайн-забіг іде в таблицю КОМАНДИ (її надсилає хост), не в одиночну
+    if (s.mode !== 'escape' || s.practice || coop) { runTok = null; return; }
     L.onResult = true;
     if (!enabled) return;
     if (s.score > st.sent) submit(s.score, s.waves || 1, s.sec || 0); else { runTok = null; refresh(); }
   });
 
   // ═══════════════════════════ Сцена ЛІДЕРИ ═══════════════════════════
+  // Вкладки: ВТЕЧА (одиночна, за весь час) · КОМАНДА (онлайн 2–5 гравців) · ДЕНЬ (щоденна втеча, лише сьогодні)
   if (G.STATES.indexOf('leaders') < 0) G.STATES.push('leaders');
   const VW = () => G.cfg.VIEW_W, VH = () => G.cfg.VIEW_H;
-  const LD = { t: 0, scroll: 0, focus: 0, drag: null };
+  const TABS = [
+    { id: 'solo', label: 'ВТЕЧА', sub: 'Одиночна втеча · рекорд за весь час', col: '#f7c948' },
+    { id: 'team', label: 'КОМАНДА', sub: 'Онлайн-втеча вдвох–вп\'ятьох · кращий результат команди', col: '#93c25b' },
+    { id: 'day', label: 'ДЕНЬ', sub: 'Щоденна втеча · сьогоднішній маршрут, завтра — новий', col: '#8fc7e4' },
+  ];
+  const LB = { t: 0, scroll: 0, focus: 0, drag: null, tab: 'solo' };
   const btns = () => [
-    { id: 'name', label: st.name ? 'Змінити нік' : 'Обрати нік', r: { x: 14, y: VH() - 26, w: 110, h: 20 } },
+    { id: 'name', label: st.name && !st.auto ? 'Змінити нік' : 'Обрати нік', r: { x: 14, y: VH() - 26, w: 110, h: 20 } },
     { id: 'reload', label: 'Оновити', r: { x: 130, y: VH() - 26, w: 80, h: 20 } },
     { id: 'back', label: 'Назад', r: { x: VW() - 94, y: VH() - 26, w: 80, h: 20 } },
   ];
-  const listR = () => ({ x: 14, y: 42, w: VW() - 28, h: VH() - 42 - 32 });
-  const ROW = 13;
+  const tabR = (i) => { const w = 84; return { x: VW() - 14 - (TABS.length - i) * (w + 4) + 4, y: 8, w, h: 18 }; };
+  const listR = () => ({ x: 14, y: 46, w: VW() - 28, h: VH() - 46 - 32 });
+  const ROW = 16;
+  function reloadTab() { if (LB.tab === 'solo') refresh(); else if (LB.tab === 'team') refreshTeam(); else refreshDaily(); }
+  function setTab(id) { if (LB.tab === id) return; LB.tab = id; LB.scroll = 0; G.audio && G.audio.sfx && G.audio.sfx('click'); const d = id === 'team' ? LT : id === 'day' ? LD : L; if (Date.now() - d.at > 15000 || d.status !== 'ok') reloadTab(); }
   function act(id) {
     G.audio && G.audio.sfx && G.audio.sfx('click');
     if (id === 'back') G.setState('menu');
     else if (id === 'name') askName(() => {});
-    else if (id === 'reload') refresh();
+    else if (id === 'reload') reloadTab();
   }
+  function rows() {
+    if (LB.tab === 'team') { const me = (st.name || '').toLowerCase(); return LT.top.map((r) => ({ name: r.names, n: r.n, score: r.score, waves: r.waves, me: !!me && String(r.names || '').toLowerCase().split(' · ').indexOf(me) >= 0 })); }
+    if (LB.tab === 'day') return LD.top.map((r) => ({ name: r.name, score: r.score, sec: r.sec, avatar: r.avatar, frame: r.frame, level: r.level, me: !!r.me }));
+    return L.top;
+  }
+  const curData = () => (LB.tab === 'team' ? LT : LB.tab === 'day' ? LD : L);
+  const meRow = () => (LB.tab === 'solo' ? L.me : LB.tab === 'day' ? LD.me : null);
   G.scenes.leaders = {
     enter() {
-      LD.t = 0; LD.scroll = 0; LD.focus = 0;
+      LB.t = 0; LB.scroll = 0; LB.focus = 0;
       if (G.ui) G.ui.reset();
       if (!enabled) return;
       if (!st.name && !st.asked) { st.asked = 1; persist(); askName(() => {}); }
       if (st.name && st.pend) submitPend();
       else if (Date.now() - L.at > 15000 || L.status !== 'ok') refresh();
+      if (Date.now() - LT.at > 15000) refreshTeam();
+      if (Date.now() - LD.at > 15000 || LD.day !== today()) refreshDaily();
     },
     exit() {},
     update(dt, realDt) {
-      LD.t += realDt || dt;
+      LB.t += realDt || dt;
       if (box) return;
-      const I = G.input, m = I.mouse, bs = btns();
+      const I = G.input, m = I.mouse, bs = btns(), n = rows().length;
       if (I.pressed('pause')) { I.consume('pause'); act('back'); return; }
-      const maxS = Math.max(0, L.top.length * ROW - (listR().h - 22));
-      if (I.pressed('down')) LD.scroll = Math.min(maxS, LD.scroll + ROW * 3);
-      if (I.pressed('up')) LD.scroll = Math.max(0, LD.scroll - ROW * 3);
-      if (I.pressed('left')) LD.focus = (LD.focus + bs.length - 1) % bs.length;
-      if (I.pressed('right')) LD.focus = (LD.focus + 1) % bs.length;
-      // перетягування списку пальцем / мишею
+      const maxS = Math.max(0, n * ROW - (listR().h - 22));
+      if (I.pressed('down')) LB.scroll = Math.min(maxS, LB.scroll + ROW * 3);
+      if (I.pressed('up')) LB.scroll = Math.max(0, LB.scroll - ROW * 3);
+      if (I.pressed('left') || I.pressed('right')) { const i = TABS.findIndex((t) => t.id === LB.tab), j = (i + (I.pressed('left') ? TABS.length - 1 : 1)) % TABS.length; setTab(TABS[j].id); }
       const lr = listR(), inL = m.x >= lr.x && m.x < lr.x + lr.w && m.y >= lr.y && m.y < lr.y + lr.h;
-      if (m.down && (LD.drag || inL)) {
-        if (!LD.drag) LD.drag = { y: m.y, s: LD.scroll };
-        LD.scroll = Math.max(0, Math.min(maxS, LD.drag.s - (m.y - LD.drag.y)));
-      } else LD.drag = null;
-      if (m.wheel) LD.scroll = Math.max(0, Math.min(maxS, LD.scroll + (m.wheel > 0 ? ROW * 3 : -ROW * 3)));
+      if (m.down && (LB.drag || inL)) {
+        if (!LB.drag) LB.drag = { y: m.y, s: LB.scroll };
+        LB.scroll = Math.max(0, Math.min(maxS, LB.drag.s - (m.y - LB.drag.y)));
+      } else LB.drag = null;
+      if (m.wheel) LB.scroll = Math.max(0, Math.min(maxS, LB.scroll + (m.wheel > 0 ? ROW * 3 : -ROW * 3)));
+      if (m.clicked) for (let i = 0; i < TABS.length; i++) { const r = tabR(i); if (m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h) { setTab(TABS[i].id); return; } }
       for (let i = 0; i < bs.length; i++) {
         const r = bs[i].r;
-        if (m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h) { LD.focus = i; if (m.clicked) { act(bs[i].id); return; } }
+        if (m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h) { LB.focus = i; if (m.clicked) { act(bs[i].id); return; } }
       }
-      if (I.pressed('confirm') || I.pressed('attack')) act(bs[LD.focus].id);
+      if (I.pressed('confirm') || I.pressed('attack')) act(bs[LB.focus].id);
     },
     draw(ctx) {
-      const U = G.ui.gfx, W = VW(), H = VH();
+      const U = G.ui.gfx, W = VW(), H = VH(), T = TABS.find((t) => t.id === LB.tab);
       U.rect(ctx, '#1c1830', 0, 0, W, H);
       for (let y = 0; y < H; y += 8) U.rect(ctx, 'rgba(250,220,120,0.03)', 0, y, W, 4);
       U.icon(ctx, 'star', 14, 10, 2);
-      U.text(ctx, 'ЛІДЕРИ ВТЕЧІ', 32, 8, { size: 18, color: '#fde98f', shadow: true });
-      U.text(ctx, 'Найкращі втікачі країни · рекорд режиму ВТЕЧА', 34, 29, { size: 7, color: '#8fc7e4' });
-      if (st.name) U.text(ctx, 'Ти: ' + st.name, W - 14, 12, { size: 8, align: 'right', color: '#93c25b', shadow: true });
-      const lr = listR();
+      U.text(ctx, 'ЛІДЕРИ', 32, 8, { size: 18, color: '#fde98f', shadow: true });
+      U.text(ctx, T.sub, 15, 31, { size: 7, color: T.col });
+      // вкладки режимів
+      TABS.forEach((tb, i) => {
+        const r = tabR(i), on = tb.id === LB.tab, hov = U.inRect(G.input.mouse.x, G.input.mouse.y, r);
+        U.rect(ctx, '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+        U.rect(ctx, on ? tb.col : hov ? 'rgba(72,58,90,0.97)' : 'rgba(46,36,60,0.95)', r.x, r.y, r.w, r.h);
+        if (on) U.rect(ctx, 'rgba(255,255,255,0.3)', r.x, r.y, r.w, 2);
+        U.text(ctx, tb.label, r.x + r.w / 2, r.y + 5, { size: 8, align: 'center', color: on ? '#1a0e20' : '#e8dcc8' });
+      });
+      const lr = listR(), D = curData(), list = rows();
       U.panel(ctx, lr.x, lr.y, lr.w, lr.h, { fill: 'rgba(30,26,52,0.94)' });
       const cx = lr.x + lr.w / 2;
-      const msg = (t, c) => U.text(ctx, t, cx, lr.y + lr.h / 2 - 6, { size: 10, align: 'center', color: c || '#b4abb2' });
-      if (!enabled) {
-        msg('СКОРО', '#fde98f');
-        U.text(ctx, 'Онлайн-таблиця запрацює з наступним оновленням', cx, lr.y + lr.h / 2 + 10, { size: 8, align: 'center', color: '#b4abb2' });
-      } else if (!L.top.length && L.status === 'load') msg('Завантаження…');
-      else if (!L.top.length && L.status === 'err') msg('Немає зв\'язку. Спробуй «Оновити»', '#ff9a7a');
-      else if (!L.top.length) msg('Поки порожньо — стань першим!', '#fde98f');
+      const msg = (t, c, t2) => { U.text(ctx, t, cx, lr.y + lr.h / 2 - 8, { size: 10, align: 'center', color: c || '#b4abb2' }); if (t2) U.text(ctx, t2, cx, lr.y + lr.h / 2 + 8, { size: 8, align: 'center', color: '#8c8494' }); };
+      if (!enabled) msg('СКОРО', '#fde98f', 'Онлайн-таблиця запрацює з наступним оновленням');
+      else if (D.status === 'nosql') msg('ТАБЛИЦЯ ОНОВЛЮЄТЬСЯ', '#fde98f', 'Зазирни трохи пізніше');
+      else if (!list.length && D.status === 'load') msg('Завантаження…');
+      else if (!list.length && D.status === 'err') msg('Немає зв\'язку. Спробуй «Оновити»', '#ff9a7a');
+      else if (!list.length) msg(LB.tab === 'team' ? 'Ще жодна команда не втекла' : LB.tab === 'day' ? 'Сьогодні ще ніхто не грав' : 'Поки порожньо', '#fde98f', LB.tab === 'team' ? 'Збери друзів в «Онлайн» — і будьте першими!' : LB.tab === 'day' ? 'Зіграй щоденну втечу — і будеш першим дня!' : 'Стань першим!');
       else {
-        // шапка колонок
-        const cPlace = lr.x + 10, cName = lr.x + 40, cWave = lr.x + lr.w - 90, cScore = lr.x + lr.w - 10;
+        const team = LB.tab === 'team', day = LB.tab === 'day';
+        const cPlace = lr.x + 10, cAv = lr.x + 30, cName = lr.x + (team ? 32 : 48), cMid = lr.x + lr.w - 86, cScore = lr.x + lr.w - 10;
         U.text(ctx, '#', cPlace, lr.y + 5, { size: 7, color: '#7a7280' });
-        U.text(ctx, 'НІК', cName, lr.y + 5, { size: 7, color: '#7a7280' });
-        U.text(ctx, 'ХВИЛЯ', cWave, lr.y + 5, { size: 7, align: 'right', color: '#7a7280' });
+        U.text(ctx, team ? 'КОМАНДА' : 'НІК', cName, lr.y + 5, { size: 7, color: '#7a7280' });
+        U.text(ctx, team ? 'ГРАВЦІВ · ХВИЛЯ' : day ? 'ЧАС' : 'ХВИЛЯ', cMid, lr.y + 5, { size: 7, align: 'right', color: '#7a7280' });
         U.text(ctx, 'ОЧКИ', cScore, lr.y + 5, { size: 7, align: 'right', color: '#7a7280' });
-        const top = lr.y + 16, bottom = lr.y + lr.h - (L.me && L.me.rank > 50 ? 18 : 4);
+        const mr = meRow(), top = lr.y + 16, bottom = lr.y + lr.h - (mr && mr.rank > 50 ? 20 : 4);
         ctx.save(); ctx.beginPath(); ctx.rect(lr.x, top, lr.w, bottom - top); ctx.clip();
         const fn = (G.modes && G.modes.fmtNum) || String;
-        for (let i = 0; i < L.top.length; i++) {
-          const y = top + i * ROW - LD.scroll;
+        for (let i = 0; i < list.length; i++) {
+          const y = top + i * ROW - LB.scroll;
           if (y < top - ROW || y > bottom) continue;
-          const r = L.top[i], pl = i + 1;
-          if (r.me) U.rect(ctx, 'rgba(147,194,91,0.22)', lr.x + 3, y - 2, lr.w - 6, ROW);
-          else if (i % 2) U.rect(ctx, 'rgba(255,255,255,0.03)', lr.x + 3, y - 2, lr.w - 6, ROW);
+          const r = list[i], pl = i + 1, ty = y + 3;
+          if (r.me) U.rect(ctx, 'rgba(147,194,91,0.22)', lr.x + 3, y, lr.w - 6, ROW - 1);
+          else if (pl <= 3) U.rect(ctx, ['rgba(247,201,72,0.14)', 'rgba(216,216,228,0.1)', 'rgba(208,138,74,0.1)'][pl - 1], lr.x + 3, y, lr.w - 6, ROW - 1);
+          else if (i % 2) U.rect(ctx, 'rgba(255,255,255,0.03)', lr.x + 3, y, lr.w - 6, ROW - 1);
           const medal = pl === 1 ? '#f7c948' : pl === 2 ? '#d8d8e4' : pl === 3 ? '#d08a4a' : null;
-          if (medal) { U.rect(ctx, '#120a18', cPlace - 2, y - 1, 15, 11); U.rect(ctx, medal, cPlace - 1, y, 13, 9); }
-          U.text(ctx, String(pl), cPlace + (medal ? 5 : 0), y, { size: 8, align: medal ? 'center' : 'left', color: medal ? '#1a0e20' : '#b4abb2' });
+          if (medal) { U.rect(ctx, '#120a18', cPlace - 2, ty - 1, 15, 11); U.rect(ctx, medal, cPlace - 1, ty, 13, 9); }
+          U.text(ctx, String(pl), cPlace + (medal ? 5 : 0), ty, { size: 8, align: medal ? 'center' : 'left', color: medal ? '#1a0e20' : '#b4abb2' });
+          if (!team && G.social && G.social.drawAvatar) G.social.drawAvatar(ctx, r.avatar || 'skin:office', r.frame || 'none', cAv, y + 1, 13);
           let nm = r.name || '—';
-          while (nm.length > 3 && U.measure(nm, 8) > cWave - cName - 40) nm = nm.slice(0, -2) + '…';
-          U.text(ctx, nm, cName, y, { size: 8, color: r.me ? '#93c25b' : '#fbf6ea', shadow: true });
-          U.text(ctx, String(r.waves || 1), cWave, y, { size: 8, align: 'right', color: '#8fc7e4' });
-          U.text(ctx, fn(r.score || 0), cScore, y, { size: 8, align: 'right', color: '#fde98f' });
+          while (nm.length > 3 && U.measure(nm, 8) > cMid - cName - (team ? 46 : 30)) nm = nm.slice(0, -2) + '…';
+          U.text(ctx, nm, cName, ty, { size: 8, color: r.me ? '#93c25b' : pl === 1 ? '#fde98f' : '#fbf6ea', shadow: true });
+          if (!team && r.level) U.text(ctx, 'рів ' + r.level, cName + U.measure(nm, 8) + 5, ty + 1, { size: 6, color: '#7a7280' });
+          const mid = team ? (r.n + ' · ' + (r.waves || 1)) : day ? fmtSec(r.sec) : String(r.waves || 1);
+          U.text(ctx, mid, cMid, ty, { size: 8, align: 'right', color: '#8fc7e4' });
+          U.text(ctx, fn(r.score || 0), cScore, ty, { size: 8, align: 'right', color: '#fde98f' });
         }
         ctx.restore();
-        if (L.me && L.me.rank > 50) {
-          const y = lr.y + lr.h - 15;
-          U.rect(ctx, 'rgba(147,194,91,0.22)', lr.x + 3, y - 2, lr.w - 6, ROW);
-          U.text(ctx, '#' + L.me.rank, cPlace, y, { size: 8, color: '#93c25b' });
-          U.text(ctx, st.name + ' (ти)', cName, y, { size: 8, color: '#93c25b', shadow: true });
-          U.text(ctx, fn(L.me.score || 0), cScore, y, { size: 8, align: 'right', color: '#fde98f' });
+        if (mr && mr.rank > 50) {
+          const y = lr.y + lr.h - 18;
+          U.rect(ctx, 'rgba(147,194,91,0.22)', lr.x + 3, y, lr.w - 6, ROW - 1);
+          U.text(ctx, '#' + mr.rank, cPlace, y + 3, { size: 8, color: '#93c25b' });
+          U.text(ctx, (st.name || '') + ' (ти)', cName, y + 3, { size: 8, color: '#93c25b', shadow: true });
+          U.text(ctx, fn(mr.score || 0), cScore, y + 3, { size: 8, align: 'right', color: '#fde98f' });
         }
       }
-      if (enabled && !st.name) U.text(ctx, 'Обери нік, щоб потрапити в таблицю', W - 14, 22, { size: 7, align: 'right', color: '#ff9a7a' });
-      else if (enabled && L.me && L.me.total) U.text(ctx, 'Твоє місце: #' + L.me.rank + ' з ' + L.me.total, W - 14, 22, { size: 7, align: 'right', color: '#b4abb2' });
+      const mr = meRow();
+      if (enabled && (!st.name || st.auto)) U.text(ctx, 'Обери нік, щоб потрапити в таблицю', W - 14, 31, { size: 7, align: 'right', color: '#ff9a7a' });
+      else if (enabled && mr && mr.total) U.text(ctx, 'Твоє місце: #' + mr.rank + ' з ' + mr.total, W - 14, 31, { size: 7, align: 'right', color: '#93c25b' });
       const bs = btns();
-      for (let i = 0; i < bs.length; i++) U.button(ctx, bs[i].r, bs[i].label, LD.focus === i, { size: 8, disabled: !enabled && bs[i].id !== 'back' });
+      for (let i = 0; i < bs.length; i++) U.button(ctx, bs[i].r, bs[i].label, LB.focus === i, { size: 8, disabled: !enabled && bs[i].id !== 'back' });
       G.ui.drawOverlay && G.ui.drawOverlay(ctx);
     },
   };
+  function fmtSec(sec) { sec = sec | 0; return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); }
 
   // ── на екрані результату ВТЕЧІ: «Місце у світі: #N» ──
   const R = G.scenes.result, baseDraw = R && R.draw;
@@ -40651,6 +40711,7 @@
         C.inGame = false;
         const sum = (G.modes && G.modes.summary && G.modes.summary()) || {};
         send({ t: 'end', stats: { score: sum.score || 0, sec: sum.sec || 0, waves: sum.waves || 1, wavesCleared: sum.wavesCleared || 0, bestCombo: sum.bestCombo || 1, perks: sum.perks || [] } });
+        try { const names = rosterNow().map((r) => r.name); if (names.length >= 2 && G.online && G.online.submitTeam) G.online.submitTeam(names, sum.score || 0, sum.waves || 1, sum.sec || 0); } catch (e) { /* */ } // таблиця лідерів КОМАНДИ
         for (const b of buddies()) b.alive = false;
         for (const P of peers.values()) P.av = null;
         hostDown = null; hostOut = false; advertise();
