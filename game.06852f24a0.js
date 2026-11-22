@@ -30791,8 +30791,16 @@
   if (!Array.isArray(st.gotP)) st.gotP = [];
   const RV = 2; if (st.rv !== RV) { st.rv = RV; st.got = []; st.gotP = []; } // змінився список нагород — забрати можна наново
   let migrated = false;
-  try { if (new URLSearchParams(location.search).get('dev') === 'vsi2026') { st.prem = true; st.xp = Math.max(st.xp, 400 * 29 + 1); } } catch (e) { /* */ } // тест: преміум лише на цьому пристрої
-  const PREM_PRICE = 149, PREM_USD = '3.99'; // грн / $ — оплата з'явиться у версії для Google Play
+  // Преміум «Білого квитка» — ЛИШЕ за гроші (159 грн, оплата з'явиться у версії для Google Play). Поки оплати нема,
+  // преміум не видається нічим: ні тестовим посиланням, ні з консолі. Хто отримав його раніше безкоштовно (тест-посилання),
+  // втрачає преміум, улюбленців і скіни пасу; «накручений» тестом досвід скидається — рівні треба заробити завданнями.
+  const PAID = false;
+  if (!PAID && (st.prem || st.xp > LV_XP * 29)) {
+    st.prem = false; st.gotP = []; st.pets = []; st.pet = null;
+    if (st.xp > LV_XP * 29) { st.xp = 0; st.got = []; }
+    st.revoke = 1;
+  }
+  const PREM_PRICE = 159; // грн
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) { /* */ } };
   const sfx = (n) => { try { G.audio && G.audio.sfx && G.audio.sfx(n); } catch (e) { /* */ } };
   const toast = (t, ms) => { try { G.ui && G.ui.toast && G.ui.toast(t, ms || 2400); } catch (e) { /* */ } };
@@ -30981,6 +30989,10 @@
   function markOwned() {
     if (migrated || !P() || !P().skins) return;
     migrated = true;
+    if (st.revoke && P().revokeSkins) { // скіни пасу, отримані без оплати, — забрати (до позначення «вже є»)
+      const ids = FREE.concat(PREM).filter((r) => r && r.k === 'skin').map((r) => r.id);
+      P().revokeSkins(ids); st.revoke = 0; save();
+    }
     let ch = false;
     const owns = (r) => r && ((r.k === 'skin' && P().skins.some((q) => q.id === r.id && q.unlocked)) || (r.k === 'pet' && st.pets.indexOf(r.id) >= 0) || (r.k === 'acc' && P().accOwned && P().accOwned(r.id)));
     for (let L = 1; L <= MAXL; L++) {
@@ -31054,9 +31066,7 @@
   G.events.on('run:end', (d) => {
     if (d && d.abandoned) return; // вийшов у меню посеред забігу — без досвіду
     const m = G.run && G.run.mission;
-    if (!m || (G.coop && G.coop.role === 'guest')) { if (G.coop && G.coop.role === 'guest') addXp(XP.run); return; }
-    const win = d && (d.result === 'win' || d.result === 'late_win');
-    addXp(XP.run + (win ? XP.win : 0));
+    void m; // досвід пасу — лише за завдання (щоденні й тижневі), не за самі забіги
   });
 
   // ── улюбленець у грі: бігає за героєм ──
@@ -31234,7 +31244,7 @@
     setPet(id) { st.pet = id && st.pets.indexOf(id) >= 0 ? id : null; save(); },
     claim, claimAll, weekly, addXp, drawPet, petRaw, petImg, daysLeft, weekDaysLeft, rewName,
     _reset() { st = { s: SEASON.id, xp: 0, got: [], gotP: [], prem: false, wk: { key: '', list: [] }, pets: [], pet: null }; save(); },
-    _setPremium(v) { st.prem = !!v; save(); },
+
   };
 
   // ═══════════════ Екран «БІЛИЙ КВИТОК» ═══════════════
@@ -31376,7 +31386,7 @@
       u.rect(ctx, 'rgba(255,255,255,' + (0.2 + 0.2 * sh) + ')', r.x + 1, r.y + 1, r.w - 2, 7);
       const sx = (S.t * 90) % (r.w + 40) - 20; if (sx > 0 && sx < r.w - 8) u.rect(ctx, 'rgba(255,255,255,0.45)', r.x + sx, r.y + 2, 5, r.h - 4);
       u.icon(ctx, 'star', r.x + 6, r.y + 6);
-      u.text(ctx, 'ПРЕМІУМ · ' + PREM_PRICE + ' грн / $' + PREM_USD, r.x + r.w / 2 + 6, r.y + 6, { size: 8, align: 'center', color: '#3a1a00' });
+      u.text(ctx, 'ПРЕМІУМ · ' + PREM_PRICE + ' грн', r.x + r.w / 2 + 6, r.y + 6, { size: 8, align: 'center', color: '#3a1a00' });
     }
   }
   function taskRow(ctx, x, y, w, t, xp) {
@@ -31400,7 +31410,7 @@
     u.text(ctx, 'ТИЖНЕВІ', x1, y0 - 2, { size: 10, color: '#fde98f', shadow: true });
     u.text(ctx, 'нові через ' + weekDaysLeft() + ' дн.', x1 + colW, y0, { size: 7, align: 'right', color: '#8c8494' });
     weekly().forEach((t, i) => taskRow(ctx, x1, y0 + 14 + i * 28, colW, t, XP.weekly));
-    u.text(ctx, 'Кожен забіг: +' + XP.run + ' досвіду, перемога — ще +' + XP.win, x0, VH() - 38, { size: 7, color: '#8c8494' });
+    u.text(ctx, 'Досвід пасу — лише за завдання: щоденні (+' + XP.daily + ') і тижневі (+' + XP.weekly + ')', x0, VH() - 38, { size: 7, color: '#8c8494' });
   }
   function drawPop(ctx) {
     if (!S.pop) return;
@@ -31412,7 +31422,7 @@
     const L = ['• пес Патрон уже на 1-му рівні, кіт і голуб', '• 4 яскраві скіни: Козак Мамай, Кіберкозак,', '   Капітан Слава, Мольфар', '• корона, вишиванка, до 1000 грн за рівень', '• ЛЕГЕНДАРНИЙ скін на 30-му рівні'];
     L.forEach((t, i) => u.text(ctx, t, x + 20, y + 30 + i * 13, { size: 8, color: i === 4 ? '#ffe070' : '#e8dcc8' }));
     const sk = skinImg('president'); if (sk) { ctx.imageSmoothingEnabled = false; ctx.drawImage(sk, x + w - 64, y + 26, sk.width * 2.4, sk.height * 2.4); u.text(ctx, 'ЛЕГЕНДАРНИЙ', x + w - 40, y + 102, { size: 7, align: 'center', color: '#ffe070' }); }
-    u.text(ctx, PREM_PRICE + ' грн ($' + PREM_USD + ') · оплата з\'явиться у версії для Google Play', W / 2, y + h - 30, { size: 8, align: 'center', color: '#93c25b' });
+    u.text(ctx, PREM_PRICE + ' грн · купити можна буде у версії для Google Play', W / 2, y + h - 30, { size: 8, align: 'center', color: '#93c25b' });
     u.text(ctx, G.touch && G.touch.active ? 'Торкнись, щоб закрити' : 'Клік або Esc — закрити', W / 2, y + h - 14, { size: 7, align: 'center', color: '#8c8494' });
   }
   function clickCard(L, tr) {
@@ -32309,6 +32319,13 @@
     // ── Round 33: одяг героя ──
     // 76_pass: одяг у подарунок (нагорода сезону) → true, якщо видано
     grantSkin(id) { return !!unlock(id, 'pass'); }, // 76_pass: скін-нагорода
+    // 76_pass: забрати скіни пасу, отримані без оплати (преміум поки лише за гроші). Одягнений — назад на «Офісного»
+    revokeSkins(ids) {
+      let ch = false;
+      for (const id of ids || []) { const i = D.unlocked.indexOf(id); if (i >= 0) { D.unlocked.splice(i, 1); ch = true; } if (D.equipped === id) { D.equipped = 'office'; ch = true; } }
+      if (ch) { persist(); try { G.events.emit('outfit:change', this.outfit()); } catch (e) { /* */ } }
+      return ch;
+    },
     grantAcc(id) { const a = ACC_BY_ID[id]; if (!a || this.accOwned(id)) return false; D.acc.own.push(id); persist(); return true; },
     accInfo(id) { const a = ACC_BY_ID[id]; return a ? { id: a.id, slot: a.slot, name: a.name } : null; },
     accOwned(id) { const a = ACC_BY_ID[id]; return !!a && (a.price === 0 || D.acc.own.indexOf(id) >= 0); },
