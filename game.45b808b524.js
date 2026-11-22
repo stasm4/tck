@@ -31,9 +31,15 @@
   try {
     const AK = 'avtor-87de3a', q = new URLSearchParams(window.location.search);
     let clean = false;
-    if (q.get('fresh') === AK) { for (const k of Object.keys(localStorage)) if (/^tck/.test(k)) localStorage.removeItem(k); document.cookie = 'tck_nick=;path=/;max-age=0'; clean = true; }
-    if (q.get('author') === AK) { localStorage.setItem('tck_author', '1'); clean = true; }
+    if (q.get('fresh') === AK) {
+      for (const k of Object.keys(localStorage)) if (/^tck/.test(k)) localStorage.removeItem(k);
+      document.cookie = 'tck_nick=;path=/;max-age=0'; clean = true; G._bootMsg = 'fresh';
+      localStorage.setItem('tck_wipe', String(Date.now())); // інші відкриті вкладки з грою перезавантажаться (інакше запишуть старе назад)
+    }
+    if (q.get('author') === AK) { localStorage.setItem('tck_author', '1'); clean = true; G._bootMsg = 'author'; localStorage.setItem('tck_wipe', String(Date.now())); }
     if (clean && history.replaceState) history.replaceState(null, '', window.location.pathname);
+    // інша вкладка стерла/змінила збереження — ця перезавантажується, щоб не перезаписати його старими даними
+    window.addEventListener('storage', (e) => { if (e.key === 'tck_wipe' && e.newValue) { G._wiped = true; try { window.location.reload(); } catch (er) { /* */ } } });
   } catch (e) { /* без location (тести) */ }
   G.author = (() => { try { return localStorage.getItem('tck_author') === '1'; } catch (e) { return false; } })();
 
@@ -174,6 +180,7 @@
         return data;
       },
       save() {
+        if (G._wiped) return; // збереження щойно стерто в іншій вкладці — не перезаписувати
         try { window.localStorage.setItem(G.cfg.SAVE_KEY, JSON.stringify(data)); } catch (e) { /* приватний режим тощо */ }
       },
       get(key, def) { return Object.prototype.hasOwnProperty.call(data, key) ? data[key] : def; },
@@ -41903,6 +41910,8 @@
   setInterval(() => { if (ON() && hasNick()) hello(true).then(listen); }, 60000);
   G.events.on('state:change', (d) => { if (d && d.to === 'menu' && ON()) hello().then(listen); });
 
+  // підтвердження посилань автора: видно, що спрацювало
+  if (G._bootMsg) setTimeout(() => { if (G.ui && G.ui.banner) G.ui.banner(G._bootMsg === 'fresh' ? 'Збереження стерто — гра з нуля' : 'Режим автора: усе відкрито', 3500); }, 1500);
   G.social = {
     get inviteMode() { return inviteMode; }, set inviteMode(v) { inviteMode = !!v; }, invite, get invitation() { return inv; },
     get pid() { return st.pid; }, get avatar() { return myAvatar(); }, get frame() { return myFrame(); },
