@@ -25025,7 +25025,7 @@
     if (G.pass && G.pass.pet && G.hero3d && G.hero3d.drawPet) { // улюбленець — теж 3D, поруч на подіумі, крутиться разом із героєм
       const ph = Math.abs(Math.sin(M.t * 3.2)) * (Math.sin(M.t * 0.7) > 0.3 ? 4 : 0);
       ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(p.cx - 40, p.feet + 3, 14, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      G.pass.drawPet(ctx, G.pass.pet, p.cx - 40, p.feet + 3 - ph, 3, ph > 0 ? Math.floor(M.t * 8) : 0, false);
+      G.hero3d.drawPetCrisp(ctx, G.pass.pet, p.cx - 40, p.feet + 3, 3, H3.ang, Math.round(ph), ph > 0 || Math.abs(H3.vel) > 0.5 ? Math.floor(M.t * 8) : 0);
     }
     const ok3 = G.hero3d && G.hero3d.drawCrisp(ctx, p.cx, p.feet, s, H3.ang, { skin: heroSkin(), lift: Math.round(lift) });
     if (!ok3) { const img = U.spr('player', { skin: heroSkin(), dir: 'down', frame: 0 }); if (img) U.drawScaled(ctx, img, p.cx - img.width * 2, p.feet - img.height * 4, 4); }
@@ -25631,6 +25631,15 @@
   S.wardrobe.exit = function () { if (G.outfit) G.outfit.override = null; };
   S.wardrobe.update = function (dt, realDt) {
     WD.t += realDt; WD.msgT = Math.max(0, WD.msgT - realDt); WD.flash = Math.max(0, WD.flash - realDt);
+    if (WD.petJump > 0) WD.petJump = Math.max(0, WD.petJump - realDt);
+    // улюбленець у прев'ю: тягни — повертається, тап — підстрибує
+    if (WTABS[WD.tab].id === 'pets') {
+      const mm = G.input.mouse, pr = { x: 320, y: 56, w: 142, h: 136 };
+      if (mm.down && (WD.petDrag || U.inRect(mm.x, mm.y, pr))) {
+        if (!WD.petDrag) WD.petDrag = { x: mm.x, moved: 0 };
+        const dx = mm.x - WD.petDrag.x; WD.petDrag.x = mm.x; WD.petDrag.moved += Math.abs(dx); WD.petAng = (WD.petAng || 0) + dx * 0.05; WD.petTouched = true;
+      } else if (WD.petDrag) { if (WD.petDrag.moved < 3) { WD.petJump = 0.45; WD.petAng = (WD.petAng || 0) + Math.PI; click('pickup'); } /* тап — розвернувся і підстрибнув */ WD.petDrag = null; }
+    }
     const list = wdList(), n = list.length;
     if (back()) { G.input.consume('pause'); click(); G.setState('menu'); return; }
     if (WD.focus === 'back') {
@@ -25693,8 +25702,10 @@
     if (it.id && PS) {
       ctx.save(); if (!it.owned) ctx.globalAlpha = 0.4;
       if (G.drawShadow) G.drawShadow(ctx, 391, 168, 30, 0.4);
-      const hop = Math.abs(Math.sin(t * 3)) * (Math.sin(t * 0.8) > 0.4 ? 6 : 0);
-      if (!(G.hero3d && G.hero3d.drawPet && G.hero3d.drawPet(ctx, it.id, 391, 170, 6, t * 0.9, Math.round(hop)))) PS.drawPet(ctx, it.id, 391, 170, 5, 0, false);
+      const hop = Math.abs(Math.sin(t * 3)) * (Math.sin(t * 0.8) > 0.4 ? 6 : 0) + (WD.petJump > 0 ? Math.sin(WD.petJump / 0.45 * Math.PI) * 14 : 0);
+      const run = hop > 0.5 || WD.petDrag;
+      if (!(G.hero3d && G.hero3d.drawPetCrisp && G.hero3d.drawPetCrisp(ctx, it.id, 391, 170, 5, WD.petAng || 0, Math.round(hop), run ? Math.floor(t * 8) : 0))) PS.drawPet(ctx, it.id, 391, 170, 5, 0, false);
+      if (t < 6 && !WD.petTouched) U.text(ctx, G.touch && G.touch.active ? '« тягни, щоб повернути »' : '« тягни мишкою »', 391, 184, { size: 7, align: 'center', color: 'rgba(255,255,255,0.5)' });
       ctx.restore();
     }
     U.text(ctx, it.name || '', 391, 204, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
@@ -30878,7 +30889,25 @@
     ctx.restore();
     return true;
   }
-  G.hero3d = { drawCrisp, drawPet, drawSmooth, drawPetSmooth, draw, model: (skin) => model(skin).m, clear() { models.clear(); frames.clear(); } };
+  // улюбленець (профіль, дивиться праворуч): дивиться в бік повороту героя; розворот — з «пружинкою», контурне світло
+  function drawPetCrisp(ctx, id, cx, feetY, k, ang, lift, fr) {
+    const TAU = Math.PI * 2, a = ((ang % TAU) + TAU) % TAU, left = a > Math.PI * 0.5 && a < Math.PI * 1.5;
+    const img = G.pass && G.pass.petImg ? G.pass.petImg(id, fr || 0, left) : null;
+    if (!img) return false;
+    const ks = 'pet|' + Math.round(cx) + '|' + Math.round(feetY), ts = turns[ks] || (turns[ks] = { sec: left, t: -1e9 });
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    if (ts.sec !== left) { ts.sec = left; ts.t = now; }
+    const el = (now - ts.t) / 160, sq = el < 1 ? Math.sin(el * Math.PI) * 0.1 : 0;
+    k = Math.max(1, Math.floor(k)); const w = img.width * k, h = img.height * k, x0 = -Math.round(w / 2), y0 = -h;
+    ctx.save(); ctx.imageSmoothingEnabled = false;
+    ctx.translate(Math.round(cx), Math.round(feetY - (lift || 0)));
+    if (sq) ctx.scale(1 + sq, 1 - sq);
+    const ga = ctx.globalAlpha; ctx.globalAlpha = ga * 0.55; ctx.drawImage(sil(img, '#ffd27a'), x0 + (left ? -k : k), y0, w, h); ctx.globalAlpha = ga;
+    ctx.drawImage(img, x0, y0, w, h);
+    ctx.restore();
+    return true;
+  }
+  G.hero3d = { drawPetCrisp, drawCrisp, drawPet, drawSmooth, drawPetSmooth, draw, model: (skin) => model(skin).m, clear() { models.clear(); frames.clear(); } };
   if (G.events && G.events.on) G.events.on('outfit:change', () => { models.clear(); frames.clear(); smooth.clear(); });
 })();
 
@@ -41230,7 +41259,7 @@
       if (pl.pet) { // улюбленець — попереду ліворуч, підстрибує
         const hop = Math.abs(Math.sin(LB.t * 3 + i)) * (Math.sin(LB.t * 0.8 + i) > 0.4 ? 3 : 0), px = x + sw / 2 - 20;
         ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(px, fy + 3, 9, 2, 0, 0, Math.PI * 2); ctx.fill();
-        if (G.pass && G.pass.drawPet) G.pass.drawPet(ctx, pl.pet, px, fy + 3 - hop, 2, hop > 0 ? Math.floor(LB.t * 8) : 0, false);
+        if (!(G.hero3d && G.hero3d.drawPetCrisp && G.hero3d.drawPetCrisp(ctx, pl.pet, px, fy + 3, 2, ang, Math.round(hop), hop > 0 ? Math.floor(LB.t * 8) : 0)) && G.pass && G.pass.drawPet) G.pass.drawPet(ctx, pl.pet, px, fy + 3 - hop, 2, 0, false);
       }
       ctx.restore();
       if (pl.lv) { const lt = 'рів ' + pl.lv, ly = pl.host ? y0 + 17 : y0 + 5; U.rect(ctx, '#1a0e20', x + 3, ly, U.measure(lt, 7) + 6, 10); U.text(ctx, lt, x + 6, ly + 1, { size: 7, color: '#f7c948' }); }
