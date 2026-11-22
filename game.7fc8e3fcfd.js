@@ -25014,8 +25014,9 @@
     ctx.restore();
   }
   // табличка з ніком і значком рівня (як у Brawl Stars)
-  function namePlate(ctx, x, y, name, lv, col) {
-    let nm = String(name || 'Гравець'); while (nm.length > 3 && U.measure(nm, 8) > 70) nm = nm.slice(0, -2) + '…';
+  function namePlate(ctx, x, y, name, lv, col, maxW) {
+    if (maxW) lv = 0; // тісно (повне лобі) — без значка рівня
+    let nm = String(name || 'Гравець'); while (nm.length > 3 && U.measure(nm, 8) > (maxW || 70)) nm = nm.slice(0, -2) + '…';
     const tw = U.measure(nm, 8), w = tw + (lv ? 22 : 10), x0 = Math.round(x - w / 2);
     U.rect(ctx, '#120a18', x0 - 1, y - 1, w + 2, 13); U.rect(ctx, 'rgba(30,20,44,0.95)', x0, y, w, 11);
     U.rect(ctx, col, x0, y + 10, w, 1);
@@ -25024,14 +25025,19 @@
   }
   // ═══ ЛОБІ на головному екрані: друзі стоять поруч на подіумі, «+» — запросити, «ГРАТИ РАЗОМ» — онлайн-втеча ═══
   const PARTY_POS = [{ dx: 90, k: 4, dy: 0 }, { dx: -90, k: 4, dy: 0 }, { dx: 46, k: 3, dy: -20, back: true }, { dx: -46, k: 3, dy: -20, back: true }];
+  // 4–5 гравців: усі в один рівний ряд «плечем до плеча» (як на груповому фото), однакового розміру
+  const CROWD_POS = [{ dx: 50, k: 3, dy: 0, back: true }, { dx: -50, k: 3, dy: 0, back: true }, { dx: 100, k: 3, dy: 0, back: true }, { dx: -100, k: 3, dy: 0, back: true }];
+  const crowd = () => partyOthers().length >= 3;
+  const posList = () => (crowd() ? CROWD_POS : PARTY_POS);
   const lobbyOn = () => !!(G.coop && G.coop.enabled && G.social && G.scenes.friends);
   function partyOthers() { const C = G.coop; if (!C || !C.role) return []; const me = C.myId; return (C.roster || []).filter((r, i) => (me ? r.id !== me : !(C.role === 'host' && i === 0))).slice(0, 4); }
   function partySlots() { // [{pos, pl|null}] — хто де стоїть і де «+»
     if (!lobbyOn()) return [];
     const others = partyOthers(), out = [];
-    for (let i = 0; i < PARTY_POS.length; i++) {
-      if (others[i]) out.push({ pos: PARTY_POS[i], pl: others[i] });
-      else if (i < 2 && (G.coop.players || 1) < 5) out.push({ pos: PARTY_POS[i], pl: null }); // як у Brawl Stars: «+» з обох боків
+    const PL = posList(), cr = crowd();
+    for (let i = 0; i < PL.length; i++) {
+      if (others[i]) out.push({ pos: PL[i], pl: others[i] });
+      else if ((cr || i < 2) && (G.coop.players || 1) < 5) out.push({ pos: PL[i], pl: null }); // як у Brawl Stars: «+» з обох боків
     }
     return out;
   }
@@ -25045,19 +25051,19 @@
   function drawPartyBack(ctx) { drawParty(ctx, true); }
   function drawSlot(ctx, s2) {
     const p = POD(), mh = G.input.mouse, x = p.cx + s2.pos.dx, k = s2.pos.k, fy = p.feet + s2.pos.dy, r = slotR(s2), hov = U.inRect(mh.x, mh.y, r);
-    const rx = k === 4 ? 36 : 26, big = k === 4;
+    const cr = crowd(), rx = cr ? 22 : k === 4 ? 36 : 26, big = k === 4 || cr;
     if (s2.pl) {
-      const pl = s2.pl, i = PARTY_POS.indexOf(s2.pos);
+      const pl = s2.pl, i = Math.max(PARTY_POS.indexOf(s2.pos), CROWD_POS.indexOf(s2.pos));
       podium(ctx, x, fy, rx, pl.host ? '247,201,72' : '147,194,91', false, true);
       const ang = 0.2 * Math.sin(M.t * 0.6 + i * 1.7), bob = Math.max(0, Math.sin(M.t * 2.2 + i * 1.3)) * 1;
       ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(x, fy, 6 * k, 2 * k / 2 + 2, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       if (G.hero3d) G.hero3d.drawCrisp(ctx, x, fy, k, ang, { skin: pl.skin || 'office', outfit: pl.outfit || null, lift: Math.round(bob), id: 'party' + i });
       if (pl.pet && G.hero3d && G.hero3d.drawPetCrisp) { // улюбленець — сидить на подіумі перед ногами
         const side = s2.pos.dx > 0 ? 1 : -1;
-        G.hero3d.drawPetCrisp(ctx, pl.pet, x + side * 16, fy + 6, big ? 2 : 1, side > 0 ? Math.PI : 0, 0, 0);
+        G.hero3d.drawPetCrisp(ctx, pl.pet, x + side * (cr ? 13 : 16), fy + (cr ? 4 : 6), cr ? 1 : big ? 2 : 1, side > 0 ? Math.PI : 0, 0, 0);
       }
       // табличка з ніком і рівнем — під подіумом
-      if (big) namePlate(ctx, x, fy + 10, pl.name, pl.lv, pl.host ? '#f7c948' : '#93c25b');
+      if (big) namePlate(ctx, x, fy + (cr ? 7 : 10), pl.name, pl.lv, pl.host ? '#f7c948' : '#93c25b', cr ? 38 : 0);
       else U.text(ctx, String(pl.name || '').slice(0, 10), x, fy + 7, { size: 6, align: 'center', color: '#e8f8d0', outline: '#1a0e20' });
     } else {
       podium(ctx, x, fy, rx, '255,255,255', true);
@@ -25073,7 +25079,7 @@
     }
   }
   function drawParty(ctx, back) {
-    const sl = partySlots().filter((q) => !!q.pos.back === !!back); if (!sl.length && back) return;
+    const sl = partySlots().filter((q) => !!q.pos.back === !!back).sort((a, b) => Math.abs(b.pos.dx) - Math.abs(a.pos.dx)); if (!sl.length && back) return;
     for (const s2 of sl) drawSlot(ctx, s2);
     if (back) return;
     const p = POD(), mh = G.input.mouse;
@@ -25111,14 +25117,14 @@
     if (H3.jump > 0) { H3.jump += H3.jumpV * dt; H3.jumpV -= 520 * dt; if (H3.jump <= 0) { H3.jump = 0; H3.jumpV = 0; } }
   }
   function drawHero3d(ctx) {
-    const p = POD(), s = 4.5;
+    const p = POD(), s = crowd() ? 3 : 4.5;
     let petLater = null;
     // подіум
     const breathe = Math.sin(M.t * 2.2);
     const lift = Math.max(0, H3.jump) + (H3.jump > 0 ? 0 : Math.max(0, breathe) * 1.5);
     drawPartyBack(ctx);
     ctx.save();
-    podium(ctx, p.cx, p.feet, lobbyOn() ? 46 : 58, '253,233,143', false, partyOthers().length > 0);
+    podium(ctx, p.cx, p.feet, crowd() ? 24 : lobbyOn() ? 46 : 58, '253,233,143', false, partyOthers().length > 0);
     const sh = Math.max(0.35, 1 - lift / 60);
     ctx.fillStyle = 'rgba(0,0,0,' + (0.4 * sh) + ')'; ctx.beginPath(); ctx.ellipse(p.cx, p.feet, 24 * sh, 5 * sh, 0, 0, Math.PI * 2); ctx.fill();
     // світло ззаду
@@ -25130,7 +25136,7 @@
     if (legend) G.pass.legendFx(ctx, p.cx, p.feet - 62, 86, M.t);
     if (G.pass && G.pass.pet && G.hero3d && G.hero3d.drawPet) { // улюбленець — теж 3D, поруч на подіумі, крутиться разом із героєм
       const ph = Math.abs(Math.sin(M.t * 3.2)) * (Math.sin(M.t * 0.7) > 0.3 ? 4 : 0);
-      const pk = partyOthers().length ? 2 : 3, pxp = p.cx + (pk === 2 ? 30 : 38);
+      const pk = crowd() ? 1 : partyOthers().length ? 2 : 3, pxp = p.cx + (pk === 1 ? 13 : pk === 2 ? 30 : 38);
       ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(pxp, p.feet + 7, 5 * pk, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       petLater = () => G.hero3d.drawPetCrisp(ctx, G.pass.pet, pxp, p.feet + 7, pk, H3.ang + Math.PI, Math.round(ph), ph > 0 || Math.abs(H3.vel) > 0.5 ? Math.floor(M.t * 8) : 0); // попереду праворуч, як у Brawl Stars
     }
@@ -25143,7 +25149,7 @@
       const hc = ['#ffe070', '#fff4c0', '#ffc830'][Math.floor(M.t * 5) % 3];
       U.text(ctx, '★ ' + (sk ? sk.name : '') + ' ★', p.cx, p.feet + 3, { size: 8, align: 'center', color: hc, outline: '#3a2000' });
       U.text(ctx, 'ЛЕГЕНДАРНИЙ', p.cx, p.feet + 14, { size: 7, align: 'center', color: '#ffb020', outline: '#3a2000' });
-    } else if (partyOthers().length) { const me = (G.coop.roster || []).find((r) => r.id === G.coop.myId); namePlate(ctx, p.cx, p.feet + 10, (G.online && G.online.realName) || 'Ти', levelOf(xpNow()).L, me && me.host ? '#f7c948' : '#93c25b'); }
+    } else if (partyOthers().length) { const me = (G.coop.roster || []).find((r) => r.id === G.coop.myId); namePlate(ctx, p.cx, p.feet + (crowd() ? 7 : 10), (G.online && G.online.realName) || 'Ти', levelOf(xpNow()).L, me && me.host ? '#f7c948' : '#93c25b', crowd() ? 38 : 0); }
     else U.text(ctx, sk ? sk.name : '', p.cx, p.feet + 14, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
     const lr = LOOK_R(), lh = U.inRect(G.input.mouse.x, G.input.mouse.y, lr);
     pill(ctx, lr.x, lr.y, lr.w, lr.h, lh ? '#3f7fae' : '#2d5f86');
