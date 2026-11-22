@@ -24986,17 +24986,41 @@
   const LOOK_R = () => { const p = POD(), w = 96; return { x: p.cx - w / 2, y: p.feet + 25, w, h: 15 }; };
   const H3 = { ang: 0.08, vel: 0, drag: null, idle: 0, jump: 0, jumpV: 0, lastLvl: 0 };
   // подіум: тінь, бічна стінка, верх, світне кільце (rgb кольору кільця)
-  function podium(ctx, x, feet, rx, ring, ghost) {
-    const ry = Math.max(5, Math.round(rx * 0.2));
+  function podium(ctx, x, feet, rx, ring, ghost, beam) {
+    const ry = Math.max(5, Math.round(rx * 0.22)), pulse = 0.5 + 0.5 * Math.sin(M.t * 2.4 + x * 0.05);
     ctx.save();
-    if (ghost) ctx.globalAlpha = 0.55;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(x, feet + 4, rx + 4, ry + 2, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#2a1e36'; ctx.beginPath(); ctx.ellipse(x, feet + 2, rx, ry + 1, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = ghost ? '#3a2c4a' : '#4a3658'; ctx.beginPath(); ctx.ellipse(x, feet - 1, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(' + ring + ',' + (0.35 + 0.25 * Math.sin(M.t * 3 + x * 0.05)) + ')'; ctx.lineWidth = 2;
+    if (beam && !ghost) { // промінь прожектора згори — герой «на сцені»
+      ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createLinearGradient(0, feet - 150, 0, feet);
+      g.addColorStop(0, 'rgba(' + ring + ',0)'); g.addColorStop(1, 'rgba(' + ring + ',' + (0.1 + 0.05 * pulse) + ')');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - rx * 0.35, feet - 150); ctx.lineTo(x + rx * 0.35, feet - 150); ctx.lineTo(x + rx, feet); ctx.lineTo(x - rx, feet); ctx.closePath(); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (ghost) ctx.globalAlpha = 0.5;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(x, feet + 5, rx + 5, ry + 3, 0, 0, Math.PI * 2); ctx.fill();
+    // бічна стінка
+    ctx.fillStyle = '#1e1428'; ctx.beginPath(); ctx.ellipse(x, feet + 3, rx, ry + 1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2e2240'; ctx.fillRect(x - rx, feet - 1, rx * 2, 4);
+    // верх: світліший центр
+    const tg = ctx.createRadialGradient(x, feet - 2, 2, x, feet - 1, rx);
+    tg.addColorStop(0, ghost ? '#4a3a5c' : '#6a5080'); tg.addColorStop(1, ghost ? '#2e2240' : '#3e2c52');
+    ctx.fillStyle = tg; ctx.beginPath(); ctx.ellipse(x, feet - 1, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    // світне кільце + відблиск по краю
+    ctx.strokeStyle = 'rgba(' + ring + ',' + (0.45 + 0.35 * pulse) + ')'; ctx.lineWidth = 2;
     if (ghost && ctx.setLineDash) ctx.setLineDash([4, 3]);
-    ctx.beginPath(); ctx.ellipse(x, feet - 1, rx - 5, Math.max(3, ry - 2), 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x, feet - 1, rx - 4, Math.max(3, ry - 2), 0, 0, Math.PI * 2); ctx.stroke();
+    if (ctx.setLineDash) ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(x, feet - 1, rx, ry, 0, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
     ctx.restore();
+  }
+  // табличка з ніком і значком рівня (як у Brawl Stars)
+  function namePlate(ctx, x, y, name, lv, col) {
+    let nm = String(name || 'Гравець'); while (nm.length > 3 && U.measure(nm, 8) > 70) nm = nm.slice(0, -2) + '…';
+    const tw = U.measure(nm, 8), w = tw + (lv ? 22 : 10), x0 = Math.round(x - w / 2);
+    U.rect(ctx, '#120a18', x0 - 1, y - 1, w + 2, 13); U.rect(ctx, 'rgba(30,20,44,0.95)', x0, y, w, 11);
+    U.rect(ctx, col, x0, y + 10, w, 1);
+    if (lv) { U.rect(ctx, '#120a18', x0 - 4, y - 2, 15, 15); U.rect(ctx, '#f7c948', x0 - 3, y - 1, 13, 13); U.rect(ctx, '#ffe58a', x0 - 3, y - 1, 13, 5); U.text(ctx, String(lv), x0 + 3, y + 1, { size: lv > 9 ? 6 : 8, align: 'center', color: '#5a3a10' }); }
+    U.text(ctx, nm, x0 + (lv ? 14 : 5), y + 1, { size: 8, color: '#fbf6ea' });
   }
   // ═══ ЛОБІ на головному екрані: друзі стоять поруч на подіумі, «+» — запросити, «ГРАТИ РАЗОМ» — онлайн-втеча ═══
   const PARTY_POS = [{ dx: 90, k: 4, dy: 0 }, { dx: -90, k: 4, dy: 0 }, { dx: 46, k: 3, dy: -20, back: true }, { dx: -46, k: 3, dy: -20, back: true }];
@@ -25012,7 +25036,7 @@
     return out;
   }
   const slotR = (sl) => { const p = POD(); return { x: p.cx + sl.pos.dx - 28, y: p.feet + sl.pos.dy - 30 * sl.pos.k - 6, w: 56, h: 30 * sl.pos.k + 18 }; };
-  const LEAVE_R = () => { const p = POD(); return { x: p.cx + 18, y: p.feet + 44, w: 46, h: 13 }; };
+  const LEAVE_R = () => { const p = POD(); return { x: p.cx + 2, y: p.feet + 44, w: 46, h: 13 }; };
   function inviteToLobby() {
     click('pickup');
     if (G.online && !G.online.realName && G.online.askName) { G.online.askName((ok) => { if (ok) inviteToLobby(); }); return; }
@@ -25024,7 +25048,7 @@
     const rx = k === 4 ? 36 : 26, big = k === 4;
     if (s2.pl) {
       const pl = s2.pl, i = PARTY_POS.indexOf(s2.pos);
-      podium(ctx, x, fy, rx, pl.host ? '247,201,72' : '147,194,91');
+      podium(ctx, x, fy, rx, pl.host ? '247,201,72' : '147,194,91', false, true);
       const ang = 0.2 * Math.sin(M.t * 0.6 + i * 1.7), bob = Math.max(0, Math.sin(M.t * 2.2 + i * 1.3)) * 1;
       ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(x, fy, 6 * k, 2 * k / 2 + 2, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       if (G.hero3d) G.hero3d.drawCrisp(ctx, x, fy, k, ang, { skin: pl.skin || 'office', outfit: pl.outfit || null, lift: Math.round(bob), id: 'party' + i });
@@ -25032,11 +25056,9 @@
         const side = s2.pos.dx > 0 ? 1 : -1;
         G.hero3d.drawPetCrisp(ctx, pl.pet, x + side * 16, fy + 6, big ? 2 : 1, side > 0 ? Math.PI : 0, 0, 0);
       }
-      // нік і рівень — під подіумом (як у героя)
-      let nm = String(pl.name || 'Гравець'); while (nm.length > 3 && U.measure(nm, 7) > 64) nm = nm.slice(0, -2) + '…';
-      const ty = fy + (big ? 10 : 7);
-      U.text(ctx, nm, x, ty, { size: big ? 8 : 6, align: 'center', color: pl.host ? '#fde98f' : '#e8f8d0', outline: '#1a0e20' });
-      if (pl.lv && big) U.text(ctx, 'рів ' + pl.lv + (pl.host ? ' · хост' : ''), x, ty + 10, { size: 6, align: 'center', color: '#b4abb2', outline: '#1a0e20' });
+      // табличка з ніком і рівнем — під подіумом
+      if (big) namePlate(ctx, x, fy + 10, pl.name, pl.lv, pl.host ? '#f7c948' : '#93c25b');
+      else U.text(ctx, String(pl.name || '').slice(0, 10), x, fy + 7, { size: 6, align: 'center', color: '#e8f8d0', outline: '#1a0e20' });
     } else {
       podium(ctx, x, fy, rx, '255,255,255', true);
       // плитка з «+» над подіумом (як у Brawl Stars)
@@ -25059,7 +25081,10 @@
     const C = G.coop;
     if (C && C.role) {
       const n = C.players || 1, t = 'ЛОБІ ' + n + '/5' + (C.role === 'guest' && !C.linked ? ' · підключаємось…' : '');
-      U.text(ctx, t, p.cx - 26, p.feet + 46, { size: 7, align: 'center', color: '#93c25b', shadow: true });
+      const tw = U.measure(t, 7) + 16, tx = Math.round(p.cx - 4 - tw);
+      U.rect(ctx, '#120a18', tx - 1, p.feet + 43, tw + 2, 15); U.rect(ctx, 'rgba(30,48,30,0.95)', tx, p.feet + 44, tw, 13);
+      U.rect(ctx, '#5ee05a', tx + 4, p.feet + 48, 4, 4);
+      U.text(ctx, t, tx + 11, p.feet + 47, { size: 7, color: '#c8f0b0' });
       const lr = LEAVE_R(), lh = U.inRect(mh.x, mh.y, lr);
       U.rect(ctx, '#120a18', lr.x - 1, lr.y - 1, lr.w + 2, lr.h + 2); U.rect(ctx, lh ? '#a8484a' : '#7a3438', lr.x, lr.y, lr.w, lr.h);
       U.text(ctx, 'ВИЙТИ', lr.x + lr.w / 2, lr.y + 3, { size: 6, align: 'center', color: '#fff8e0' });
@@ -25093,7 +25118,7 @@
     const lift = Math.max(0, H3.jump) + (H3.jump > 0 ? 0 : Math.max(0, breathe) * 1.5);
     drawPartyBack(ctx);
     ctx.save();
-    podium(ctx, p.cx, p.feet, lobbyOn() ? 46 : 58, '253,233,143');
+    podium(ctx, p.cx, p.feet, lobbyOn() ? 46 : 58, '253,233,143', false, partyOthers().length > 0);
     const sh = Math.max(0.35, 1 - lift / 60);
     ctx.fillStyle = 'rgba(0,0,0,' + (0.4 * sh) + ')'; ctx.beginPath(); ctx.ellipse(p.cx, p.feet, 24 * sh, 5 * sh, 0, 0, Math.PI * 2); ctx.fill();
     // світло ззаду
@@ -25118,7 +25143,8 @@
       const hc = ['#ffe070', '#fff4c0', '#ffc830'][Math.floor(M.t * 5) % 3];
       U.text(ctx, '★ ' + (sk ? sk.name : '') + ' ★', p.cx, p.feet + 3, { size: 8, align: 'center', color: hc, outline: '#3a2000' });
       U.text(ctx, 'ЛЕГЕНДАРНИЙ', p.cx, p.feet + 14, { size: 7, align: 'center', color: '#ffb020', outline: '#3a2000' });
-    } else U.text(ctx, sk ? sk.name : '', p.cx, p.feet + 14, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
+    } else if (partyOthers().length) { const me = (G.coop.roster || []).find((r) => r.id === G.coop.myId); namePlate(ctx, p.cx, p.feet + 10, (G.online && G.online.realName) || 'Ти', levelOf(xpNow()).L, me && me.host ? '#f7c948' : '#93c25b'); }
+    else U.text(ctx, sk ? sk.name : '', p.cx, p.feet + 14, { size: 8, align: 'center', color: '#fbf6ea', shadow: true });
     const lr = LOOK_R(), lh = U.inRect(G.input.mouse.x, G.input.mouse.y, lr);
     pill(ctx, lr.x, lr.y, lr.w, lr.h, lh ? '#3f7fae' : '#2d5f86');
     U.icon(ctx, 'shirt', lr.x + 5, lr.y + 4);
