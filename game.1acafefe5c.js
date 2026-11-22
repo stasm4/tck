@@ -1222,7 +1222,6 @@
       if (!(G.ui && G.ui.pauseMenu)) { rec.kind = 'pause'; pulse('pause'); return; }
     }
     if (st === 'cutscene' && !(G.cutscene && G.cutscene.locked) && inR(lx, ly, SKIP(), 4)) { rec.kind = 'skip'; pulse('confirm'); return; }
-    if (st === 'missions' && inR(lx, ly, BACK(), 4)) { rec.kind = 'back'; pulse('pause'); return; }
     // меню, діалог, результат, гардероб, крамниця, вибір місій, кат-сцени: тап = клік миші
     I.tap(t.clientX, t.clientY, { type: 'touchstart', code: '' });
     I.mouse.down = true;
@@ -1606,8 +1605,6 @@
       drawPause(ctx, heldKind('pause'), true); // підказки малює меню паузи (70_ui)
     } else if (st === 'cutscene') {
       if (!(G.cutscene && G.cutscene.locked)) panelBtn(ctx, SKIP(), 'ПРОПУСТИТИ', heldKind('skip'));
-    } else if (st === 'missions') {
-      panelBtn(ctx, BACK(), 'НАЗАД', heldKind('back'));
     }
   };
 })();
@@ -23889,6 +23886,14 @@
   U.button = (ctx, r, label, focused, o) => {
     o = o || {};
     const dis = !!o.disabled;
+    if (!dis && /^назад$/i.test(String(label))) { // усі «Назад» — однакові й помітні: цеглясто-червоні зі стрілкою
+      U.panel(ctx, r.x, r.y, r.w, r.h, { fill: focused ? '#b8484a' : '#8a3438', border: focused ? '#fde98f' : '#1a0e20' });
+      U.rect(ctx, 'rgba(255,255,255,0.16)', r.x + 2, r.y + 2, r.w - 4, 1);
+      const size = o.size || 10, tw = U.measure('НАЗАД', size), ax = Math.round(r.x + r.w / 2 - (tw + 9) / 2);
+      U.tri(ctx, ax + 2, r.y + r.h / 2, 'left', 4, '#fff8e0');
+      U.text(ctx, 'НАЗАД', ax + 9, r.y + Math.round((r.h - U.lineH(size)) / 2) + 1, { size, color: '#fff8e0', shadow: true });
+      return;
+    }
     U.panel(ctx, r.x, r.y, r.w, r.h, {
       fill: dis ? 'rgba(40,36,44,0.85)' : focused ? '#5e9846' : 'rgba(58,46,68,0.95)',
       border: focused ? '#fde98f' : '#1a0e20',
@@ -30576,32 +30581,70 @@
     }
     return { w, h, at(x, y) { if (x < 0 || y < 0 || x >= w || y >= h) return null; const i = (y * w + x) * 4; return d[i + 3] > 40 ? [d[i], d[i + 1], d[i + 2]] : null; } };
   }
+  // ═══ Воксельна модель v2: заокруглена форма, гладкі нормалі, затінення в заглибинах ═══
+  // vox(W, H, Dz, solidFn, colorFn) → {W,H,D,occ, surf:[{x,y,z,c,n,ao}], foot, up}
+  function vox(W, H, D, isSolid, colorAt, up) {
+    const occ = new Uint8Array(W * H * D), id = (x, y, z) => (y * D + z) * W + x;
+    for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) if (isSolid(x, y, z)) occ[id(x, y, z)] = 1;
+    const at = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < W && y < H && z < D && occ[id(x, y, z)] === 1;
+    const surf = [], R = 2;
+    for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+      if (!occ[id(x, y, z)]) continue;
+      if (at(x + 1, y, z) && at(x - 1, y, z) && at(x, y + 1, z) && at(x, y - 1, z) && at(x, y, z + 1) && at(x, y, z - 1)) continue;
+      // нормаль — у бік порожнечі (згладжено по сусідству радіуса 2)
+      let nx = 0, ny = 0, nz = 0;
+      for (let dy = -R; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
+        if (!dx && !dy && !dz) continue;
+        if (!at(x + dx, y + dy, z + dz)) { const w = 1 / (dx * dx + dy * dy + dz * dz); nx += dx * w; ny += dy * w; nz += dz * w; }
+      }
+      const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+      // затінення: скільки зайнято в півсфері вздовж нормалі
+      let occN = 0, all = 0;
+      for (let dy = -R; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
+        const dd = dx * nx + dy * ny + dz * nz; if (dd <= 0.2) continue;
+        all++; if (at(x + dx, y + dy, z + dz)) occN++;
+      }
+      const c = colorAt(x, y, z, nx, ny, nz); if (!c) continue;
+      surf.push({ x, y, z, c, n: [nx, ny, nz], ao: all ? occN / all : 0 });
+    }
+    let foot = H - 1, top = 0;
+    outer: for (let y = H - 1; y >= 0; y--) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) if (occ[id(x, y, z)]) { foot = y; break outer; }
+    outer2: for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) if (occ[id(x, y, z)]) { top = y; break outer2; }
+    return { W, H, D, surf, foot, top, up: up || 1 };
+  }
+  // відрізки непрозорих пікселів у рядку
+  function runs(get, n) { const out = []; let s0 = -1; for (let i = 0; i <= n; i++) { const on = i < n && get(i); if (on && s0 < 0) s0 = i; else if (!on && s0 >= 0) { out.push([s0, i - 1]); s0 = -1; } } return out; }
   function build(skin) {
     const get = (dir) => { try { return px(G.sprites.get('player', { skin, dir, frame: 0 }), true); } catch (e) { return null; } };
     const F = get('down'), B = get('up'), Lf = get('left'), R = get('right');
     if (!F || !R) return null;
-    const W = F.w, H = F.h, D = R.w;
-    const solid = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < W && y < H && z < D && !!F.at(x, y) && !!R.at(z, y);
-    const faces = [];
-    // n: 0 +z (обличчя), 1 −z (спина), 2 +x, 3 −x, 4 верх
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      if (!F.at(x, y)) continue;
-      for (let z = 0; z < D; z++) {
-        if (!R.at(z, y)) continue;
-        const X = x - (W - 1) / 2, Z = (z - (D - 1) / 2) * DZ, Y = y;
-        const front = z >= D / 2;
-        if (!solid(x, y, z + 1)) faces.push({ n: 0, X, Y, Z, c: F.at(x, y) });
-        if (!solid(x, y, z - 1)) faces.push({ n: 1, X, Y, Z, c: (B && B.at(W - 1 - x, y)) || F.at(x, y) });
-        if (!solid(x + 1, y, z)) faces.push({ n: 2, X, Y, Z, c: (Lf && Lf.at(D - 1 - z, y)) || R.at(z, y) });
-        if (!solid(x - 1, y, z)) faces.push({ n: 3, X, Y, Z, c: R.at(z, y) });
-        if (!solid(x, y - 1, z)) faces.push({ n: 4, X, Y, Z, c: front ? F.at(x, y) : ((B && B.at(W - 1 - x, y)) || F.at(x, y)) });
-      }
-    }
-    let foot = H - 1;
-    for (let y = H - 1; y >= 0; y--) { let any = false; for (let x = 0; x < W; x++) if (F.at(x, y)) { any = true; break; } if (any) { foot = y; break; } }
-    let top = 0;
-    for (let y = 0; y < H; y++) { let any = false; for (let x = 0; x < W; x++) if (F.at(x, y)) { any = true; break; } if (any) { top = y; break; } }
-    return { faces, W, H, D, foot, top, dz: DZ, up: F.up || 1 };
+    const W = F.w, H = F.h, DS = R.w, D = Math.max(4, Math.round(DS * DZ));
+    const zs = (z) => Math.min(DS - 1, Math.floor((z + 0.5) / D * DS));      // колонка бокового спрайта для глибини z
+    // поперечний переріз кожного рядка — «заокруглений прямокутник» (суперееліпс) між контурами спереду й збоку
+    const rowRuns = [];
+    for (let y = 0; y < H; y++) rowRuns.push({ fx: runs((x) => !!F.at(x, y), W), sz: runs((z) => !!R.at(zs(z), y), D) });
+    const P = 2.7;
+    const solid = (x, y, z) => {
+      const rr = rowRuns[y];
+      let fx = null, sz = null;
+      for (const r of rr.fx) if (x >= r[0] && x <= r[1]) { fx = r; break; } if (!fx) return false;
+      for (const r of rr.sz) if (z >= r[0] && z <= r[1]) { sz = r; break; } if (!sz) return false;
+      const hx = (fx[1] - fx[0] + 1) / 2, hz = (sz[1] - sz[0] + 1) / 2;
+      if (hx < 2 || hz < 2) return true;
+      const u = Math.abs((x + 0.5 - fx[0]) / hx - 1), w = Math.abs((z + 0.5 - sz[0]) / hz - 1);
+      return Math.pow(u, P) + Math.pow(w, P) <= 1.02;
+    };
+    const colorAt = (x, y, z, nx, ny, nz) => {
+      const f = () => F.at(x, y), bk = () => (B && B.at(W - 1 - x, y)) || F.at(x, y);
+      const sd = () => (nx > 0 ? (Lf && Lf.at(DS - 1 - zs(z), y)) : R.at(zs(z), y)) || R.at(zs(z), y);
+      const ax = Math.abs(nx), az = Math.abs(nz), ay = Math.abs(ny);
+      let c;
+      if (ay > ax && ay > az && ny < 0) c = z >= D / 2 ? f() : bk();       // верх (шапка, плечі)
+      else if (az >= ax) c = nz > 0 ? f() : bk();
+      else c = sd();
+      return c || F.at(x, y) || R.at(zs(z), y) || [120, 110, 120];
+    };
+    return vox(W, H, D, solid, colorAt, F.up || 1);
   }
   function outfitKey() { try { return JSON.stringify(G.progress && G.progress.outfit ? G.progress.outfit() : null); } catch (e) { return ''; } }
   // of — одяг іншого гравця (онлайн-кімната); без нього — свій із гардероба
@@ -30616,61 +30659,80 @@
     }
     return { m, key };
   }
-  const NORM = [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0], [0, -1, 0]];
-  // кадр моделі під кутом k (0..STEPS-1) у масштабі s → офскрін-канвас з контуром
-  function renderFrame(m, k, s) {
+  // ═══ Піксельний 3D-рендер: воксель ≈ піксель, глибинний буфер, світло смугами, контур, контурне світло ═══
+  // кадр під кутом k у масштабі v (пікселів на воксель), збільшений без розмиття в kp разів
+  const LV = (() => { const v = [-0.5, -0.72, 0.5], l = Math.hypot(v[0], v[1], v[2]); return v.map((q) => q / l); })(); // ключове світло: зліва-згори-спереду
+  const BANDS = [0.5, 0.64, 0.78, 0.9, 1.0, 1.1];
+  const OUT = [20, 11, 28];
+  function renderFrame(m, k, v, kp) {
+    kp = kp || 1;
     const a = k / STEPS * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), cp = Math.cos(PITCH), sp = Math.sin(PITCH);
-    const proj = (X, Y, Z) => { const xr = X * ca - Z * sa, zr = X * sa + Z * ca; return [xr, Y * cp + zr * sp, zr * cp - Y * sp]; };
-    const list = [];
-    for (const f of m.faces) {
-      const n = NORM[f.n];
-      const nxr = n[0] * ca - n[2] * sa, nzr = n[0] * sa + n[2] * ca, ny = n[1];
-      const nd = nzr * cp - ny * sp;            // до камери
-      if (nd <= 0.01) continue;
-      // кути грані
-      const { X, Y, Z } = f, hz = 0.5 * (m.dz || DZ);
-      let P;
-      if (f.n === 0) P = [[X - 0.5, Y - 0.5, Z + hz], [X + 0.5, Y - 0.5, Z + hz], [X + 0.5, Y + 0.5, Z + hz], [X - 0.5, Y + 0.5, Z + hz]];
-      else if (f.n === 1) P = [[X - 0.5, Y - 0.5, Z - hz], [X + 0.5, Y - 0.5, Z - hz], [X + 0.5, Y + 0.5, Z - hz], [X - 0.5, Y + 0.5, Z - hz]];
-      else if (f.n === 2) P = [[X + 0.5, Y - 0.5, Z - hz], [X + 0.5, Y - 0.5, Z + hz], [X + 0.5, Y + 0.5, Z + hz], [X + 0.5, Y + 0.5, Z - hz]];
-      else if (f.n === 3) P = [[X - 0.5, Y - 0.5, Z - hz], [X - 0.5, Y - 0.5, Z + hz], [X - 0.5, Y + 0.5, Z + hz], [X - 0.5, Y + 0.5, Z - hz]];
-      else P = [[X - 0.5, Y - 0.5, Z - hz], [X + 0.5, Y - 0.5, Z - hz], [X + 0.5, Y - 0.5, Z + hz], [X - 0.5, Y - 0.5, Z + hz]];
-      const Q = P.map((p) => proj(p[0], p[1], p[2]));
-      const c = proj(X, Y, Z);
-      // світло (у просторі камери) + легке «повітря» знизу
-      const ndl = Math.max(0, nxr * LIGHT[0] + ny * LIGHT[1] + nzr * LIGHT[2]);
-      let k2 = 0.62 + 0.5 * ndl;
-      if (f.n === 4) k2 += 0.08;
-      k2 *= 1 - Math.max(0, (Y - m.foot + 6) / 6) * 0.12; // ноги трохи темніші
-      const col = f.c;
-      list.push({ d: c[2] + nd * 0.01, Q, cx: c[0], cy: c[1], fill: 'rgb(' + Math.min(255, Math.round(col[0] * k2)) + ',' + Math.min(255, Math.round(col[1] * k2)) + ',' + Math.min(255, Math.round(col[2] * k2)) + ')' });
-    }
-    list.sort((p, q) => p.d - q.d);
-    // межі кадру — за реальними кутами граней (щоб шапка/спина не обрізались під будь-яким кутом)
+    const cx0 = (m.W - 1) / 2, cz0 = (m.D - 1) / 2;
+    const P = [];
     let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9;
-    for (const f of list) for (const q of f.Q) { if (q[0] < mnx) mnx = q[0]; if (q[0] > mxx) mxx = q[0]; if (q[1] < mny) mny = q[1]; if (q[1] > mxy) mxy = q[1]; }
-    const pad = 6, cw = Math.ceil((mxx - mnx) * s) + pad * 2, chh = Math.ceil((mxy - mny) * s) + pad * 2;
-    const ox = pad - mnx * s, oy = pad - mny * s;
-    const body = G.util.makeCanvas(cw, chh), bx = body.getContext('2d');
-    for (const f of list) {
-      bx.fillStyle = f.fill; bx.beginPath();
-      for (let i = 0; i < 4; i++) { // трохи більша грань — без щілин між вокселями
-        const qx = ox + (f.cx + (f.Q[i][0] - f.cx) * 1.12) * s, qy = oy + (f.cy + (f.Q[i][1] - f.cy) * 1.12) * s;
-        if (i) bx.lineTo(qx, qy); else bx.moveTo(qx, qy);
-      }
-      bx.closePath(); bx.fill();
+    for (const s of m.surf) {
+      const X = s.x - cx0, Y = s.y, Z = s.z - cz0;
+      const xr = X * ca - Z * sa, zr = X * sa + Z * ca;
+      const n = s.n, nxr = n[0] * ca - n[2] * sa, nzr = n[0] * sa + n[2] * ca;
+      const nd = nzr * cp - n[1] * sp;
+      if (nd < -0.45) continue;                                  // зовсім задні — не видно
+      const sx = xr * v, sy = (Y * cp + zr * sp) * v, d = zr * cp - Y * sp;
+      P.push({ sx, sy, d, s, nv: [nxr, n[1] * cp + nzr * sp, nd] });
+      if (sx < mnx) mnx = sx; if (sx > mxx) mxx = sx; if (sy < mny) mny = sy; if (sy > mxy) mxy = sy;
     }
-    // контур: темний силует, зсунутий на 2 px у 8 боків, під моделлю
-    const out = G.util.makeCanvas(cw, chh), o = out.getContext('2d');
-    const sil = G.util.makeCanvas(cw, chh), sx = sil.getContext('2d');
-    sx.drawImage(body, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = '#140b1c'; sx.fillRect(0, 0, cw, chh);
-    const t = Math.max(1, Math.round(s * (s < 3 ? 0.6 : 0.4)));
-    for (const [dx, dy] of [[-t, 0], [t, 0], [0, -t], [0, t], [-t, -t], [t, -t], [-t, t], [t, t]]) o.drawImage(sil, dx, dy);
-    o.drawImage(body, 0, 0);
-    // контурне світло по правому краю (rim light)
-    o.globalCompositeOperation = 'source-atop'; o.globalAlpha = 0.18; o.drawImage(sil, -t, 0); o.globalAlpha = 1; o.globalCompositeOperation = 'source-over';
-    return { cv: out, ox, footY: oy + (m.foot + 0.5) * cp * s };
+    if (!P.length) return null;
+    const pad = 3, W = Math.ceil(mxx - mnx) + pad * 2 + 1, H = Math.ceil(mxy - mny) + pad * 2 + 1, ox = pad - mnx, oy = pad - mny;
+    const N = W * H, dep = new Float32Array(N).fill(-1e9), who = new Int32Array(N).fill(-1);
+    const h = Math.max(0.5, v * 0.62);                         // напівшир «пікселя-вокселя» (з запасом — без дірок)
+    for (let i = 0; i < P.length; i++) {
+      const q = P[i], cx = q.sx + ox, cy = q.sy + oy;
+      const x0 = Math.ceil(cx - h - 0.5), x1 = Math.floor(cx + h - 0.5), y0 = Math.ceil(cy - h - 0.5), y1 = Math.floor(cy + h - 0.5);
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        if (x < 0 || y < 0 || x >= W || y >= H) continue;
+        const j = y * W + x; if (q.d > dep[j]) { dep[j] = q.d; who[j] = i; }
+      }
+    }
+    const img = G.util.makeCanvas(W, H), g = img.getContext('2d'), id = g.createImageData(W, H), o = id.data;
+    const filled = (x, y) => x >= 0 && y >= 0 && x < W && y < H && who[y * W + x] >= 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const j = y * W + x, i = who[j], t = j * 4;
+      if (i < 0) {
+        // контур: темний піксель навколо силуету
+        if (filled(x - 1, y) || filled(x + 1, y) || filled(x, y - 1) || filled(x, y + 1)) { o[t] = OUT[0]; o[t + 1] = OUT[1]; o[t + 2] = OUT[2]; o[t + 3] = 255; }
+        continue;
+      }
+      const q = P[i], nv = q.nv, c = q.s.c;
+      const lam = Math.max(0, nv[0] * LV[0] + nv[1] * LV[1] + nv[2] * LV[2]);
+      const fill = Math.max(0, nv[0] * 0.8 - nv[1] * 0.1 + nv[2] * 0.2) * 0.16;   // м'яке заповнююче світло справа
+      let b = 0.5 + 0.62 * lam + fill;
+      b *= 1 - 0.34 * Math.pow(Math.max(0, q.s.ao - 0.25) / 0.75, 1.3);                                       // заглибини темніші
+      // світло смугами (як у піксель-арті), з легким дизерингом на межах
+      let bi = 0; for (let n = 0; n < BANDS.length; n++) if (b >= BANDS[n]) bi = n;
+      const lo = BANDS[bi], hi = BANDS[Math.min(BANDS.length - 1, bi + 1)];
+      void hi;
+      let k2 = BANDS[bi];
+      // лінії глибини: якщо сусід помітно ближче — тут тінь-лінія (рука на тлі тулуба, край шапки)
+      let line = false;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (filled(nx, ny) && dep[ny * W + nx] - q.d > 4.5) { line = true; break; } }
+      if (line) k2 *= 0.62;
+      let r = c[0] * k2, gg = c[1] * k2, bb = c[2] * k2;
+      // тіні — холодні (у фіолет), світло — тепле
+      if (k2 < 0.85) { const m2 = (0.85 - k2) * 0.55; r = r * (1 - m2) + 52 * m2; gg = gg * (1 - m2) + 38 * m2; bb = bb * (1 - m2) + 96 * m2; }
+      else if (k2 > 0.95) { const m2 = (k2 - 0.95) * 0.9; r = r * (1 - m2) + 255 * m2; gg = gg * (1 - m2) + 236 * m2; bb = bb * (1 - m2) + 190 * m2; }
+      // контурне світло: край силуету, повернутий праворуч-назад
+      if (!filled(x + 1, y) && nv[0] > 0.25) { r = r * 0.6 + 255 * 0.4; gg = gg * 0.6 + 214 * 0.4; bb = bb * 0.6 + 150 * 0.4; }
+      // блік на верхніх краях
+      else if (!filled(x, y - 1) && nv[1] < -0.35 && lam > 0.5) { r = r * 0.8 + 255 * 0.2; gg = gg * 0.8 + 248 * 0.2; bb = bb * 0.8 + 225 * 0.2; }
+      o[t] = Math.min(255, Math.round(r)); o[t + 1] = Math.min(255, Math.round(gg)); o[t + 2] = Math.min(255, Math.round(bb)); o[t + 3] = 255;
+    }
+    g.putImageData(id, 0, 0);
+    let cv = img;
+    if (kp > 1) { cv = G.util.makeCanvas(W * kp, H * kp); const c2 = cv.getContext('2d'); c2.imageSmoothingEnabled = false; c2.drawImage(img, 0, 0, W * kp, H * kp); }
+    const footY = (oy + (m.foot + 0.5) * cp * v) * kp;
+    return { cv, ox: ox * kp, footY };
   }
+  // масштаб: s — екранних пікселів на піксель спрайта; вокселі моделі дрібніші в m.up разів
+  function pick(s, up) { const vs = s / (up || 1), kp = vs >= 1.7 ? Math.max(1, Math.round(vs / 1.1)) : 1; return { v: vs / kp, kp }; }
   function draw(ctx, cx, feetY, s, ang, o) {
     o = o || {};
     const { m, key } = model(o.skin || 'office', o.outfit);
@@ -30678,35 +30740,24 @@
     let k = Math.round(((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2) * STEPS) % STEPS;
     const fk = key + '|' + s + '|' + k;
     let fr = frames.get(fk);
-    if (!fr) { fr = renderFrame(m, k, s / (m.up || 1)); if (frames.size > STEPS * 8) frames.clear(); frames.set(fk, fr); }
+    if (!fr) { const pk = pick(s, m.up); fr = renderFrame(m, k, pk.v, pk.kp); if (!fr) return false; if (frames.size > STEPS * 8) frames.clear(); frames.set(fk, fr); }
+    const pv = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
     ctx.drawImage(fr.cv, Math.round(cx - fr.ox), Math.round(feetY - fr.footY - (o.lift || 0)));
+    ctx.imageSmoothingEnabled = pv;
     return true;
   }
-  // ── улюбленець: профіль (дивиться праворуч) → «видавлена» модель товщиною T, як фігурка з кубиків ──
+  // ── улюбленець: профіль (дивиться праворуч) → об'ємна фігурка (заокруглена по товщині), той самий рендер ──
   function buildPet(id) {
     const cv = G.pass && G.pass.petRaw ? G.pass.petRaw(id) : null, F = px(cv);
     if (!F) return null;
-    const W = F.w, H = F.h, T = id === 'pigeon' ? 4 : 5;
+    const W = F.w, H = F.h, T = id === 'pigeon' ? 5 : 7;
     const sol = (x, y) => !!F.at(x, y);
-    const faces = [];
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const c = F.at(x, y); if (!c) continue;
-      const thin = y >= H - 3 && !sol(x, y - 2); // лапи тонші за тулуб
-      const z0 = thin ? 1 : 0, z1 = thin ? T - 2 : T - 1;
-      for (let z = z0; z <= z1; z++) {
-        const X = x - (W - 1) / 2, Z = z - (T - 1) / 2, Y = y;
-        const dk = [c[0] * 0.86, c[1] * 0.86, c[2] * 0.86];
-        if (z === z1) faces.push({ n: 0, X, Y, Z, c });
-        if (z === z0) faces.push({ n: 1, X, Y, Z, c });
-        if (!sol(x + 1, y)) faces.push({ n: 2, X, Y, Z, c: dk });
-        if (!sol(x - 1, y)) faces.push({ n: 3, X, Y, Z, c: dk });
-        if (!sol(x, y - 1)) faces.push({ n: 4, X, Y, Z, c });
-      }
-    }
-    let foot = H - 1, top = 0;
-    for (let y = H - 1; y >= 0; y--) { let any = false; for (let x = 0; x < W; x++) if (sol(x, y)) { any = true; break; } if (any) { foot = y; break; } }
-    for (let y = 0; y < H; y++) { let any = false; for (let x = 0; x < W; x++) if (sol(x, y)) { any = true; break; } if (any) { top = y; break; } }
-    return { faces, W, H, D: T, foot, top, dz: 1 };
+    // товщина в точці — менша біля країв силуету (голова, хвіст, лапи заокруглені)
+    const edge = (x, y) => { let d = 0; for (let r = 1; r <= 3; r++) { if (sol(x + r, y) && sol(x - r, y) && sol(x, y + r) && sol(x, y - r)) d = r; else break; } return d; };
+    const thick = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (sol(x, y)) { const leg = y >= H - 3 && !sol(x, y - 2); thick[y * W + x] = leg ? 1.2 : Math.min(T / 2, 1.3 + edge(x, y) * 1.1); }
+    const D = T, cz = (D - 1) / 2;
+    return vox(W, H, D, (x, y, z) => sol(x, y) && Math.abs(z - cz) <= thick[y * W + x], (x, y) => F.at(x, y), 1);
   }
   function drawPet(ctx, id, cx, feetY, s, ang, lift) {
     const key = 'pet:' + id;
@@ -30716,8 +30767,10 @@
     const k = Math.round(((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2) * STEPS) % STEPS;
     const fk = key + '|' + s + '|' + k;
     let fr = frames.get(fk);
-    if (!fr) { fr = renderFrame(m, k, s); frames.set(fk, fr); }
+    if (!fr) { const pk = pick(s, 1); fr = renderFrame(m, k, pk.v, pk.kp); if (!fr) return false; frames.set(fk, fr); }
+    const pv = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
     ctx.drawImage(fr.cv, Math.round(cx - fr.ox), Math.round(feetY - fr.footY - (lift || 0)));
+    ctx.imageSmoothingEnabled = pv;
     return true;
   }
   // ── «Гладкий» герой для меню: 2D-спрайт зі згладжуванням піксель-арту (Scale2x ×2 = ×4) + поворот «карткою» (як Paper Mario) ──
@@ -35823,6 +35876,7 @@
   }
   function pageOf(n) { const c = cards().find((o) => o.n === Math.min(n, N_CAMP + 1)); return c ? c.page : 0; }
   const PAGES = () => Math.ceil(CHAPTERS.length / PER_PAGE);
+  const backBtnR = () => ({ x: 66, y: 4, w: 88, h: 19 }); // велика «◀ НАЗАД» — і для миші, і для пальця
   function pageBtn(dir) { const VW = G.cfg.VIEW_W; return { x: VW / 2 + (dir < 0 ? -58 : 34), y: 4, w: 24, h: 18 }; }
   function switchPage(dir) {
     const pg = Math.max(0, Math.min(PAGES() - 1, pageOf(MSel.sel) + dir));
@@ -35869,6 +35923,7 @@
     if (pressed('up')) move(0, -1);
     if (pressed('down')) move(0, 1);
     const m = G.input.mouse, mv = mouseMoved();
+    if (m.clicked && u_in(m, backBtnR())) { click(); G.setState('menu'); return; }
     if (m.clicked && u_in(m, pageBtn(-1))) { switchPage(-1); return; }
     if (m.clicked && u_in(m, pageBtn(1))) { switchPage(1); return; }
     const pg = pageOf(MSel.sel);
@@ -35948,7 +36003,7 @@
       u.text(ctx, d.weekday + ', ' + dayPart(m.start).replace('ранку', 'ранок').replace('дня', 'день').replace('вечора', 'вечір').replace('ночі', 'ніч') + ' · кроків: ' + d.steps.length + (d.events && d.events.length ? ' · події: ' + d.events.length : '') + (best != null ? ' · рекорд ' + clock(best) : ''), 16, py + 53, { size: 8, color: '#8c8494' });
       if (open) u.text(ctx, (G.touch && G.touch.active) ? 'тапни ще раз — грати' : 'Enter — грати', VW - 16, py + 53, { size: 8, align: 'right', color: Math.floor(MSel.t * 2) % 2 ? '#fde98f' : '#93c25b' });
     }
-    if (!(G.touch && G.touch.active)) u.text(ctx, 'Esc — меню', VW - 8, 22, { size: 8, align: 'right', color: 'rgba(255,255,255,0.45)' });
+    u.button(ctx, backBtnR(), 'НАЗАД', u_in(G.input.mouse, backBtnR()), { size: 8 });
     if (G.ui) G.ui.drawOverlay(ctx);
   };
 
