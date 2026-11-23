@@ -25666,7 +25666,7 @@
     else if (G.audio && G.audio.setVolume) G.audio.setVolume(last, v.sfx);
     click();
   }
-  G.SUPPORT_TG = ''; // нік у Telegram без @ — кнопка «Підтримка» відкриває t.me/<нік>
+  G.SUPPORT_TG = 'Pidtrymka1'; // нік у Telegram без @ — кнопка «Підтримка» відкриває t.me/<нік>
   G.openSupport = () => { if (!G.SUPPORT_TG) return; try { window.open('https://t.me/' + G.SUPPORT_TG, '_blank'); } catch (e) { /* */ } };
   function stVol(which, d) {
     const v = (G.audio && G.audio.volume) || { music: 0.7, sfx: 0.8 };
