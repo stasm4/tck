@@ -25649,25 +25649,42 @@
   const ST = { focus: 0 };
   const stRows = () => {
     const x = VW() / 2 - 150, w = 300;
-    return [{ id: 'music', label: 'Музика' }, { id: 'sfx', label: 'Звуки' }, { id: 'gfx', label: 'Графіка' }, { id: 'swear', label: 'Матюки' }, { id: 'legal', label: 'Правила й конфіденційність' }, { id: 'ctrl', label: 'Керування' }, { id: 'back', label: 'Назад' }]
-      .map((r, i) => Object.assign(r, { r: { x, y: 48 + i * 26, w, h: 22 } }));
+    const rows = [{ id: 'mute', label: 'Мелодія' }, { id: 'music', label: 'Гучність музики' }, { id: 'sfx', label: 'Звуки' }, { id: 'gfx', label: 'Графіка' }, { id: 'swear', label: 'Матюки' }, { id: 'legal', label: 'Правила й конфіденційність' }, { id: 'ctrl', label: 'Керування' }, { id: 'back', label: 'Назад' }]
+      .map((r, i) => Object.assign(r, { r: { x, y: 42 + i * 24, w, h: 21 } }));
+    if (G.SUPPORT_TG) { // «Підтримка» і «Правила» — в одному ряду
+      const L = rows[5].r, half = (L.w - 6) / 2;
+      rows.splice(5, 0, { id: 'support', label: 'Підтримка', r: { x: L.x, y: L.y, w: half, h: L.h } });
+      rows[6].r = { x: L.x + half + 6, y: L.y, w: half, h: L.h };
+    }
+    return rows;
   };
+  // Мелодія вимк/увімк: пам'ятаємо гучність, щоб повернути її
+  function stMute() {
+    const v = (G.audio && G.audio.volume) || { music: 0.7, sfx: 0.8 };
+    let last = 0.7; try { last = parseFloat(localStorage.getItem('tck_music_last')) || 0.7; } catch (e) { /* */ }
+    if (v.music > 0) { try { localStorage.setItem('tck_music_last', String(v.music)); } catch (e) { /* */ } G.audio && G.audio.setVolume && G.audio.setVolume(0, v.sfx); }
+    else if (G.audio && G.audio.setVolume) G.audio.setVolume(last, v.sfx);
+    click();
+  }
+  G.SUPPORT_TG = ''; // нік у Telegram без @ — кнопка «Підтримка» відкриває t.me/<нік>
+  G.openSupport = () => { if (!G.SUPPORT_TG) return; try { window.open('https://t.me/' + G.SUPPORT_TG, '_blank'); } catch (e) { /* */ } };
   function stVol(which, d) {
     const v = (G.audio && G.audio.volume) || { music: 0.7, sfx: 0.8 };
     const k = Math.max(0, Math.min(1, Math.round(((which === 'music' ? v.music : v.sfx) + d) * 10) / 10));
     if (G.audio && G.audio.setVolume) G.audio.setVolume(which === 'music' ? k : v.music, which === 'sfx' ? k : v.sfx);
     if (which === 'sfx' && G.audio && G.audio.sfx) G.audio.sfx('click'); else click();
   }
-  function stChange(id, d) { if (id === 'music' || id === 'sfx') stVol(id, d * 0.1); else if (id === 'gfx') gfxCycle(d); else if (id === 'swear') { G.setNoSwear(!G.noSwear); click(); } }
+  function stChange(id, d) { if (id === 'mute') { stMute(); return; } if (id === 'music' || id === 'sfx') stVol(id, d * 0.1); else if (id === 'gfx') gfxCycle(d); else if (id === 'swear') { G.setNoSwear(!G.noSwear); click(); } }
   G.openLegal = () => { try { window.open('https://stasm4.github.io/tck/privacy.html', '_blank'); } catch (e) { /* */ } };
   function stAct(id) {
     if (id === 'ctrl') { click(); G._fromSettings = true; G.setState('controls'); }
     else if (id === 'back') { click(); G.setState('menu'); }
     else if (id === 'legal') { click(); G.openLegal(); }
+    else if (id === 'support') { click(); G.openSupport(); }
     else stChange(id, 1);
   }
   G.scenes.settings = {
-    enter() { if (ST.focus > 6) ST.focus = 0; G.ui.reset(); },
+    enter() { if (ST.focus > 8) ST.focus = 0; G.ui.reset(); },
     exit() {},
     drawBg(ctx) { drawMenuBg(ctx, M.t); },
     update(dt, realDt) {
@@ -25685,7 +25702,8 @@
         if (moved) ST.focus = i;
         if (m.clicked) {
           const id = rows[i].id;
-          if (id === 'music' || id === 'sfx' || id === 'gfx' || id === 'swear') stChange(id, m.x < r.x + 128 + (r.w - 128) / 2 ? -1 : 1); // ліва половина значення — менше, права — більше
+          if (id === 'mute') stMute();
+          else if (id === 'music' || id === 'sfx' || id === 'gfx' || id === 'swear') stChange(id, m.x < r.x + 128 + (r.w - 128) / 2 ? -1 : 1); // ліва половина значення — менше, права — більше
           else stAct(id);
           return;
         }
@@ -25699,13 +25717,14 @@
       const v = (G.audio && G.audio.volume) || { music: 0.7, sfx: 0.8 };
       stRows().forEach((row, i) => {
         const r = row.r, f = i === ST.focus;
-        if (row.id === 'ctrl' || row.id === 'back' || row.id === 'legal') { U.button(ctx, r, row.id === 'ctrl' ? 'Керування →' : row.id === 'legal' ? 'Правила й конфіденційність ↗' : 'Назад', f, { size: 8 }); return; }
+        if (row.id === 'ctrl' || row.id === 'back' || row.id === 'legal' || row.id === 'support') { U.button(ctx, r, row.id === 'ctrl' ? 'Керування →' : row.id === 'support' ? 'Підтримка (Telegram) ↗' : row.id === 'legal' ? (G.SUPPORT_TG ? 'Правила ↗' : 'Правила й конфіденційність ↗') : 'Назад', f, { size: 8 }); return; }
         U.rect(ctx, f ? '#fde98f' : '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
         U.rect(ctx, f ? 'rgba(72,52,86,0.97)' : 'rgba(34,22,44,0.92)', r.x, r.y, r.w, r.h);
         U.text(ctx, row.label, r.x + 10, r.y + 7, { size: 8, color: f ? '#fde98f' : '#fbf6ea' });
         // ◀ значення ▶
         U.tri(ctx, r.x + 128, r.y + 11, 'left', 4, '#fde98f'); U.tri(ctx, r.x + r.w - 14, r.y + 11, 'right', 4, '#fde98f');
         if (row.id === 'gfx') U.text(ctx, gfxLabel(), r.x + 136 + (r.w - 160) / 2, r.y + 7, { size: 8, align: 'center', color: '#8fc7e4' });
+        else if (row.id === 'mute') U.text(ctx, v.music > 0 ? 'УВІМКНЕНО' : 'ВИМКНЕНО', r.x + 136 + (r.w - 160) / 2, r.y + 7, { size: 8, align: 'center', color: v.music > 0 ? '#93c25b' : '#ef8a3b' });
         else if (row.id === 'swear') U.text(ctx, G.noSwear ? 'ВИМКНЕНО (без мату)' : 'УВІМКНЕНО', r.x + 136 + (r.w - 160) / 2, r.y + 7, { size: 8, align: 'center', color: G.noSwear ? '#93c25b' : '#ef8a3b' });
         else {
           const k = row.id === 'music' ? v.music : v.sfx, bx = r.x + 138, bw = r.w - 160;
@@ -25713,7 +25732,7 @@
           U.text(ctx, Math.round(k * 100) + '%', bx + bw / 2, r.y, { size: 7, align: 'center', color: '#b4abb2' });
         }
       });
-      U.text(ctx, 'Слабкий телефон чи планшет лагає? Постав «Графіка: мінімальна».', VW() / 2, 234, { size: 7, align: 'center', color: '#8fc7e4' });
+      U.text(ctx, 'Слабкий телефон чи планшет лагає? Постав «Графіка: мінімальна».', VW() / 2, 238, { size: 7, align: 'center', color: '#8fc7e4' });
       if (!isTouch()) U.text(ctx, '↑↓ — вибір · ←→ — змінити · Esc — назад', VW() / 2, VH() - 12, { size: 7, align: 'center', color: 'rgba(255,255,255,0.5)' });
     },
   };
