@@ -2536,6 +2536,94 @@
       },
     });
   }
+
+  // Рижик — детальний рудий кошеня-стояк (як на фото): велика голова, «М» на лобі, величезні чорні очі з бліками,
+  // біла мордочка й груди, рожевий ніс і вушка, кремові лапки, смугастий хвіст
+  function ryzhyk() {
+    const M = { o: '#f0a650', l: '#f8c884', d: '#c8702e', D: '#a85a24', w: '#fdf6ea', c: '#ecdcc4', p: '#f4a8b0', n: '#ec8a9a', k: '#0e0a10', h: '#ffffff', b: '#4a2c1c', m: '#9a5a48' };
+    const HEAD = {
+      down: [
+        '.o........o.',
+        '.oo......oo.',
+        '.opo.dd.opo.',
+        'oppodoodoppo',
+        'ooododdodooo',
+        'loooodooooo l'.replace(' ', ''),
+        'lohkkoohkkol',
+        'lokkkookkkol',
+        'lobkkoobkkol',
+        'wlowwnnwwolw',
+        '.wwwwmmwwww.',
+        '..wwccccww..',
+      ],
+      right: [
+        '..o....o....',
+        '..oo...oo...',
+        '..opo.opo...',
+        '.ooodddooo..',
+        'oodooodoooo.',
+        'odoooolhkko.',
+        'oodooolkkkow',
+        'ooooodlkkbww',
+        'ooooolwwwwwn',
+        '.oooowwwwmw.',
+        '..oowwwcc...',
+      ],
+      up: [
+        '.o........o.',
+        '.oo......oo.',
+        '.ooo....ooo.',
+        'oooooddooooo',
+        'oooddooddooo',
+        'oooooddooooo',
+        'oddooooooddo',
+        'oooooddooooo',
+        'llooooooooll',
+        '.llooooooll.',
+        '..llllllll..',
+      ],
+    };
+    const base = catSkin({ fur: M.o, furS: '#dc8a3c', furD: M.d, pt: M.o, ptD: M.d, belly: M.w, paw: M.w, eye: M.k, eyeL: M.b, ol: '#4a2410', stripes: true });
+    return Object.assign(base, {
+      noHead: true,
+      arms(b, g) { // як на фото: лапки звисають перед грудьми (а не по боках) — і в стійці, і на ходу
+        const { cx, ty, dir, tx, tw, frame } = g;
+        if (dir === 'right' || frame >= 4) return;
+        const clr = (x, y) => { if (x >= 0 && y >= 0 && x < b.w && y < b.h) b.d[(y * b.w + x) * 4 + 3] = 0; };
+        for (let y = ty - 1; y <= ty + 7; y++) { clr(tx - 1, y); clr(tx - 2, y); clr(tx + tw, y); clr(tx + tw + 1, y); }
+        b.vl(tx - 1, ty + 1, 3, '#dc8a3c'); b.vl(tx + tw, ty + 1, 3, '#dc8a3c'); // плечі
+        if (dir === 'up') return;
+        const bl = frame === 1 ? 1 : 0, br = frame === 3 ? 1 : 0;
+        b.rect(cx - 4, ty + 1, 2, 2 + bl, M.o); b.p(cx - 4, ty + 1, M.d); b.rect(cx - 4, ty + 3 + bl, 2, 2, M.w); b.p(cx - 4, ty + 4 + bl, M.c);
+        b.rect(cx + 2, ty + 1, 2, 2 + br, M.o); b.p(cx + 3, ty + 1, M.d); b.rect(cx + 2, ty + 3 + br, 2, 2, M.w); b.p(cx + 3, ty + 4 + br, M.c);
+        g.handL = { x: cx - 4, y: ty + 4 }; g.handR = { x: cx + 2, y: ty + 4 }; g.hand = g.handL; g.hand2 = g.handR;
+      },
+      head(b, g) {
+        const { cx, hy, dir } = g, rows = HEAD[dir] || HEAD.down;
+        const x0 = dir === 'right' ? cx - 6 : cx - 6, y0 = hy - (rows.length - 9);
+        b.pat(x0, y0, rows, M);
+      },
+      torso(b, g) {
+        const { cx, ty, dir, tx, tw, th, frame } = g;
+        if (dir === 'down') { // пухнаста біла грудка, смужки по боках
+          b.rect(cx - 2, ty, 4, th, M.w); b.hl(cx - 3, ty, 6, M.w); b.p(cx - 3, ty + th - 1, M.c); b.p(cx + 2, ty + th - 1, M.c);
+          for (const y of [ty + 1, ty + 3, ty + 5]) { b.p(tx, y, M.d); b.p(tx + tw - 1, y, M.d); }
+        }
+        if (dir === 'right') { b.rect(tx + tw - 2, ty, 2, th, M.w); b.p(tx + 1, ty + 1, M.d); b.p(tx + 2, ty + 2, M.d); b.p(tx + 1, ty + 4, M.d); b.p(tx + 2, ty + 5, M.d); }
+        if (dir === 'up') {
+          for (const y of [ty + 1, ty + 3, ty + 5]) b.hl(tx + 1, y, tw - 2, M.d);
+          const w = frame & 1; // хвіст звисає й гойдається
+          for (let i = 0; i < 6; i++) b.p(cx - 1 + (i > 3 ? w : 0), ty + th - 1 + i, i % 2 ? M.d : M.o);
+        }
+      },
+      back(b, g) { // товстий смугастий хвіст гачком
+        const { dir, ty, tx, tw, th, frame } = g, w = frame & 1;
+        const tail = (pts) => pts.forEach((q, i) => { b.p(q[0], q[1], i % 2 ? M.d : M.o); b.p(q[0] + 1, q[1], i % 2 ? M.D : M.d); });
+        if (dir === 'right') tail([[tx - 1, ty + th - 1], [tx - 2, ty + th - 2], [tx - 3, ty + th - 3], [tx - 4, ty + th - 4 - w], [tx - 4, ty + th - 5 - w], [tx - 3, ty + th - 6 - w]]);
+        if (dir === 'down') tail([[tx + tw, ty + th - 1], [tx + tw + 1, ty + th - 2], [tx + tw + 2, ty + th - 3], [tx + tw + 2, ty + th - 4 - w], [tx + tw + 1, ty + th - 5 - w]]);
+      },
+    });
+  }
   function mixC(a, c) { return mix(a, c, 0.5); }
   const ANDRIY = { skin: P.skin, skinS: P.skinS, hair: P.hair, hairStyle: 'short', blush: P.blush, brows: false };
   function headband(b, g, col, tails) {
@@ -2938,7 +3026,7 @@
 
     // ═══ Коти-стояки (преміум-пас, рівні 29–30): стоять на задніх лапах, великі сумні очі, б'ють лапою ═══
     cat_snizhok: catSkin({ fur: '#f6f2ee', furS: '#ddd6d2', furD: '#c8c2c0', pt: '#8a8a9e', ptD: '#626276', belly: '#ffffff', paw: '#8a8a9e', eye: '#2c3c78', eyeL: '#6a8ad8', ol: '#2a2a3a', mask: true }),
-    cat_ryzhyk: catSkin({ fur: '#eea24a', furS: '#d4843a', furD: '#b8642a', pt: '#eea24a', ptD: '#b8642a', belly: '#fbf1e0', paw: '#fbf1e0', eye: '#141018', eyeL: '#3a3040', ol: '#4a2410', stripes: true }),
+    cat_ryzhyk: ryzhyk(),
   };
   SKINS.invisible.torso = SKINS.office.torso;
   SKINS.invisible.front = SKINS.office.front;
