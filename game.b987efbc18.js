@@ -35302,12 +35302,12 @@
     while (a.length > 5) a.shift();
     try { localStorage.setItem('tck_strikes', JSON.stringify(a)); } catch (e) { /* */ }
   }
-  function pickStrikeBuilding(minD, maxD, from, loose) {
+  function pickStrikeBuilding(minD, maxD, from, loose, anyHit) {
     const W = G.world, p = from || G.player; if (!W || !W.buildings || !p) return null;
     const T = G.cfg.TILE, r = G.camera.rect();
     let best = null, bs = 1e9;
     W.buildings.forEach((b, i) => {
-      if (!STRIKE_KIND[b.kind] || b.face !== 's' || b.w < 4 || hitBefore(i)) return;
+      if (!STRIKE_KIND[b.kind] || b.face !== 's' || b.w < 4 || (!anyHit && hitBefore(i))) return;
       const fx = (b.x + b.w / 2) * T, fy = (b.y + b.h) * T, d = Math.hypot(fx - p.x, fy - p.y), top = fy - Math.max(2, b.fh || 3) * T * 0.8;
       if (d < minD || d > maxD || (from && fy > p.y + 20)) return;
       if (loose === true && (fy > p.y + 10 || p.y - fy > 150 || Math.abs(fx - p.x) > 150)) return; // сценарний: будинок попереду героя, щоб прильот було видно
@@ -35447,7 +35447,7 @@
       else S.siteDone = true;
     }
     if (!S || S.strikeOn) return;
-    if (S.n === 25 && S.ev.air_raid && S.t > 3.5) { const b = pickStrikeBuilding(30, 220); if (b) startStrike(b); }
+    if (S.n === 25 && S.ev.air_raid && S.t > 3.5) { const b = pickStrikeBuilding(12, 220, null, false, true); if (b) startStrike(b); } // завжди той самий будинок біля старту (навіть якщо вже «влучав» у минулій спробі)
     if (S.n === 13 && S.ev.air_raid && S.ev.air_raid.t > 2.5 && S.rfx && !S.m13) { S.m13 = true; shahedEpisode(S.rfx, () => {}, true); }
   }
   // шахед летить через небо (екранні частки): звук починається раніше, ніж його видно; 50% — мобільна група
