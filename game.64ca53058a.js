@@ -25873,7 +25873,7 @@
   const WD = { sel: 0, t: 0, cols: 7, focus: 'grid', tab: 0, msg: null, msgT: 0, flash: 0 };
   const WTABS = [{ id: 'skins', label: 'СКІНИ' }, { id: 'hat', label: 'ШАПКИ' }, { id: 'beard', label: 'БОРОДИ' }, { id: 'top', label: 'КОФТИ' }, { id: 'pets', label: 'УЛЮБЛЕНЦІ' }];
   const WG = { x0: 14, y0: 50, cw: 38, ch: 50, gap: 4 };
-  const cellRect = (i) => { const n = WD.cols > 7, cw = n ? 27 : WG.cw, gp = n ? 2 : WG.gap; return { x: WG.x0 + (i % WD.cols) * (cw + gp), y: WG.y0 + Math.floor(i / WD.cols) * (WG.ch + WG.gap), w: cw, h: WG.ch }; }; // >14 скінів — 10 у ряд
+  const cellRect = (i) => { const n = WD.cols > 7, cw = WD.cols > 10 ? 24 : n ? 27 : WG.cw, gp = n ? 2 : WG.gap; return { x: WG.x0 + (i % WD.cols) * (cw + gp), y: WG.y0 + Math.floor(i / WD.cols) * (WG.ch + WG.gap), w: cw, h: WG.ch }; }; // >14 скінів — 10 у ряд
   const tabRect = (i) => ({ x: 14 + i * 64, y: 30, w: i === 4 ? 70 : 60, h: 15 });
   const backRect = { x: 14, y: 240, w: 80, h: 20 };
   function skinsList() {
@@ -25921,7 +25921,7 @@
   function wdSetTab(i) {
     WD.tab = (i + WTABS.length) % WTABS.length;
     const L = wdList();
-    WD.cols = L.length > 14 ? 10 : 7;
+    WD.cols = L.length > 20 ? 11 : L.length > 14 ? 10 : 7; // 2 ряди: >20 скінів — 11 у ряд
     const k = WTABS[WD.tab].id === 'skins' ? L.findIndex((s) => s.id === equipped()) : L.findIndex((x) => x.equipped);
     WD.sel = Math.max(0, k);
   }
