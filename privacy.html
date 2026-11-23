@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Бусифікація — правила й конфіденційність</title>
+<style>
+  :root { --bg: #1c1830; --card: #241a3a; --ink: #fbf6ea; --muted: #b4abb2; --acc: #fde98f; --blue: #8fc7e4; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { color: var(--acc); font-size: 26px; margin: 8px 0 4px; }
+  h2 { color: var(--acc); font-size: 19px; margin: 28px 0 8px; }
+  h3 { color: var(--blue); font-size: 16px; margin: 18px 0 6px; }
+  p, li { color: var(--ink); }
+  .muted { color: var(--muted); font-size: 14px; }
+  .card { background: var(--card); border: 2px solid #120a18; border-radius: 6px; padding: 14px 16px; margin: 14px 0; }
+  a { color: var(--blue); }
+  hr { border: 0; border-top: 1px solid #3a2c4a; margin: 36px 0; }
+  .flag { height: 6px; background: linear-gradient(#2a5fb4 50%, #f7d248 50%); border-radius: 3px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="flag"></div>
+  <h1>Бусифікація — правила гри та політика конфіденційності</h1>
+  <p class="muted">Оновлено: 23 листопада 2026 року</p>
+
+  <div class="card">
+    <b>Коротко:</b> гра не вимагає реєстрації, не показує рекламу, не відстежує тебе й не продає дані.
+    Для онлайн-функцій (таблиця лідерів, друзі, гра разом) зберігаються лише нік, випадковий ID пристрою та ігрові результати.
+    Профіль можна повністю видалити в грі: <b>Профіль → «Видалити профіль»</b>.
+  </div>
+
+  <h2>Про гру</h2>
+  <p>«Бусифікація» — сатирична гра про життя в сучасній Україні. Усі персонажі, назви, організації та події в ній вигадані, будь-які збіги випадкові.
+  Гра є гумором і не закликає порушувати закон, не дає порад, як уникати мобілізації, і не має на меті образити будь-кого.</p>
+
+  <h2>Правила поведінки в онлайн-режимі</h2>
+  <ul>
+    <li>Не використовуй образливі, нецензурні, расистські чи сексуальні ніки та не видавай себе за інших людей.</li>
+    <li>Не ображай і не переслідуй інших гравців.</li>
+    <li>Не використовуй читів, помилок гри чи сторонніх програм, щоб змінити результати.</li>
+  </ul>
+  <p>На гравця можна <b>поскаржитися</b> або <b>заблокувати</b його (картка гравця в розділі «Друзі»; нік у таблиці лідерів — тап по рядку → «Поскаржитися на нік»).
+  Заблокований гравець не може додати тебе в друзі чи покликати в гру. Ми переглядаємо скарги й можемо змінити нік або видалити профіль порушника.</p>
+
+  <h2>Які дані зберігаються</h2>
+  <h3>На твоєму пристрої (локально)</h3>
+  <p>Прогрес гри, налаштування, гардероб, сезонний пас. Це залишається тільки на твоєму пристрої.</p>
+  <h3>На сервері (лише для онлайн-функцій)</h3>
+  <ul>
+    <li><b>Випадковий ID пристрою</b> — створюється грою, не пов'язаний з твоїм ім'ям, номером телефону чи акаунтом Google.</li>
+    <li><b>Нік</b>, який ти сам обираєш, аватарка, рамка й рівень у грі.</li>
+    <li><b>Публічний ID гравця</b> (6 цифр) — щоб друзі могли тебе знайти.</li>
+    <li><b>Ігрові результати</b>: рекорди, хвилі, час (таблиці лідерів).</li>
+    <li><b>Друзі й запити в друзі</b>, список заблокованих, час останнього входу (щоб друзі бачили «у грі»).</li>
+    <li><b>Скарги</b>, які ти надсилаєш.</li>
+  </ul>
+  <p>Гра <b>не збирає</b>: ім'я, пошту, номер телефону, геолокацію, контакти, фото, рекламні ідентифікатори. Немає реклами й аналітики третіх сторін.</p>
+  <p>Онлайн-гра разом відбувається напряму між пристроями гравців (WebRTC) або через сервер-ретранслятор; вміст сесії не зберігається.</p>
+
+  <h2>Де зберігаються дані</h2>
+  <p>Онлайн-дані зберігаються на хмарному сервісі Supabase. Доступ до них має лише розробник гри. Дані не продаються й не передаються третім особам.</p>
+
+  <h2>Видалення даних</h2>
+  <p>У грі: <b>Профіль → «Видалити профіль»</b> (натиснути двічі). Це назавжди видаляє з сервера твій профіль, ID, друзів, запити, блокування, рекорди й скарги.
+  Також можна написати розробнику (контакт нижче) з проханням видалити дані — вкажи свій ID гравця.</p>
+
+  <h2>Діти</h2>
+  <p>Гра призначена для дорослої аудиторії (18+) і не орієнтована на дітей.</p>
+
+  <h2>Зв'язок</h2>
+  <p>Розробник: Бусифікація (незалежний розробник з України). Пошта: <b>ПОШТА_ДЛЯ_ЗВ'ЯЗКУ</b></p>
+
+  <hr>
+
+  <h1>Busyfikatsiya — Game Rules &amp; Privacy Policy</h1>
+  <p class="muted">Last updated: November 23, 2026</p>
+  <div class="card">
+    <b>In short:</b> no registration, no ads, no tracking, no data selling. Online features (leaderboards, friends, co-op) store only a nickname,
+    a random device ID and game results. You can delete your profile in-game: <b>Profile → “Delete profile”</b>.
+  </div>
+  <h2>About the game</h2>
+  <p>Busyfikatsiya is a satirical game about life in modern Ukraine. All characters, names, organizations and events are fictional; any resemblance is coincidental.
+  The game is humor and does not encourage breaking the law or give advice on avoiding military service.</p>
+  <h2>Online conduct</h2>
+  <ul>
+    <li>No offensive, obscene, racist or sexual nicknames; no impersonation.</li>
+    <li>No harassment of other players. No cheating.</li>
+  </ul>
+  <p>Players can be <b>reported</b> or <b>blocked</b> from the player card (Friends) and nicknames can be reported from the leaderboard. Blocked players cannot add or invite you.
+  We review reports and may rename or delete offending profiles.</p>
+  <h2>Data we store</h2>
+  <p><b>On your device:</b> game progress and settings. <b>On the server (online features only):</b> a random device ID generated by the game (not linked to your name, phone or Google account),
+  your chosen nickname, avatar, frame and level, your public 6-digit player ID, scores, friends and friend requests, blocked players, last-seen time, and reports you send.</p>
+  <p>We do <b>not</b> collect names, emails, phone numbers, location, contacts, photos or advertising IDs. No ads, no third-party analytics. Data is stored with Supabase,
+  accessible only to the developer, never sold or shared.</p>
+  <h2>Data deletion</h2>
+  <p>In-game: <b>Profile → “Delete profile”</b> (tap twice) permanently deletes your profile, IDs, friends, blocks, scores and reports from the server.
+  You can also request deletion by email (include your player ID).</p>
+  <h2>Children</h2>
+  <p>The game is intended for adults (18+) and is not directed at children.</p>
+  <h2>Contact</h2>
+  <p>Independent developer from Ukraine. Email: <b>ПОШТА_ДЛЯ_ЗВ'ЯЗКУ</b></p>
+</main>
+</body>
+</html>

@@ -535,8 +535,25 @@
   };
 
   // Текст: піксельний шрифт G.sprites.font, якщо є, інакше canvas-шрифт.
+  // ── «Без матюків» (налаштування): мат у репліках замінюється на пристойні слова, де б текст не малювався ──
+  G.noSwear = (() => { try { return localStorage.getItem('tck_noswear') === '1'; } catch (e) { return false; } })();
+  const SWEAR = [
+    [/([Сс])тояти,? нахуй/g, '$1тояти, кажу'], [/([Нн])у нахуй/g, '$1у його'], [/нахуй/gi, 'геть'],
+    [/Йопта/g, 'Йой'], [/(^|[^А-Яа-яІіЇїЄєҐґ])бляха(?![А-Яа-яІіЇїЄєҐґ])/g, '$1блін'], [/(^|[^А-Яа-яІіЇїЄєҐґ])Бля(?![А-Яа-яІіЇїЄєҐґ])/g, '$1Блін'],
+    [/(^|[^А-Яа-яІіЇїЄєҐґ])бля(?![А-Яа-яІіЇїЄєҐґ])/g, '$1блін'], [/(^|[^А-Яа-яІіЇїЄєҐґ])сука(?![А-Яа-яІіЇїЄєҐґ])/g, '$1зараза'], [/(^|[^А-Яа-яІіЇїЄєҐґ])Сука(?![А-Яа-яІіЇїЄєҐґ])/g, '$1Зараза'],
+  ];
+  const swearC = new Map();
+  G.cleanText = function (t) {
+    t = String(t);
+    if (!G.noSwear || !/хуй|бля|сука|Сука|Йопта/.test(t)) return t;
+    let r = swearC.get(t); if (r !== undefined) return r;
+    r = t; for (const [re, to] of SWEAR) r = r.replace(re, to);
+    if (swearC.size > 400) swearC.clear(); swearC.set(t, r); return r;
+  };
+  G.setNoSwear = function (v) { G.noSwear = !!v; try { localStorage.setItem('tck_noswear', v ? '1' : '0'); } catch (e) { /* */ } };
   G.text = function (ctx, text, x, y, opts) {
     opts = opts || {};
+    text = G.cleanText(text);
     if (G.sprites && G.sprites.font && G.sprites.font.draw) return G.sprites.font.draw(ctx, String(text), x, y, opts);
     const size = opts.size || 8;
     ctx.save();
@@ -2705,71 +2722,38 @@
     }),
     // ═══ Скіни сезонного пасу «Білий квиток» — яскраві, з деталями ═══
     // ЛЕГЕНДАРНИЙ: оливковий світшот з тризубом, коротке темне волосся, борода-щетина по щелепі, густі брови, карго, берці, золотий контур
+    // Характерник (легендарний, вигаданий): козак-чаклун — бордовий жупан із золотою вишивкою, сивий оселедець і довгі вуса,
+    // бурштинові очі світяться, оберіг на грудях, чорні шаровари, руді чоботи
     president: Object.assign({}, ANDRIY, {
-      hairStyle: 'none', blush: null, brows: false, eyes: 'none', outlineC: '#6a4608',
-      shirt: '#5f6b3a', shirtS: '#48522c', sleeve: '#5f6b3a', pants: '#4e4b35', pantsS: '#3c3a28', shoes: '#16130f', belt: '#1e1c1a', buckle: '#9a9a9a',
-      // голова повністю вручну: коротка стрижка, рівна лінія волосся, густі брови, чіткі очі, охайна борода по щелепі, губи
+      hairStyle: 'bald', hair: '#dcdcd8', skin: '#e8b48c', skinS: '#c8906a', brows: '#bdbdb8', blush: null, eyes: 'none', outlineC: '#3a1408',
+      shirt: '#7a1a2a', shirtS: '#561020', sleeve: '#7a1a2a', pants: '#1c1822', pantsS: '#121016', shoes: '#a8642a', belt: '#ffd23a', buckle: '#fff2a0',
       head(b, g) {
-        const { hx, hy, dir } = g;
-        const H = '#2a201b', HL = '#46362c', HD = '#1a1411', S = P.skin, SS = P.skinS, SD = '#c8865e', BR = '#17110e', EY = '#1a1418', BD = '#3a2c24', BDL = '#56443a', LIP = '#9a5a48';
-        const put = (c, r, col) => { if (inHead(c, r)) b.p(hx + c, hy + r, col); };
-        if (dir === 'up') {
-          for (let r = 0; r < 9; r++) for (let c = 0; c < 10; c++) put(c, r, r <= 6 ? (r === 1 && c >= 3 && c <= 5 ? HL : r >= 5 ? HD : H) : SS);
-          put(0, 5, SS); put(9, 5, SS); put(0, 6, SD); put(9, 6, SD);
-          return;
-        }
+        const { hx, hy, dir } = g, W = '#e8e8e4', WL = '#ffffff', WD = '#a8a8a4', EYE = '#ffb020', EYL = '#fff2a0';
+        if (dir === 'up') { b.p(hx + 5, hy - 2, WD); b.p(hx + 5, hy - 1, W); b.vl(hx + 5, hy, 3, W); b.vl(hx + 4, hy + 3, 4, WD); b.p(hx + 4, hy + 7, W); return; }
         if (dir === 'down') {
-          for (let r = 0; r < 9; r++) for (let c = 0; c < 10; c++) {
-            let col = S;
-            if (r <= 2) col = (r === 1 && c >= 3 && c <= 5) ? HL : (r === 2 && (c === 0 || c === 9)) ? HD : H;
-            else if (r === 3 && (c <= 1 || c >= 8)) col = H;
-            else if (r === 4 && (c === 0 || c === 9)) col = SS;
-            else if (c === 9 || (r === 8 && c >= 7)) col = SS;
-            put(c, r, col);
-          }
-          // брови — густі, трохи «домиком»
-          put(2, 4, '#5a4034'); put(7, 4, '#5a4034'); // легкі брови
-          // очі (як у всіх героїв гри — по 2 пікселі) + ніс
-          put(2, 5, EY); put(2, 6, EY); put(7, 5, EY); put(7, 6, EY);
-          put(5, 6, SD);
-          // борода: бакенбарди → щелепа → підборіддя, губи видно
-          put(0, 5, SS); put(9, 5, SS); put(0, 6, BDL); put(9, 6, BDL); // вуха, тонкі бакенбарди
-          for (let c = 0; c <= 9; c++) put(c, 7, c === 4 || c === 5 ? LIP : BD);
-          for (let c = 1; c <= 8; c++) put(c, 8, c === 4 || c === 5 ? BDL : BD);
+          // довгий сивий оселедець, що звисає з маківки за вухо
+          b.p(hx + 5, hy - 2, WD); b.p(hx + 5, hy - 1, WL); b.p(hx + 4, hy, W); b.p(hx + 3, hy + 1, W); b.p(hx + 2, hy + 2, WL); b.p(hx + 1, hy + 3, W); b.p(hx + 1, hy + 4, WD); b.p(hx, hy + 5, W);
+          b.p(hx + 2, hy + 4, '#bdbdb8'); b.p(hx + 7, hy + 4, '#bdbdb8'); // брови
+          b.p(hx + 2, hy + 5, EYE); b.p(hx + 2, hy + 6, EYL); b.p(hx + 7, hy + 5, EYE); b.p(hx + 7, hy + 6, EYL); // світні очі
+          b.hl(hx + 2, hy + 7, 6, W); b.p(hx + 1, hy + 8, W); b.p(hx + 8, hy + 8, W); b.p(hx + 1, hy + 9, WD); b.p(hx + 8, hy + 9, WD); b.p(hx, hy + 10, WD); b.p(hx + 9, hy + 10, WD); // довгі сиві вуса
           return;
         }
-        // профіль (праворуч)
-        for (let r = 0; r < 9; r++) for (let c = 0; c < 10; c++) {
-          let col = S;
-          if (r <= 2) col = r === 1 && c >= 4 && c <= 6 ? HL : H;
-          else if (c <= 3 && r <= 4) col = H;
-          else if (c <= 3 && r <= 6) col = c <= 2 ? HD : SS;
-          else if (r === 3 && c <= 5) col = H;
-          else if (r >= 6 && c <= 2) col = SS;
-          put(c, r, col);
-        }
-        put(4, 5, SD); put(4, 6, SS); // вухо
-        put(7, 4, '#5a4034');
-        put(7, 5, EY); put(7, 6, EY); // око
-        put(5, 6, BDL); // бакенбард
-        for (let c = 4; c <= 9; c++) put(c, 7, c === 9 ? LIP : BD);
-        for (let c = 4; c <= 8; c++) put(c, 8, BD);
+        b.p(hx + 4, hy - 2, WD); b.p(hx + 4, hy - 1, WL); b.p(hx + 3, hy, W); b.p(hx + 2, hy + 1, W); b.p(hx + 1, hy + 2, WL); b.p(hx + 1, hy + 3, W); b.p(hx + 1, hy + 4, WD);
+        b.p(hx + 7, hy + 4, '#bdbdb8'); b.p(hx + 7, hy + 5, EYE); b.p(hx + 7, hy + 6, EYL);
+        b.hl(hx + 6, hy + 7, 4, W); b.p(hx + 6, hy + 8, W); b.p(hx + 6, hy + 9, WD); b.p(hx + 5, hy + 10, WD);
       },
       torso(b, g) {
-        const { cx, ty, dir, tx, tw, th } = g, Y = '#ffd23a', YD = '#b8860e', K = '#2a2416';
+        const { cx, ty, dir, tx, tw, th } = g, Y = '#ffd23a', YL = '#fff2a0', R = '#e83a2a';
         if (dir === 'down') {
-          b.hl(cx - 2, ty, 4, '#3a4222'); b.p(cx - 3, ty, '#4a5430'); b.p(cx + 2, ty, '#4a5430'); // круглий комір
-          // тризуб із темною облямівкою
-          b.pat(cx - 3, ty, ['...#...', '.#.#.#.', '.#.#.#.', '.#####.', '...#...'], { '#': Y }); b.p(cx, ty + 4, YD); // тризуб: високий середній зубець
-          b.hl(tx, ty + th - 2, tw, '#4a5430');
+          b.vl(cx - 1, ty, th - 1, Y); b.p(tx, ty, Y); b.p(tx + tw - 1, ty, Y);                       // золоті облямівка й застібка
+          for (let k = 0; k < th - 2; k += 2) { b.p(tx + 1, ty + 1 + k, YL); b.p(tx + tw - 2, ty + 1 + k, YL); } // вишивка «ялинкою»
+          b.p(cx - 2, ty + 2, R); b.p(cx + 1, ty + 2, R); b.p(cx - 1, ty + 3, '#7fe0ff'); b.p(cx, ty + 3, '#7fe0ff'); // оберіг (синій камінь)
+          b.hl(tx, ty + th - 2, tw, R);                                                               // червоний пояс
         }
-        if (dir === 'up') { b.hl(tx + 1, ty, tw - 2, '#3a4222'); b.hl(tx, ty + th - 2, tw, '#4a5430'); }
-        if (dir === 'right') { b.vl(tx + tw - 1, ty + 1, 2, YD); b.p(tx + 1, ty + 1, '#2a5fb4'); b.p(tx + 1, ty + 2, '#ffd23a'); } // нашивка-прапор на плечі
+        if (dir === 'up') { b.hl(tx, ty, tw, Y); for (let k = 1; k < tw - 1; k += 2) b.p(tx + k, ty + 3, YL); b.hl(tx, ty + th - 2, tw, R); }
+        if (dir === 'right') { b.vl(tx + tw - 1, ty, th - 1, Y); b.p(tx + 1, ty + 2, YL); b.hl(tx, ty + th - 2, tw, R); }
       },
-      arms(b, g) {
-        if (g.dir === 'down' && g.handR && g.frame < 4) { b.p(g.handR.x, g.handR.y - 3, '#2a5fb4'); b.p(g.handR.x, g.handR.y - 2, '#ffd23a'); } // прапор на рукаві
-        if (g.dir === 'down' && g.handL && g.frame < 4) b.p(g.handL.x, g.handL.y - 1, '#48522c');
-      },
+      arms(b, g) { for (const h of [g.handL, g.handR, g.hand]) if (h && g.frame < 4) b.p(h.x, h.y - 1, '#ffd23a'); },
     }),
     // Козак Мамай: оселедець, довгі вуса, синій жупан із золотою облямівкою, червоний пояс, червоні шаровари, жовті чоботи
     kozak: Object.assign({}, ANDRIY, {
@@ -4094,11 +4078,11 @@
     return b;
   }
   const SHOPS = {
-    atb: { sign: 'АТБ', bg: '#2050b0', fg: '#ffffff', stripe: '#e8302a', awn: ['#2050b0', '#ffffff'], wall: '#ecebe6', goods: ['#f7c948', '#d8443a', '#7ab84e', '#f4ede4', '#ef8a3b'] },
+    atb: { sign: 'АТВ', bg: '#2050b0', fg: '#ffffff', stripe: '#e8302a', awn: ['#2050b0', '#ffffff'], wall: '#ecebe6', goods: ['#f7c948', '#d8443a', '#7ab84e', '#f4ede4', '#ef8a3b'] },
     pharmacy: { sign: 'АПТЕКА', bg: '#2a9a5a', fg: '#ffffff', stripe: '#ffffff', awn: ['#2a9a5a', '#e8f4e8'], cross: true, wall: '#e8ece4', goods: ['#ffffff', '#2a9a5a', '#e8a0b0', '#8fc7e4'] },
     coffee: { sign: 'КАВА', bg: '#5a3426', fg: '#f7d8a8', stripe: '#c8844a', awn: ['#8a4a2a', '#f4e4c8'], wall: '#d8c0a0', goods: ['#f4ede4', '#8b5a3a', '#c8844a', '#e8c890'] },
     shawarma: { sign: 'ШАУРМА', bg: '#e8702a', fg: '#fff4d6', stripe: '#b8402a', awn: ['#d8443a', '#fde98f'], wall: '#e8d8b8', goods: ['#e8c890', '#7ab84e', '#d8443a', '#f7c948'] },
-    novaposhta: { sign: 'НОВА ПОШТА', bg: '#d8302a', fg: '#ffffff', stripe: '#ffffff', awn: ['#d8302a', '#ffffff'], wall: '#e8e4e0', goods: ['#d8a060', '#c8a070', '#e8c890', '#b88a50'] },
+    novaposhta: { sign: 'НОВА ПІШТА', bg: '#d8302a', fg: '#ffffff', stripe: '#ffffff', awn: ['#d8302a', '#ffffff'], wall: '#e8e4e0', goods: ['#d8a060', '#c8a070', '#e8c890', '#b88a50'] },
   };
   function genShop(o) {
     const tw = Math.max(2, o.w || 4), th = Math.max(2, o.h || 3);
@@ -6064,8 +6048,8 @@
     pharmacy: { text: 'АПТЕКА', sign: '#1f8f52', ink: '#ffffff', band: '#e8f4ec', awn: null, wall: '#e6ebe6', inner: ['#f4fbf6', '#cfe8dc'], goods: ['#ffffff', '#2a9a5a', '#e8a0b0', '#8fc7e4', '#f4d070'], icon: 'cross' },
     cafe: { text: 'КАВА', sign: '#4a2c22', ink: '#f7dcae', band: '#c8844a', awn: ['#7a3e24', '#f2e2c4'], wall: '#d6bfa0', inner: ['#ffe2a8', '#d8925a'], goods: ['#f4ede4', '#8b5a3a', '#c8844a', '#e8c890'], icon: 'cup' },
     shawarma: { text: 'ШАУРМА', sign: '#e0602a', ink: '#fff2b8', band: '#b8302a', awn: ['#d23a30', '#fbe28a'], wall: '#e8d4b0', inner: ['#ffe0a0', '#e0884a'], goods: ['#e8c890', '#7ab84e', '#d8443a', '#f7c948'], icon: 'doner' },
-    atb: { text: 'АТБ', sign: '#d6212b', ink: '#ffffff', band: '#3e4147', awn: null, wall: '#ecebe6', inner: ['#fbf8ee', '#e0dccc'], goods: ['#f7c948', '#d8443a', '#7ab84e', '#f4ede4', '#ef8a3b', '#3c6fb4'], icon: 'atb' },
-    novaposhta: { text: 'НОВА ПОШТА', sign: '#d8282a', ink: '#ffffff', band: '#ffffff', awn: null, wall: '#e8e6e4', inner: ['#fbf6ee', '#e0d6c8'], goods: ['#d8a060', '#c8a070', '#e8c890', '#b88a50'], icon: 'np' },
+    atb: { text: 'АТВ', sign: '#d6212b', ink: '#ffffff', band: '#3e4147', awn: null, wall: '#ecebe6', inner: ['#fbf8ee', '#e0dccc'], goods: ['#f7c948', '#d8443a', '#7ab84e', '#f4ede4', '#ef8a3b', '#3c6fb4'], icon: 'atb' },
+    novaposhta: { text: 'НОВА ПІШТА', sign: '#d8282a', ink: '#ffffff', band: '#ffffff', awn: null, wall: '#e8e6e4', inner: ['#fbf6ee', '#e0d6c8'], goods: ['#d8a060', '#c8a070', '#e8c890', '#b88a50'], icon: 'np' },
     optics: { text: 'ОПТИКА', sign: '#16485e', ink: '#bfefff', band: '#2a9ac0', awn: null, wall: '#d8dfe4', inner: ['#f4fbff', '#c8dce8'], goods: ['#2a2530', '#8a4a2a', '#c8a050', '#3c6fb4'], icon: 'glasses' },
     secondhand: { text: 'СЕКОНД ХЕНД', sign: '#6a2a8a', ink: '#ffe04a', band: '#ffe04a', awn: ['#6a2a8a', '#f0e0f8'], wall: '#e4dcd0', inner: ['#fff0d0', '#e0b890'], goods: ['#d8443a', '#3c6fb4', '#7ab84e', '#f7c948', '#e98fae', '#2a2530', '#f4ede4'], icon: 'hanger' },
     bakery: { text: 'ХЛІБ', sign: '#b8742a', ink: '#fff4d6', band: '#7a4a22', awn: ['#c88a3a', '#fbf0d8'], wall: '#e8d8bc', inner: ['#ffe6b0', '#e0a060'], goods: ['#d89a50', '#c07a3a', '#e8c080', '#a8642a'], icon: 'bread' },
@@ -6305,7 +6289,7 @@
     bloom(gb, S.sign, 0.25, 1);
     return { b, g: gb };
   }
-  // ───── Round 28: АТБ і Нова пошта — як справжні (сірі металеві панелі АТБ з червоним «АТБ» + «маркет»;
+  // ───── Round 28: АТВ і Нова Пішта — як справжні (сірі металеві панелі АТВ з червоним «АТВ» + «маркет»;
   // графітова НП з білими літерами на стіні, червоним лайтбоксом-логотипом, чорним козирком і кульками біля входу)
   function brandFront(o, styleKey) {
     const tw = Math.max(2, o.w || 4), th = Math.max(3, o.h || 4);
@@ -6362,11 +6346,11 @@
     }
     // ── вивіски
     if (atb) {
-      // червоний лайтбокс «АТБ» + сірий «маркет» над входом
+      // червоний лайтбокс «АТВ» + сірий «маркет» над входом
       const d0 = doors[0] * 16 + 8, bw = 34, bh = 15, bx = Math.round(Math.min(W - bw - 34, Math.max(4, d0 - bw + 6))), by = fy + 6;
       b.rect(bx, by, bw, bh, '#a8161e'); b.rect(bx + 1, by + 1, bw - 2, bh - 2, '#d6212b'); b.hl(bx + 1, by + 1, bw - 2, '#ef5a5f');
       gb.rect(bx, by, bw, bh, '#ff3a3a', 0.4);
-      drawSign(b, gb, fitSign('АТБ', bw - 6, 9), bx + bw / 2, by + bh / 2, '#ffffff', '#7a0c12', '#ffffff');
+      drawSign(b, gb, fitSign('АТВ', bw - 6, 9), bx + bw / 2, by + bh / 2, '#ffffff', '#7a0c12', '#ffffff');
       const mx = bx + bw, mw = 30, mh = 11, my = by + 2;
       b.rect(mx, my, mw, mh, '#3e4147'); b.hl(mx, my, mw, '#5a5d64'); b.hl(mx, my + mh - 1, mw, '#2a2c30');
       tinyInto(b, 'МАРКЕТ', mx + Math.round((mw - 23) / 2), my + 3, '#ffffff'); tinyInto(gb, 'МАРКЕТ', mx + Math.round((mw - 23) / 2), my + 3, '#ffffff');
@@ -6383,13 +6367,13 @@
       if (cx0 + 14 < W) for (let i = 0; i < 3; i++) { const x = cx0 + i * 3; b.rect(x, H - 9, 6, 5, '#9aa0aa', 0.9); for (let j = 0; j < 6; j += 2) b.vl(x + j, H - 9, 5, '#6a707a'); b.p(x + 1, H - 3, '#2a2a30'); b.p(x + 5, H - 3, '#2a2a30'); }
     } else {
       // білі літери на графітовій стіні + червоний квадрат з логотипом
-      const fit = fitSign('НОВА ПОШТА', W - 34, 9);
+      const fit = fitSign('НОВА ПІШТА', W - 34, 9);
       const by = fy + 7, lw = 15, totalW = fit.w + 5 + lw, x0 = Math.round((W - totalW) / 2);
       drawSign(b, gb, fit, x0 + fit.w / 2, by + 7, '#ffffff', '#16171a', '#ffffff');
       const lx = x0 + fit.w + 5, ly = by;
       b.rect(lx, ly, lw, lw, '#a8161e'); b.rect(lx + 1, ly + 1, lw - 2, lw - 2, '#e0242c'); b.hl(lx + 1, ly + 1, lw - 2, '#f05a5f');
       gb.rect(lx, ly, lw, lw, '#ff3a3a', 0.5);
-      const LOGO = ['...#...', '..###..', '.#.#.#.', '###.###', '.#.#.#.', '..###..', '...#...'];
+      const LOGO = ['.#####.', '#..#..#', '#######', '#..#..#', '#..#..#', '#..#..#', '.#####.']; // власний значок «посилка» (не логотип справжньої компанії)
       b.pat(lx + 4, ly + 4, LOGO, { '#': '#ffffff' }); gb.pat(lx + 4, ly + 4, LOGO, { '#': '#ffffff' });
       // кондиціонер на стіні
       const ax = 6; if (doors.every((d) => d * 16 > 30)) { box3d(b, ax, gy - 12, 10, 2, 6, '#e8e6e2'); b.hl(ax + 1, gy - 9, 8, '#9a9aa4'); }
@@ -10312,7 +10296,7 @@
 
   TPL.atb = function (I) {
     fillR(I.x0, I.y0, I.x1, I.y1, YARD);
-    const b = bld('atb', I.x0 + 7, I.y0 + 2, 14, 7, { doors: [7], sign: 'АТБ', signBg: '#c8242b', signFg: '#ffffff', signSize: 16 });
+    const b = bld('atb', I.x0 + 7, I.y0 + 2, 14, 7, { doors: [7], sign: 'АТВ', signBg: '#c8242b', signFg: '#ffffff', signSize: 16 });
     const d = b.doors[0];
     fillR(I.x0 + 1, I.y0 + 11, I.x1 - 1, I.y0 + 18, PARKING, 1);
     for (let x = I.x0 + 1; x <= I.x1 - 1; x++) {
@@ -10321,22 +10305,22 @@
       if (R.chance(0.5)) parkedCar(x, I.y0 + 17, true);
     }
     hideNear('trash', prop('trash', I.x0 + 1, I.y0 + 2, 2, 1));
-    hideNear('kiosk', prop('kiosk', I.x0 + 5, I.y0 + 5, 2, 2, { opaque: true, type: 'shawarma' })); // round 7: впритул до стіни АТБ
+    hideNear('kiosk', prop('kiosk', I.x0 + 5, I.y0 + 5, 2, 2, { opaque: true, type: 'shawarma' })); // round 7: впритул до стіни АТВ
     locker(b.x + b.w - 3, b.y + b.h); // Round 25: перед фасадом (раніше потрапляв на дах)
-    addZone('atb', d.x - 3, d.fy, d.x + 3, d.fy + 1, [px(d.fx), px(d.fy)], { label: 'АТБ' });
+    addZone('atb', d.x - 3, d.fy, d.x + 3, d.fy + 1, [px(d.fx), px(d.fy)], { label: 'АТВ' });
   };
 
   TPL.np = function (I) {
     fillR(I.x0, I.y0, I.x1, I.y1, GRASS);
-    const b = bld('np', I.x0 + 3, I.y0 + 2, 10, 6, { doors: [5], sign: 'Нова пошта', signBg: '#d12a2a', signFg: '#ffffff' });
+    const b = bld('np', I.x0 + 3, I.y0 + 2, 10, 6, { doors: [5], sign: 'Нова Пішта', signBg: '#d12a2a', signFg: '#ffffff' });
     const d = b.doors[0];
-    locker(I.x0 + 13, I.y0 + 6); // round 7: впритул до стіни Нової пошти
+    locker(I.x0 + 13, I.y0 + 6); // round 7: впритул до стіни Нової Пішти
     bld('khrush', I.x0 + 18, I.y0 + 2, 12, 5, { doors: [3, 8], entrance: true });
     rowOf('panel', I.x0 + 1, I.y1 - 5, I.x1 - 1, 'n');
     driveways(I); ring(I, 1);
     fillR(I.x0 + 1, I.y0 + 8, I.x0 + 16, I.y0 + 9, YARD);
     yardDecor({ playground: false, cars: 3, trash: 2, kiosk: false });
-    addZone('nova_poshta', d.x - 3, d.fy, d.x + 3, d.fy + 1, [px(d.fx), px(d.fy)], { label: 'Нова пошта' });
+    addZone('nova_poshta', d.x - 3, d.fy, d.x + 3, d.fy + 1, [px(d.fx), px(d.fy)], { label: 'Нова Пішта' });
   };
 
   TPL.private = function (I) {
@@ -11738,7 +11722,7 @@
     if (k === 'panel' && b.fh >= 4) { const hr = extSprite('prop', Object.assign({ variant: 'highrise', type: HR_C[col], floors: 9 }, base)); if (hr) return hr; }
     if (k === 'shop' || k === 'atb' || k === 'np') {
       const style = k === 'atb' ? 'atb' : k === 'np' ? 'novaposhta' : SHOP_STYLE[b.shop] || 'generic';
-      const txt = k === 'atb' ? 'АТБ' : k === 'np' ? 'НОВА ПОШТА' : b.sign ? (b.sign.short || b.sign.text) : null;
+      const txt = k === 'atb' ? 'АТВ' : k === 'np' ? 'НОВА ПІШТА' : b.sign ? (b.sign.short || b.sign.text) : null;
       const sf = extSprite('prop', Object.assign({ variant: 'storefront', style, text: txt, floors: k === 'shop' && (b.v % 3) === 0 ? 2 : 1, color: k === 'shop' ? b.color : undefined }, base));
       if (sf) { b.ownSign = true; return sf; }
     }
@@ -13064,7 +13048,7 @@
     }
     return 0;
   }
-  // будівлі з генераторами: АТБ, Нова пошта і ~45% магазинів з вивісками
+  // будівлі з генераторами: АТВ, Нова Пішта і ~45% магазинів з вивісками
   let gens = null, genRects = null;
   function buildGens() {
     gens = []; genRects = [];
@@ -16802,7 +16786,7 @@
     (d) => 'Ходи дворами, золотко. Вони ' + WHERE[d] + '.',
     (d) => 'Синку, ' + WHERE[d] + ' ТЦК. Я б на твоєму місці — ' + GO[OPP[d]] + '.',
   ];
-  const GRANNY_IDLE = ['Синку, шапку вдягни!', 'Худий який... Поїж!', 'В АТБ хліб свіжий!', 'На роботу? Молодець.', 'Бережи себе, синку.', 'Ой, ці молоді, все біжать...'];
+  const GRANNY_IDLE = ['Синку, шапку вдягни!', 'Худий який... Поїж!', 'В АТВ хліб свіжий!', 'На роботу? Молодець.', 'Бережи себе, синку.', 'Ой, ці молоді, все біжать...'];
   const SNITCH = [
     (d) => 'Пане офіцере! Он він, ' + GO[d] + '!',
     (d) => 'Туди побіг! ' + GO[d][0].toUpperCase() + GO[d].slice(1) + '!',
@@ -25299,6 +25283,7 @@
   };
   S.menu.update = function (dt, realDt) {
     M.t += realDt;
+    if (discUpdate()) return;
     const mm = G.input.mouse;
     if (M.pop) { if (mm.clicked || back() || ok()) { G.input.consume && G.input.consume('pause'); M.pop = null; click(); } return; }
     if (mm.clicked) { // лобі: «+» — запросити, «ВИЙТИ» — покинути лобі
@@ -25528,8 +25513,8 @@
   const ST = { focus: 0 };
   const stRows = () => {
     const x = VW() / 2 - 150, w = 300;
-    return [{ id: 'music', label: 'Музика' }, { id: 'sfx', label: 'Звуки' }, { id: 'gfx', label: 'Графіка' }, { id: 'ctrl', label: 'Керування' }, { id: 'back', label: 'Назад' }]
-      .map((r, i) => Object.assign(r, { r: { x, y: 56 + i * 34, w, h: 26 } }));
+    return [{ id: 'music', label: 'Музика' }, { id: 'sfx', label: 'Звуки' }, { id: 'gfx', label: 'Графіка' }, { id: 'swear', label: 'Матюки' }, { id: 'legal', label: 'Правила й конфіденційність' }, { id: 'ctrl', label: 'Керування' }, { id: 'back', label: 'Назад' }]
+      .map((r, i) => Object.assign(r, { r: { x, y: 48 + i * 26, w, h: 22 } }));
   };
   function stVol(which, d) {
     const v = (G.audio && G.audio.volume) || { music: 0.7, sfx: 0.8 };
@@ -25537,14 +25522,16 @@
     if (G.audio && G.audio.setVolume) G.audio.setVolume(which === 'music' ? k : v.music, which === 'sfx' ? k : v.sfx);
     if (which === 'sfx' && G.audio && G.audio.sfx) G.audio.sfx('click'); else click();
   }
-  function stChange(id, d) { if (id === 'music' || id === 'sfx') stVol(id, d * 0.1); else if (id === 'gfx') gfxCycle(d); }
+  function stChange(id, d) { if (id === 'music' || id === 'sfx') stVol(id, d * 0.1); else if (id === 'gfx') gfxCycle(d); else if (id === 'swear') { G.setNoSwear(!G.noSwear); click(); } }
+  G.openLegal = () => { try { window.open('https://stasm4.github.io/tck/privacy.html', '_blank'); } catch (e) { /* */ } };
   function stAct(id) {
     if (id === 'ctrl') { click(); G._fromSettings = true; G.setState('controls'); }
     else if (id === 'back') { click(); G.setState('menu'); }
+    else if (id === 'legal') { click(); G.openLegal(); }
     else stChange(id, 1);
   }
   G.scenes.settings = {
-    enter() { if (ST.focus > 4) ST.focus = 0; G.ui.reset(); },
+    enter() { if (ST.focus > 6) ST.focus = 0; G.ui.reset(); },
     exit() {},
     drawBg(ctx) { drawMenuBg(ctx, M.t); },
     update(dt, realDt) {
@@ -25562,7 +25549,7 @@
         if (moved) ST.focus = i;
         if (m.clicked) {
           const id = rows[i].id;
-          if (id === 'music' || id === 'sfx' || id === 'gfx') stChange(id, m.x < r.x + 128 + (r.w - 128) / 2 ? -1 : 1); // ліва половина значення — менше, права — більше
+          if (id === 'music' || id === 'sfx' || id === 'gfx' || id === 'swear') stChange(id, m.x < r.x + 128 + (r.w - 128) / 2 ? -1 : 1); // ліва половина значення — менше, права — більше
           else stAct(id);
           return;
         }
@@ -25576,20 +25563,21 @@
       const v = (G.audio && G.audio.volume) || { music: 0.7, sfx: 0.8 };
       stRows().forEach((row, i) => {
         const r = row.r, f = i === ST.focus;
-        if (row.id === 'ctrl' || row.id === 'back') { U.button(ctx, r, row.id === 'ctrl' ? 'Керування →' : 'Назад', f, { size: 8 }); return; }
+        if (row.id === 'ctrl' || row.id === 'back' || row.id === 'legal') { U.button(ctx, r, row.id === 'ctrl' ? 'Керування →' : row.id === 'legal' ? 'Правила й конфіденційність ↗' : 'Назад', f, { size: 8 }); return; }
         U.rect(ctx, f ? '#fde98f' : '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2);
         U.rect(ctx, f ? 'rgba(72,52,86,0.97)' : 'rgba(34,22,44,0.92)', r.x, r.y, r.w, r.h);
-        U.text(ctx, row.label, r.x + 10, r.y + 9, { size: 8, color: f ? '#fde98f' : '#fbf6ea' });
+        U.text(ctx, row.label, r.x + 10, r.y + 7, { size: 8, color: f ? '#fde98f' : '#fbf6ea' });
         // ◀ значення ▶
-        U.tri(ctx, r.x + 128, r.y + 13, 'left', 4, '#fde98f'); U.tri(ctx, r.x + r.w - 14, r.y + 13, 'right', 4, '#fde98f');
-        if (row.id === 'gfx') U.text(ctx, gfxLabel(), r.x + 136 + (r.w - 160) / 2, r.y + 9, { size: 8, align: 'center', color: '#8fc7e4' });
+        U.tri(ctx, r.x + 128, r.y + 11, 'left', 4, '#fde98f'); U.tri(ctx, r.x + r.w - 14, r.y + 11, 'right', 4, '#fde98f');
+        if (row.id === 'gfx') U.text(ctx, gfxLabel(), r.x + 136 + (r.w - 160) / 2, r.y + 7, { size: 8, align: 'center', color: '#8fc7e4' });
+        else if (row.id === 'swear') U.text(ctx, G.noSwear ? 'ВИМКНЕНО (без мату)' : 'УВІМКНЕНО', r.x + 136 + (r.w - 160) / 2, r.y + 7, { size: 8, align: 'center', color: G.noSwear ? '#93c25b' : '#ef8a3b' });
         else {
           const k = row.id === 'music' ? v.music : v.sfx, bx = r.x + 138, bw = r.w - 160;
-          U.rect(ctx, '#120a18', bx, r.y + 10, bw, 6); U.rect(ctx, '#93c25b', bx + 1, r.y + 11, Math.round((bw - 2) * k), 4);
-          U.text(ctx, Math.round(k * 100) + '%', bx + bw / 2, r.y + 1, { size: 7, align: 'center', color: '#b4abb2' });
+          U.rect(ctx, '#120a18', bx, r.y + 9, bw, 6); U.rect(ctx, '#93c25b', bx + 1, r.y + 10, Math.round((bw - 2) * k), 4);
+          U.text(ctx, Math.round(k * 100) + '%', bx + bw / 2, r.y, { size: 7, align: 'center', color: '#b4abb2' });
         }
       });
-      U.text(ctx, 'Слабкий телефон чи планшет лагає? Постав «Графіка: мінімальна».', VW() / 2, 230, { size: 7, align: 'center', color: '#8fc7e4' });
+      U.text(ctx, 'Слабкий телефон чи планшет лагає? Постав «Графіка: мінімальна».', VW() / 2, 234, { size: 7, align: 'center', color: '#8fc7e4' });
       if (!isTouch()) U.text(ctx, '↑↓ — вибір · ←→ — змінити · Esc — назад', VW() / 2, VH() - 12, { size: 7, align: 'center', color: 'rgba(255,255,255,0.5)' });
     },
   };
@@ -25688,8 +25676,42 @@
       ctx.restore();
     }
     drawPop(ctx);
+    drawDisclaimer(ctx);
     G.ui.drawOverlay(ctx);
   };
+  // ── одноразове попередження при першому запуску: сатира, вигадані персонажі, гра не закликає порушувати закон ──
+  const discSeen = () => { if (G._noDisclaimer) return true; try { return localStorage.getItem('tck_disclaimer') === '1'; } catch (e) { return true; } };
+  const DISC_OK = () => ({ x: VW() / 2 - 60, y: VH() / 2 + 62, w: 120, h: 20 });
+  function drawDisclaimer(ctx) {
+    if (discSeen()) return;
+    const W = VW(), H = VH(), w = Math.min(380, W - 30), h = 196, x = Math.round((W - w) / 2), y = Math.round(H / 2 - 96);
+    U.rect(ctx, 'rgba(10,6,18,0.82)', 0, 0, W, H);
+    U.rect(ctx, '#120a18', x - 2, y - 2, w + 4, h + 4); U.rect(ctx, '#241a3a', x, y, w, h);
+    U.rect(ctx, '#2a5fb4', x, y, w, 3); U.rect(ctx, '#f7d248', x, y + 3, w, 3);
+    U.text(ctx, 'ПЕРЕД ГРОЮ', x + w / 2, y + 12, { size: 12, align: 'center', color: '#fde98f', shadow: true });
+    const lines = [
+      '«Бусифікація» — сатирична гра. Усі персонажі, назви',
+      'й події вигадані, будь-які збіги випадкові.',
+      'Гра не закликає порушувати закон і не дає порад,',
+      'як уникати мобілізації. Це гумор про наше життя.',
+      '',
+      'Онлайн: не ображай інших гравців. На образливі ніки',
+      'можна поскаржитися, гравця — заблокувати.',
+    ];
+    lines.forEach((l, i) => U.text(ctx, l, x + w / 2, y + 32 + i * 11, { size: 7, align: 'center', color: i >= 5 ? '#8fc7e4' : '#e8dcc8' }));
+    const r = DISC_OK(), hov = U.inRect(G.input.mouse.x, G.input.mouse.y, r);
+    U.rect(ctx, '#120a18', r.x - 1, r.y - 1, r.w + 2, r.h + 2); U.rect(ctx, hov ? '#6aa84a' : '#4f8a36', r.x, r.y, r.w, r.h);
+    U.text(ctx, 'ЗРОЗУМІЛО', r.x + r.w / 2, r.y + 6, { size: 8, align: 'center', color: '#fff8e0', shadow: true });
+    U.text(ctx, 'Правила й конфіденційність ↗', x + w / 2, r.y + 26, { size: 7, align: 'center', color: '#7a8aa8' });
+  }
+  function discUpdate() {
+    if (discSeen()) return false;
+    const m = G.input.mouse, r = DISC_OK();
+    const lr = { x: r.x - 30, y: r.y + 23, w: r.w + 60, h: 12 };
+    if (m.clicked && U.inRect(m.x, m.y, lr)) { click(); if (G.openLegal) G.openLegal(); return true; }
+    if ((m.clicked && U.inRect(m.x, m.y, r)) || ok()) { click(); try { localStorage.setItem('tck_disclaimer', '1'); } catch (e) { /* */ } }
+    return true;
+  }
 
   // ═══════════════════════════ Гардероб ═══════════════════════════
   // Round 33: вкладки СКІНИ / ШАПКИ / БОРОДИ / КОФТИ. Закрите — купується за гривні прямо тут; куплене — одягається.
@@ -27639,7 +27661,7 @@
   //      висотки + фасад цілі (світові спрайти office / storefront atb|novaposhta|generic, для тещі — намальована хата
   //      з тином і табличкою "Обережно, теща!"), тротуар, каштани, ліхтарі, лавка, голуби (злітають), перехожі, машини.
   //      Герой забігає до дверей ("Встиг!"), заходить; за ним проїжджає бус ТЦК. Згори опускається стрічка-титр.
-  //   2) ІНТЕР'ЄР ×3 (160×90): каса АТБ (стрічка їде, сканер пікає, полиці, хліб / лише лаваш), відділення НП (стелажі
+  //   2) ІНТЕР'ЄР ×3 (160×90): каса АТВ (стрічка їде, сканер пікає, полиці, хліб / лише лаваш), відділення НП (стелажі
   //      з коробками, табло черги, черга з трьох людей, посилка — їде до тебе / "ПОВЕРНЕНО"), хата тещі (килим на стіні,
   //      сервант, ходики з маятником, стіл з тортом «Київський» і свічками / крихти, рідня, кіт), офіс (панорамне вікно,
   //      годинник з реальним часом, кулер з бульками, монітор, начальник; пізно — коробка з речами).
@@ -27730,7 +27752,7 @@
   // під пору доби; уночі — карта світла (multiply: ambient на будівлях/землі/людях, ліхтарі, вітрини, фари,
   // прожектори церкви) + "світні" пікселі (вікна, вивіски, вітрини — з glow-шару спрайтів), довгі тіні ввечері/зранку.
   // Інтер'єри: вікна показують небо пори доби, уночі горять лампи (ореоли), у відключення — темрява, свічки,
-  // генератор (АТБ/НП) або монітори й ліхтарик телефону.
+  // генератор (АТВ/НП) або монітори й ліхтарик телефону.
   const TOD = {
     dawn: { amb: [206, 182, 206], lamps: 0.7, keep: 0.55, extra: 0.06, em: 0.8 },
     day: null,
@@ -28479,7 +28501,7 @@
   }
   function dkC(hex, k) { const n = parseInt(hex.slice(1), 16), r = (n >> 16) & 255, g = (n >> 8) & 255, bl = n & 255; const f = (v) => Math.round(v * (1 - k)).toString(16).padStart(2, '0'); return '#' + f(r) + f(g) + f(bl); }
 
-  // АТБ: полиці, хліб (late — лише лаваш), каса
+  // АТВ: полиці, хліб (late — лише лаваш), каса
   function atbBack(late) {
     return ebuf('end_atb_back' + (late ? 'L' : ''), 160, 90, (b) => {
       ceiling(b, '#dcd8d0', '#b0aca4', [6, 66, 126]);
@@ -28524,7 +28546,7 @@
       b.outline('#3a3440');
     });
   }
-  // Нова пошта: стелажі з коробками, табло черги, поштомат, стійка
+  // Нова Пішта: стелажі з коробками, табло черги, поштомат, стійка
   function npBack() {
     return ebuf('end_np_back', 160, 90, (b) => {
       ceiling(b, '#ecebe8', '#c4c2be', [24, 104]);
@@ -28532,7 +28554,7 @@
       // вивіска
       b.rect(72, 11, 86, 10, '#d12a2a'); b.hl(72, 11, 86, '#e84a40');
       b.rect(76, 13, 6, 6, '#ffffff'); b.rect(77, 14, 4, 4, '#d12a2a'); b.rect(78, 15, 2, 2, '#ffffff');
-      btext(b, 'НОВА ПОШТА', 120, 11, '#ffffff', 'center');
+      btext(b, 'НОВА ПІШТА', 120, 11, '#ffffff', 'center');
       // стелажі з посилками
       for (let x = 72; x < 158; x += 28) {
         b.vl(x, 22, 36, '#7a8088'); b.vl(x + 27, 22, 36, '#7a8088');
@@ -28997,7 +29019,7 @@
       h.frame = WALK[st % 4];
       if (h.x >= I.heroX) { h.state = 'stand'; h.frame = 0; }
     }
-    // фонові перехожі (покупець в АТБ, колега з кавою в офісі)
+    // фонові перехожі (покупець в АТВ, колега з кавою в офісі)
     for (const p of I.people) {
       const w = p.walk;
       if (!w) continue;
@@ -31883,9 +31905,9 @@
       desc: 'Гуцульський кептар, крисаня з пір\'ям. Наврочить бусик — і той заглохне.', reaction: 'Тільки не дивіться на мене так…' },
     { id: 'mykolai', name: 'Святий Миколай', kind: 'pass', need: 1, condText: 'Безкоштовний пас «Білий квиток», рівень 30',
       desc: 'Золота митра, біла борода, червоні ризи. Під подушку кладе не повістку, а подарунки.', reaction: 'Миколаю… а ви список хороших дітей нам не покажете?' },
-    { id: 'president', name: 'Зеленський', kind: 'pass', need: 1, legend: true, condText: 'Преміум-пас «Білий квиток», рівень 30',
-      desc: 'ЛЕГЕНДАРНИЙ. Оливковий світшот з тризубом, борода, густі брови, карго й берці. Лише в преміум-пасі.',
-      reaction: '…Пане Президенте?! Ми тут… просто стоїмо.' },
+    { id: 'president', name: 'Характерник', kind: 'pass', need: 1, legend: true, condText: 'Преміум-пас «Білий квиток», рівень 30',
+      desc: 'ЛЕГЕНДАРНИЙ. Козак-чаклун: сивий оселедець, бурштинові очі світяться, бордовий жупан із золотою вишивкою й оберіг. Лише в преміум-пасі.',
+      reaction: '…Характерник?! Кажуть, кулі його не беруть…' },
   ];
   const SKIN_BY_ID = {};
   for (const s of SKINS) SKIN_BY_ID[s.id] = s;
@@ -32060,7 +32082,7 @@
   // Міграції за версіями: MIGRATIONS[n] переводить дані з версії n у n+1.
   const MIGRATIONS = {
     0: (d) => { d.v = 1; return d; }, // версія 0 = пласкі ключі заглушки / без поля v
-    // v1 → v2: 4 дні + нескінченний → кампанія з 15 місій. Старі дні: 1 офіс → м1, 2 АТБ → м3, 3 НП → м4, 4 теща → м6.
+    // v1 → v2: 4 дні + нескінченний → кампанія з 15 місій. Старі дні: 1 офіс → м1, 2 АТВ → м3, 3 НП → м4, 4 теща → м6.
     // Пройдені місії до нової позиції зараховуємо на 2 ★, гроші — 5 грн за кожну втечу.
     1: (d) => {
       const MAP = { 1: 1, 2: 3, 3: 4, 4: 6 };
@@ -33152,12 +33174,12 @@
     barber: { t: [127, 50.4], label: 'Барбершоп' },
     notary: { t: [110, 150.4], label: 'Нотаріус' },
     second: { t: [44, 122.4], label: 'Секонд' },
-    atb: { zone: 'atb', label: 'АТБ' },
+    atb: { zone: 'atb', label: 'АТВ' },
     market: { zone: 'market', label: 'Ринок' },
     fish: { t: [109.5, 6], label: 'Рибна ятка' },
     honey: { t: [113.5, 16], label: 'Мед' },
     fruit: { t: [113.5, 6], label: 'Яблука' },
-    np: { zone: 'nova_poshta', label: 'Нова пошта' },
+    np: { zone: 'nova_poshta', label: 'Нова Пішта' },
     tesha: { zone: 'mother_in_law', label: 'Хата тещі' },
     square: { zone: 'square', label: 'Сквер' },
     ilovekyiv: { t: [50, 71.3], label: '«Я ❤ Київ»' },
@@ -33312,15 +33334,15 @@
     { tier: 2, title: 'Мамині доручення', short: 'Мамині доручення', weekday: 'Четвер', start: 12 * 60 + 30, slack: 22, sides: 1,
       brief: 'Мама вже чула про якусь Катю. Обідня перерва, список: батон, ліки від тиску. І «не попадись їм, синочку».',
       steps: [
-        { type: 'hold', at: 'atb', label: 'Купи батон в АТБ', hold: 1.2, doing: 'Каса №3 «тимчасово не працює»…' },
+        { type: 'hold', at: 'atb', label: 'Купи батон в АТВ', hold: 1.2, doing: 'Каса №3 «тимчасово не працює»…' },
         { type: 'hold', at: 'pharmacy', label: 'Купи мамі ліки від тиску', hold: 1.2, doing: 'Фармацевтка шукає аналог…' },
         { type: 'go', at: 'home', label: 'Занеси все мамі' }],
       star3: 'side', place: 'home',
       win: ['Мама: «А кефір?»', 'Ти: «Мам, там ТЦК на кожному розі...»', 'Мама: «То й що? Кефір сам себе не купить.»'],
       late: ['Мама вже сама сходила.', 'Мама: «Мене ТЦК не чіпають. Вчися.»'] },
-    { tier: 3, title: 'Черга в Новій пошті', short: 'Нова пошта', weekday: "Пʼятниця", start: 17 * 60 + 10, slack: 16,
+    { tier: 3, title: 'Черга в Новій Пішті', short: 'Нова Пішта', weekday: "Пʼятниця", start: 17 * 60 + 10, slack: 16,
       brief: 'У ТЦК уже знають твою сорочку. Пʼятниця, вечір, посилка чекає, а дорогою — блокпост і злива. Обійди їх.',
-      steps: [{ type: 'hold', at: 'np', label: 'Відстій чергу в Новій пошті', hold: 3, doing: 'Перед тобою 6 бабусь і чоловік з шиною…' }],
+      steps: [{ type: 'hold', at: 'np', label: 'Відстій чергу в Новій Пішті', hold: 3, doing: 'Перед тобою 6 бабусь і чоловік з шиною…' }],
       events: [{ type: 'checkpoint', at: [2, 4], chance: 1 }, { type: 'rain', at: [6, 10], chance: 1 }],
       star3: 'noHit', place: 'nova_poshta',
       win: ['Посилка твоя.', 'Всередині — зарядка, замовлена пів року тому.', 'Воно того варте.'],
@@ -33422,7 +33444,7 @@
         { type: 'hold', at: 'keys', label: 'Забери дублікат ключів', hold: 0.8, doing: 'Майстер: «Ще хвилинку…»' },
         { type: 'deliver', at: 't_m2', label: 'Ключі → ЖК «Сонячний»', tip: 30, factor: 1.25 },
         { type: 'hold', at: 'notary', label: 'Забери документи у нотаріуса', hold: 0.8, doing: 'Печатка. Ще печатка. Ще одна.' },
-        { type: 'deliver', at: 'atb', label: 'Документи → касирці АТБ', tip: 45, factor: 1.25 }],
+        { type: 'deliver', at: 'atb', label: 'Документи → касирці АТВ', tip: 45, factor: 1.25 }],
       events: [{ type: 'rain', at: [3, 6], chance: 1, dur: 80 }, { type: 'checkpoint', at: [25, 40], chance: 0.7 }],
       star3: 'tips', place: 'atb',
       win: ['Касирка: «Документи? А, це мої. Дякую!»', '«Пакетик треба?»', 'Рейтинг: 5.0. Розшук: теж 5.'],
@@ -33622,13 +33644,13 @@
     { type: 'carry', at: 'house1', item: 'Розсада', label: 'Донеси бабусі розсаду в приватний сектор' },
     { type: 'carry', at: 't_s1', item: 'Акваріум', label: 'Донеси акваріум у 16-поверхівку' },
     { type: 'catch', label: 'Злодій вихопив телефон! Наздожени', taunt: ['Гарний телефон!', 'Дякую за айфон!', 'Він же старий!'], back: 'Телефон знову твій!' },
-    { type: 'catch', label: 'Пацан вихопив пакет з АТБ! Наздожени', taunt: ['Дякую за батон!', 'Ковбаска моя!'], back: 'Батон врятовано!' },
+    { type: 'catch', label: 'Пацан вихопив пакет з АТВ! Наздожени', taunt: ['Дякую за батон!', 'Ковбаска моя!'], back: 'Батон врятовано!' },
     { type: 'collect', center: 'square', n: 3, radius: 220, label: 'Збери розлетілі документи', item: 'page' },
   ];
   const EL_END = [
     { at: 'office', label: 'Дійди до колл-центру', place: 'office', t: 'Знову на роботу' },
-    { at: 'atb', label: 'Дійди до АТБ', place: 'atb', t: 'За хлібом (знову)' },
-    { at: 'np', label: 'Дійди до Нової пошти', place: 'nova_poshta', t: 'Ще одна посилка' },
+    { at: 'atb', label: 'Дійди до АТВ', place: 'atb', t: 'За хлібом (знову)' },
+    { at: 'np', label: 'Дійди до Нової Пішти', place: 'nova_poshta', t: 'Ще одна посилка' },
     { at: 'tesha', label: 'Дійди до тещі', place: 'mother_in_law', t: 'Теща кличе' },
     { at: 'metroB', label: 'Дійди до метро «Хрещатик»', place: 'metro', t: 'Втеча в метро' },
     { at: 'church_front', label: 'Дійди до церкви', place: 'church', t: 'Помолитись за бронь' },
@@ -33740,7 +33762,7 @@
   // "ранку" / "дня" / "вечора" / "ночі"
   function dayPart(min) { const h = Math.floor(((min % 1440) + 1440) % 1440 / 60); return h >= 4 && h < 12 ? 'ранку' : h >= 12 && h < 17 ? 'дня' : h >= 17 && h < 23 ? 'вечора' : 'ночі'; }
   function introFor(d) { const st = startOf(d); return 'Київ. ' + clock(st) + ' ' + dayPart(st) + '. ' + d.weekday + '.'; }
-  const PLACE_LABEL = { office: 'Колл-центр', home: 'Дім', atb: 'АТБ', nova_poshta: 'Нова пошта', mother_in_law: 'Хата тещі', market: 'Ринок',
+  const PLACE_LABEL = { office: 'Колл-центр', home: 'Дім', atb: 'АТВ', nova_poshta: 'Нова Пішта', mother_in_law: 'Хата тещі', market: 'Ринок',
     square: 'Сквер «Я ❤ Київ»', church: 'Церква', motherland: 'Парк Слави', metro: 'Метро «Хрещатик»', embankment: 'Набережна', park: 'Парк',
     pharmacy: 'Аптека', notary: 'Нотаріус' };
   function clock(min) { min = Math.floor(min); const h = Math.floor(min / 60) % 24, m = min % 60; return h + ':' + (m < 10 ? '0' : '') + m; }
@@ -33783,7 +33805,7 @@
 
   // Round 26: завдання біля бурси — доступне в кожній місії з 2-ї (не обовʼязкове)
   const REVO = { id: 'revo', variant: 'man', name: 'Вован з бурси', dest: 'atb', ret: true, reward: 40, hot: true,
-    offer: 'Брат, збігай в АТБ за рево. Нас там уже знають.', label: 'Принеси пацанам рево з АТБ',
+    offer: 'Брат, збігай в АТВ за рево. Нас там уже знають.', label: 'Принеси пацанам рево з АТВ',
     thanks: 'Ровний пацан! Якщо що — ми тебе не бачили.', effect: 'disguise' };
 
   // ═══════════════════════════ Стан забігу ═══════════════════════════
@@ -34176,7 +34198,7 @@
   }
   function sideDest(sd, giver) {
     const W = G.world;
-    if (sd.dest === 'atb') { const q = poi('atb'); return q ? Object.assign({}, q, { label: 'АТБ' }) : null; }
+    if (sd.dest === 'atb') { const q = poi('atb'); return q ? Object.assign({}, q, { label: 'АТВ' }) : null; }
     const near = (list, minD, maxD) => {
       const c = list.filter((q) => { const dd = Math.hypot(q.x - giver.x, q.y - giver.y); return dd >= minD && dd <= maxD; });
       if (c.length) return c[Math.floor(rnd() * c.length)];
@@ -39937,6 +39959,7 @@
       '<div style="color:#fde98f;font-size:18px;font-weight:bold;margin-bottom:6px">ТВІЙ НІК</div>' +
       '<div style="font-size:12px;color:#b4abb2;margin-bottom:10px">Його побачать усі в таблиці лідерів (2–16 символів)</div>' +
       '<input maxlength="16" style="width:100%;box-sizing:border-box;font:16px monospace;padding:8px;background:#120a18;color:#fbf6ea;border:2px solid #8fc7e4;outline:none" />' +
+      (st.terms ? '' : '<label style="display:flex;gap:8px;align-items:flex-start;text-align:left;font-size:12px;color:#e8dcc8;margin-top:10px;cursor:pointer"><input class="tc" type="checkbox" style="margin-top:2px;width:18px;height:18px;flex:none" /><span>Погоджуюсь з <a href="https://stasm4.github.io/tck/privacy.html" target="_blank" style="color:#8fc7e4">правилами гри й політикою конфіденційності</a>: без образливих ніків і поведінки</span></label>') +
       '<div class="e" style="color:#ff6050;font-size:12px;min-height:16px;margin-top:6px"></div>' +
       '<div style="display:flex;gap:8px;margin-top:6px"><button class="c" style="flex:1;font:bold 14px monospace;padding:9px;background:#3a2a46;color:#e8dcc8;border:2px solid #120a18">Скасувати</button>' +
       '<button class="o" style="flex:1;font:bold 14px monospace;padding:9px;background:#93c25b;color:#1a0e20;border:2px solid #120a18">ГОТОВО</button></div></div>';
@@ -39945,6 +39968,9 @@
     inp.value = st.auto ? '' : (st.name || '');
     const close = () => { if (box) { box.remove(); box = null; } };
     const ok = () => {
+      const tc = box.querySelector('.tc');
+      if (tc && !tc.checked) { err.textContent = 'Постав галочку згоди з правилами'; return; }
+      if (tc) { st.terms = 1; persist(); }
       if (setName(inp.value)) { close(); if (done) done(true); }
       else err.textContent = 'Тільки букви й цифри, 2–16 символів, без матів';
     };
@@ -39988,22 +40014,24 @@
     { id: 'team', label: 'КОМАНДА', sub: 'Онлайн-втеча вдвох–вп\'ятьох · кращий результат команди', col: '#93c25b' },
     { id: 'day', label: 'ДЕНЬ', sub: 'Щоденна втеча · сьогоднішній маршрут, завтра — новий', col: '#8fc7e4' },
   ];
-  const LB = { t: 0, scroll: 0, focus: 0, drag: null, tab: 'solo' };
+  const LB = { t: 0, scroll: 0, focus: 0, drag: null, tab: 'solo', sel: -1 };
   const btns = () => [
     { id: 'name', label: st.name && !st.auto ? 'Змінити нік' : 'Обрати нік', r: { x: 14, y: VH() - 26, w: 110, h: 20 } },
     { id: 'reload', label: 'Оновити', r: { x: 130, y: VH() - 26, w: 80, h: 20 } },
+    ...(LB.sel >= 0 && rows()[LB.sel] && !rows()[LB.sel].me && G.social && G.social.report ? [{ id: 'report', label: 'Поскаржитися на нік', r: { x: 216, y: VH() - 26, w: Math.min(140, VW() - 94 - 222), h: 20 } }] : []),
     { id: 'back', label: 'Назад', r: { x: VW() - 94, y: VH() - 26, w: 80, h: 20 } },
   ];
   const tabR = (i) => { const w = 84; return { x: VW() - 14 - (TABS.length - i) * (w + 4) + 4, y: 8, w, h: 18 }; };
   const listR = () => ({ x: 14, y: 46, w: VW() - 28, h: VH() - 46 - 32 });
   const ROW = 16;
   function reloadTab() { if (LB.tab === 'solo') refresh(); else if (LB.tab === 'team') refreshTeam(); else refreshDaily(); }
-  function setTab(id) { if (LB.tab === id) return; LB.tab = id; LB.scroll = 0; G.audio && G.audio.sfx && G.audio.sfx('click'); const d = id === 'team' ? LT : id === 'day' ? LD : L; if (Date.now() - d.at > 15000 || d.status !== 'ok') reloadTab(); }
+  function setTab(id) { if (LB.tab === id) return; LB.tab = id; LB.scroll = 0; LB.sel = -1; G.audio && G.audio.sfx && G.audio.sfx('click'); const d = id === 'team' ? LT : id === 'day' ? LD : L; if (Date.now() - d.at > 15000 || d.status !== 'ok') reloadTab(); }
   function act(id) {
     G.audio && G.audio.sfx && G.audio.sfx('click');
     if (id === 'back') G.setState('menu');
     else if (id === 'name') askName(() => {});
     else if (id === 'reload') reloadTab();
+    else if (id === 'report') { const r = rows()[LB.sel]; if (r) G.social.report(null, r.name, LB.tab === 'team' ? 'team_nick' : 'leader_nick'); LB.sel = -1; }
   }
   function rows() {
     if (LB.tab === 'team') { const me = (st.name || '').toLowerCase(); return LT.top.map((r) => ({ name: r.names, n: r.n, score: r.score, waves: r.waves, me: !!me && String(r.names || '').toLowerCase().split(' · ').indexOf(me) >= 0 })); }
@@ -40034,6 +40062,7 @@
       if (I.pressed('up')) LB.scroll = Math.max(0, LB.scroll - ROW * 3);
       if (I.pressed('left') || I.pressed('right')) { const i = TABS.findIndex((t) => t.id === LB.tab), j = (i + (I.pressed('left') ? TABS.length - 1 : 1)) % TABS.length; setTab(TABS[j].id); }
       const lr = listR(), inL = m.x >= lr.x && m.x < lr.x + lr.w && m.y >= lr.y && m.y < lr.y + lr.h;
+      if (m.clicked && inL && m.y > lr.y + 16) { const i2 = Math.floor((m.y - (lr.y + 16) + LB.scroll) / ROW); LB.sel = i2 >= 0 && i2 < n ? (LB.sel === i2 ? -1 : i2) : -1; } // тап по рядку — вибрати (щоб поскаржитися)
       if (m.down && (LB.drag || inL)) {
         if (!LB.drag) LB.drag = { y: m.y, s: LB.scroll };
         LB.scroll = Math.max(0, Math.min(maxS, LB.drag.s - (m.y - LB.drag.y)));
@@ -40084,7 +40113,8 @@
           const y = top + i * ROW - LB.scroll;
           if (y < top - ROW || y > bottom) continue;
           const r = list[i], pl = i + 1, ty = y + 3;
-          if (r.me) U.rect(ctx, 'rgba(147,194,91,0.22)', lr.x + 3, y, lr.w - 6, ROW - 1);
+          if (i === LB.sel) U.rect(ctx, 'rgba(143,199,228,0.28)', lr.x + 3, y, lr.w - 6, ROW - 1);
+          else if (r.me) U.rect(ctx, 'rgba(147,194,91,0.22)', lr.x + 3, y, lr.w - 6, ROW - 1);
           else if (pl <= 3) U.rect(ctx, ['rgba(247,201,72,0.14)', 'rgba(216,216,228,0.1)', 'rgba(208,138,74,0.1)'][pl - 1], lr.x + 3, y, lr.w - 6, ROW - 1);
           else if (i % 2) U.rect(ctx, 'rgba(255,255,255,0.03)', lr.x + 3, y, lr.w - 6, ROW - 1);
           const medal = pl === 1 ? '#f7c948' : pl === 2 ? '#d8d8e4' : pl === 3 ? '#d08a4a' : null;
@@ -41478,9 +41508,11 @@
 (function () {
   'use strict';
   const LS = 'tck_social';
-  let st = { pid: null, av: null, fr: 'blue' };
+  let st = { pid: null, av: null, fr: 'blue', blocked: [] };
   try { const r = localStorage.getItem(LS); if (r) st = Object.assign(st, JSON.parse(r)); } catch (e) {}
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {} };
+  if (!Array.isArray(st.blocked)) st.blocked = [];
+  const isBlocked = (pid) => st.blocked.indexOf(pid) >= 0;
   let pendingAdd = null;
   try { const m = /[?&]add=#?(\d{6})/.exec(location.search || ''); if (m) pendingAdd = m[1]; } catch (e) {}
 
@@ -41594,7 +41626,7 @@
     if (!ON()) return Promise.resolve();
     S.status = 'load';
     return hello().then(() => api('tck_friends', { p_device: dev() })).then((rows) => {
-      S.friends = Array.isArray(rows) ? rows : []; S.status = 'ok'; S.fAt = Date.now();
+      S.friends = (Array.isArray(rows) ? rows : []).filter((r) => !isBlocked(r.pid)); S.status = 'ok'; S.fAt = Date.now();
     }).catch((e) => { S.status = 'err'; S.err = String(e && e.message || e); if (/404/.test(S.err)) S.nosql = true; });
   }
   function find(q) {
@@ -41603,7 +41635,7 @@
     S.search = { q, rows: null, status: 'load' }; LS_.scroll = 0;
     hello().then(() => api('tck_find', { p_device: dev(), p_q: q })).then((rows) => {
       if (!S.search || S.search.q !== q) return;
-      S.search.rows = Array.isArray(rows) ? rows : []; S.search.status = 'ok';
+      S.search.rows = (Array.isArray(rows) ? rows : []).filter((r) => !isBlocked(r.pid)); S.search.status = 'ok';
     }).catch((e) => { if (S.search) { S.search.status = 'err'; S.search.rows = []; } if (/404/.test(String(e && e.message))) S.nosql = true; });
   }
   function setRel(pid, rel) {
@@ -41798,7 +41830,7 @@
     hit({ x: 0, y: 0, w: W, h: H }, () => { LS_.card = null; }); // тап поза карткою — закрити
     ctx.save(); ctx.globalAlpha = Math.min(0.7, c.t * 5); u.rect(ctx, '#0a0612', 0, 0, W, H); ctx.restore();
     const k = Math.min(1, c.t / 0.16), sc = 0.85 + 0.15 * (1 - Math.pow(1 - k, 3));
-    const w = Math.min(300, W - 30), h = 178, x = Math.round((W - w) / 2), y = Math.round((H - h) / 2);
+    const w = Math.min(300, W - 30), h = r.rel === 'me' ? 178 : 198, x = Math.round((W - w) / 2), y = Math.round((H - h) / 2);
     ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(sc, sc); ctx.translate(-W / 2, -H / 2);
     hit({ x, y, w, h }, () => { c.confirm = false; }); // всередині картки — не закривати
     u.rect(ctx, '#120a18', x - 2, y - 2, w + 4, h + 4);
@@ -41828,6 +41860,12 @@
     stat('друзів', X ? (X.na ? '—' : String(X.friends || 0)) : '…', '#93c25b', 2);
     sy += 30;
     u.text(ctx, 'Рамка: ' + f.name, x + w / 2, sy, { size: 7, align: 'center', color: '#7a7280' });
+    // скарга й блокування (правила Google Play для онлайн-ігор)
+    if (r.rel !== 'me') {
+      const ry = y + h - 44, hw = (w - 30) / 2;
+      smallBtn(ctx, { x: x + 12, y: ry, w: hw, h: 14 }, 'ПОСКАРЖИТИСЯ', '#5a3a2a', () => report(r.pid, r.name, 'nick'));
+      smallBtn(ctx, { x: x + 18 + hw, y: ry, w: hw, h: 14 }, isBlocked(r.pid) ? 'РОЗБЛОКУВАТИ' : 'ЗАБЛОКУВАТИ', '#4a2a3a', () => { block(r, !isBlocked(r.pid)); if (!isBlocked(r.pid)) return; LS_.card = null; });
+    }
     // дії
     const by = y + h - 24, busy = !!S.busy[r.pid], B = (i, n, label, col, fn2) => { const bw = (w - 24 - (n - 1) * 6) / n; smallBtn(ctx, { x: x + 12 + i * (bw + 6), y: by, w: bw, h: 16 }, label, col, fn2); };
     if (busy) u.text(ctx, '…', x + w / 2, by + 3, { size: 9, align: 'center', color: '#b4abb2' });
@@ -41892,7 +41930,8 @@
     smallBtn(ctx, { x: c.x + 8 + (bw + 4) / 2, y, w: (bw - 4) / 2, h: 15 }, 'ПОДІЛИТИСЯ', '#5e9846', share); y += 20;
     smallBtn(ctx, { x: c.x + 8, y, w: bw, h: 15 }, G.online && G.online.realName ? 'ЗМІНИТИ НІК' : 'ОБРАТИ НІК', G.online && G.online.realName ? '#6a4a86' : '#c8302a', askNick);
     y += 20;
-    if (y + 10 < c.y + c.h) u.text(ctx, 'Скинь ID другу — і грайте разом', c.x + c.w / 2, Math.min(c.y + c.h - 11, y + 2), { size: 7, align: 'center', color: '#7a7280' });
+    if (ON() && hasNick()) { const dy = c.y + c.h - 19; smallBtn(ctx, { x: c.x + 8, y: dy, w: bw, h: 14 }, Date.now() - delAsk < 4000 ? 'ТОЧНО ВИДАЛИТИ?' : 'ВИДАЛИТИ ПРОФІЛЬ', Date.now() - delAsk < 4000 ? '#c8302a' : '#4a2a34', deleteProfile); }
+    else if (y + 10 < c.y + c.h) u.text(ctx, 'Скинь ID другу — і грайте разом', c.x + c.w / 2, Math.min(c.y + c.h - 11, y + 2), { size: 7, align: 'center', color: '#7a7280' });
 
     // вибір аватарки й рамки
     const p = PICK_R();
@@ -42018,6 +42057,38 @@
     if (maxS > 0) { const k = LS_.scroll / maxS, th = Math.max(16, lr.h * lr.h / (rows.length * ROW)); u.rect(ctx, 'rgba(143,199,228,0.35)', lr.x + lr.w - 4, lr.y + 2 + (lr.h - 4 - th) * k, 2, th); }
   }
 
+  // ═══════════════ Безпека: скарги, блокування, видалення профілю (online/safety.sql) ═══════════════
+  function report(pid, name, reason) {
+    sfx();
+    if (!ON()) { toast('Немає зв\'язку з сервером'); return; }
+    api('tck_report', { p_device: dev(), p_pid: pid || null, p_name: String(name || '').slice(0, 40), p_reason: reason || 'nick' })
+      .then((ok) => toast(ok === false ? 'Забагато скарг за добу — спробуй завтра' : 'Скаргу надіслано. Дякуємо!', 2200))
+      .catch((e) => toast(/404/.test(String(e && e.message)) ? 'Скарги запрацюють після оновлення сервера' : 'Немає зв\'язку', 2200));
+  }
+  function block(row, on) {
+    sfx();
+    if (on) { if (!isBlocked(row.pid)) st.blocked.push(row.pid); } else st.blocked = st.blocked.filter((p) => p !== row.pid);
+    save();
+    if (on) { S.friends = S.friends.filter((r) => r.pid !== row.pid); if (S.search && S.search.rows) S.search.rows = S.search.rows.filter((r) => r.pid !== row.pid); }
+    toast(on ? row.name + ' заблоковано: не зможе додати чи покликати тебе' : row.name + ' розблоковано', 2400);
+    if (ON()) api('tck_block', { p_device: dev(), p_pid: row.pid, p_on: !!on }).catch(() => {});
+  }
+  let delAsk = 0;
+  function deleteProfile() {
+    const now = Date.now();
+    if (now - delAsk > 4000) { delAsk = now; sfx(); toast('Натисни ще раз, щоб НАЗАВЖДИ видалити профіль, друзів і рекорди', 3500); return; }
+    delAsk = 0;
+    const wipe = () => {
+      for (const k of ['tck_online', 'tck_social']) { try { localStorage.removeItem(k); } catch (e) { /* */ } }
+      try { document.cookie = 'tck_nick=;path=/;max-age=0'; } catch (e) { /* */ }
+      toast('Профіль видалено', 2000);
+      setTimeout(() => { try { location.reload(); } catch (e) { /* */ } }, 1200);
+    };
+    if (!ON()) { wipe(); return; }
+    api('tck_delete_me', { p_device: dev() }).then(wipe)
+      .catch((e) => toast(/404/.test(String(e && e.message)) ? 'Видалення запрацює після оновлення сервера' : 'Немає зв\'язку — спробуй пізніше', 2600));
+  }
+
   // ═══════════════ Запрошення в гру (особистий канал u<ID> через Supabase Realtime) ═══════════════
   let inviteMode = false, inviteFrom = 'menu', chan = null, chanPid = null, inv = null;
   const invSent = {};
@@ -42028,6 +42099,7 @@
     chanPid = st.pid;
     chan = G.coop._signal('u' + st.pid, (m) => {
       if (!m || m.t !== 'inv' || !m.code) return;
+      if (isBlocked(m.pid)) return;                       // заблокований не може кликати
       const known = !S.fAt || S.friends.some((f) => f.pid === m.pid && f.rel === 'friend');
       if (!known) return;                                  // кликати можуть лише друзі
       if (G.coop.role && G.coop.room === String(m.code)) return; // уже в цій кімнаті
@@ -42107,6 +42179,7 @@
   // підтвердження посилань автора: видно, що спрацювало
   if (G._bootMsg) setTimeout(() => { if (G.ui && G.ui.banner) G.ui.banner(G._bootMsg === 'fresh' ? 'Збереження стерто — гра з нуля' : 'Режим автора: усе відкрито', 3500); }, 1500);
   G.social = {
+    report, block, isBlocked, deleteProfile,
     get inviteMode() { return inviteMode; }, set inviteMode(v) { inviteMode = !!v; if (v) inviteFrom = G.state === 'coop' ? 'coop' : 'menu'; }, invite, get invitation() { return inv; },
     get pid() { return st.pid; }, get avatar() { return myAvatar(); }, get frame() { return myFrame(); },
     get incoming() { return incoming(); }, get friends() { return S.friends.slice(); }, get nosql() { return S.nosql; },
