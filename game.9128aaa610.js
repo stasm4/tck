@@ -35319,21 +35319,23 @@
   }
   // проліт-пікірування → вибух → пожежа (будинок горить до кінця забігу)
   class StrikeFx extends G.Entity {
-    constructor(b, from) {
+    constructor(b, from, opt) {
       const T = G.cfg.TILE, fh = Math.max(2, b.fh || 3), yb = (b.y + b.h) * T;
       super((b.x + b.w / 2) * T, yb + 2, 2, 2, 'decor'); this.body = 'manual'; this.cam = null;
-      this.b = b; this.ix = this.x + (Math.random() - 0.5) * Math.max(0, b.w * T - 48); this.iy = yb - fh * T * 0.65;
-      const side = Math.random() < 0.5 ? -1 : 1;
-      this.fx = from ? from.x : this.ix + side * 150; this.fy = from ? from.y : this.iy - 230; this.t = 0; this.D = from ? 2.6 : 2.2; this.hit = false; this.parts = []; this.smoke = [];
+      this.b = b; this.ix = opt && opt.ix != null ? opt.ix : this.x + (Math.random() - 0.5) * Math.max(0, b.w * T - 48); this.iy = yb - fh * T * 0.65;
+      const side = opt && opt.side ? opt.side : (Math.random() < 0.5 ? -1 : 1);
+      this.fx = from ? from.x : this.ix + side * 150; this.fy = from ? from.y : this.iy - 230; this.t = 0; this.D = opt && opt.D ? opt.D : (from ? 2.6 : 2.2); this.hit = false; this.parts = []; this.smoke = [];
     }
     update(dt) {
       this.t += dt;
       const p0 = G.player;
-      if (p0 && G.camera) { // камера плавно дивиться на прильот (і герой у кадрі), потім повертається
+      if (p0 && G.camera) { // камера лише трохи зсувається в бік прильоту — герой завжди близько до центру кадру
         if (this.t < this.D + 3.2) {
           if (!this.cam) { this.cam = { x: G.camera.x, y: G.camera.y, kind: 'cam' }; this.prevT = G.camera.target; G.camera.follow(this.cam); }
-          const tx = (p0.x + this.ix) / 2, ty = (p0.y + this.iy) / 2, k = 1 - Math.exp(-3 * dt);
-          this.cam.x += (tx - this.cam.x) * k; this.cam.y += (ty - this.cam.y) * k;
+          if (!this.off) this.off = { x: this.cam.x - p0.x, y: this.cam.y - p0.y };
+          const ox = Math.max(-50, Math.min(50, (this.ix - p0.x) * 0.3)), oy = Math.max(-32, Math.min(32, (this.iy - p0.y) * 0.3)), k = 1 - Math.exp(-4 * dt);
+          this.off.x += (ox - this.off.x) * k; this.off.y += (oy - this.off.y) * k;
+          this.cam.x = p0.x + this.off.x; this.cam.y = p0.y + this.off.y; // камера їде разом з героєм, зсув лише невеликий
         } else if (this.cam) { if (G.camera.target === this.cam) G.camera.follow(p0); this.cam = null; }
       }
       if (!this.hit && this.t >= this.D) {
@@ -35403,10 +35405,10 @@
       ctx.restore();
     }
   }
-  function startStrike(b, from) {
+  function startStrike(b, from, opt) {
     if (!b || S.strikeOn) return;
     S.strikeOn = true;
-    const fx = new StrikeFx(b, from);
+    const fx = new StrikeFx(b, from, opt);
     G.addEntity(fx); S.ents.push(fx);
     if (S.n === 25) { try { localStorage.setItem('tck_strike', JSON.stringify({ i: b._i })); } catch (e) { /* */ } } // будинок місії 25 → наслідки в 26-й
     else if (b._i != null) addStrike(b._i);
@@ -35457,13 +35459,13 @@
     const W = G.world, T = G.cfg.TILE, a = poi('honey') || poi('market'), z = poi('tesha'); if (!W || !W.buildings || !a || !z) return null;
     let path = []; try { path = W.path(a, z) || []; } catch (e) { path = []; }
     if (!path.length) return null;
-    const pts = path.filter((q, i) => i > 3 && i < path.length - 3);
+    const pts = []; for (let i = 2; i < path.length - 3; i++) { const q = path[i], r = path[i + 1]; for (let k = 0; k < 8; k++) pts.push({ x: q.x + (r.x - q.x) * k / 8, y: q.y + (r.y - q.y) * k / 8 }); }
     let best = null, bs = 1e9;
     W.buildings.forEach((b, i) => {
       if (!STRIKE_KIND[b.kind] || b.face !== 's' || b.w < 4) return;
-      const fx = (b.x + b.w / 2) * T, fy = (b.y + b.h) * T;
-      let md = 1e9; for (const q of pts) { const d = Math.hypot(q.x - fx, q.y - fy); if (d < md) md = d; }
-      if (md < 24 || md > 230) return;
+      const x0 = b.x * T, x1 = (b.x + b.w) * T, fy = (b.y + b.h) * T;
+      let md = 1e9; for (const q of pts) { const dx = q.x < x0 ? x0 - q.x : q.x > x1 ? q.x - x1 : 0, dy = q.y - fy; if (dy < -8) continue; const d = Math.hypot(dx, dy); if (d < md) md = d; }
+      if (md > 70) return;
       if (md < bs) { bs = md; best = Object.assign({ _i: i, _md: md }, b); best.ref = b; }
     });
     return best;
@@ -35472,14 +35474,13 @@
     if (S.m12done) return;
     if (S.m12b === undefined) S.m12b = m12Building();
     const b = S.m12b, p = G.player; if (!b || !p) { S.m12done = true; return; }
-    const T = G.cfg.TILE, fx = (b.x + b.w / 2) * T, fy = (b.y + b.h) * T;
-    if (S.m12at == null) {
-      if (S.t < 8 || Math.hypot(p.x - fx, p.y - fy) > Math.max(160, (b._md || 0) + 70)) return;
-      if (!S.ev.air_raid) startEvent('air_raid');                    // тривога починається саме тут
-      S.m12at = S.t + 4.5;
-      return;
-    }
-    if (S.t >= S.m12at) { S.m12done = true; if (!S.strikeOn) startStrike(b); }
+    const T = G.cfg.TILE, x0 = b.x * T, x1 = (b.x + b.w) * T, fy = (b.y + b.h) * T;
+    // сценарій: тільки коли герой іде впритул уздовж фасаду (тротуар під будинком). Не підійшов — прильоту нема.
+    if (S.t < 6 || p.x < x0 - 10 || p.x > x1 + 10 || p.y < fy - 6 || p.y > fy + 64 || S.strikeOn) return;
+    S.m12done = true;
+    if (!S.ev.air_raid) startEvent('air_raid');
+    const vx = p.vx || 0, ix = Math.max(x0 + 20, Math.min(x1 - 20, p.x + vx * 0.9 + (vx >= 0 ? 26 : -26))); // влучає в стіну трохи попереду героя
+    startStrike(b, null, { D: 1.5, ix: ix, side: vx >= 0 ? 1 : -1 });
   }
   // шахед летить через небо (екранні частки): звук починається раніше, ніж його видно; 50% — мобільна група
   // відкриває вогонь трасерами в його бік і збиває (спалах, вибух), інакше пролітає і гул стихає
