@@ -36074,6 +36074,105 @@
 
   // ═══════════════════════════ Екран "Місії" ═══════════════════════════
   const Sc = G.scenes;
+
+  // ═══════════════════════════ Картка місії перед стартом ═══════════════════════════
+  // Велика анімована картка: «МІСІЯ N» (печатка), назва, опис, список завдань (з'являються по одному), три зірки-цілі.
+  // Тисни — і погнали. Сама зникає через 12 с. Лише для сюжетних місій (не ВТЕЧА/щоденна/онлайн).
+  if (G.STATES.indexOf('brief') < 0) G.STATES.push('brief');
+  const BR = { t: 0, done: false };
+  G.missions_briefWanted = function () {
+    const m = G.run && G.run.mission;
+    return !!(m && !m.mode && !G._noDisclaimer && !(G.coop && G.coop.inGame));
+  };
+  function briefGo() {
+    if (BR.done) return; BR.done = true;
+    sfx('pickup');
+    G.setState('play');
+  }
+  Sc.brief = {
+    enter() { BR.t = 0; BR.done = false; sfx('door'); },
+    exit() {},
+    update(dt, realDt) {
+      BR.t += realDt || dt;
+      if (G.camera) G.camera.update(0);
+      const I = G.input, m = I.mouse;
+      if (BR.t > 0.7 && (m.clicked || I.pressed('confirm') || I.pressed('attack') || I.pressed('use'))) { if (I.consume) { I.consume('confirm'); I.consume('attack'); } briefGo(); return; }
+      if (I.pressed('pause')) { if (I.consume) I.consume('pause'); briefGo(); return; }
+      if (BR.t > 12) briefGo();
+    },
+    draw(ctx) {
+      if (G.drawPlay) G.drawPlay(ctx);
+      if (G.uiLayer) G.uiLayer(ctx, (g) => drawBrief(g)); else drawBrief(ctx);
+    },
+  };
+  function drawBrief(ctx) {
+    const u = U(), VW = G.cfg.VIEW_W, VH = G.cfg.VIEW_H, mi = G.run && G.run.mission; if (!mi) return;
+    const t = BR.t, ease = (k) => 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3);
+    // затемнення
+    ctx.save(); ctx.globalAlpha = 0.72 * ease(t / 0.3); u.rect(ctx, '#0c0816', 0, 0, VW, VH); ctx.restore();
+    // картка виїжджає згори з пружинкою
+    const w = Math.min(400, VW - 24), h = Math.min(220, VH - 24), x = Math.round((VW - w) / 2);
+    const k = Math.min(1, t / 0.45), bounce = k < 1 ? (1 - ease(k)) * -VH * 0.6 + Math.sin(k * Math.PI) * 6 : 0;
+    const y = Math.round((VH - h) / 2 + bounce);
+    u.rect(ctx, 'rgba(0,0,0,0.45)', x + 4, y + 5, w, h);
+    u.rect(ctx, '#120a18', x - 2, y - 2, w + 4, h + 4); u.rect(ctx, '#2a1e3e', x, y, w, h);
+    u.rect(ctx, '#2a5fb4', x, y, w, 3); u.rect(ctx, '#f7d248', x, y + 3, w, 3);
+    for (let yy = y + 8; yy < y + h; yy += 6) u.rect(ctx, 'rgba(255,255,255,0.018)', x, yy, w, 3);
+    // печатка «МІСІЯ N»
+    const st = ease((t - 0.35) / 0.25), sc = 1.8 - 0.8 * st;
+    if (t > 0.35) {
+      ctx.save(); ctx.translate(x + 52, y + 26); ctx.rotate(-0.12); ctx.scale(sc, sc); ctx.globalAlpha = Math.min(1, st * 1.4);
+      u.rect(ctx, '#c8302a', -40, -12, 80, 24); u.rect(ctx, '#e8483a', -38, -10, 76, 20);
+      u.text(ctx, 'МІСІЯ ' + (mi.day || ''), 0, -6, { size: 12, align: 'center', color: '#fff8e0', outline: '#5a1410' });
+      ctx.restore();
+    }
+    // назва і день
+    const tx = x + 104, ty = y + 14, ta = ease((t - 0.45) / 0.3);
+    ctx.save(); ctx.globalAlpha = ta;
+    u.text(ctx, mi.title || '', tx, ty - (1 - ta) * 8, { size: 14, color: '#fde98f', shadow: true });
+    u.text(ctx, (mi.weekday ? mi.weekday + ', ' : '') + clock(mi.start || 0) + ' → дедлайн ' + clock(mi.deadline || 0), tx, ty + 18, { size: 7, color: '#8fc7e4' });
+    ctx.restore();
+    // опис
+    let yy = y + 50;
+    if (mi.brief && t > 0.6) {
+      ctx.save(); ctx.globalAlpha = ease((t - 0.6) / 0.3);
+      const bl = u.wrap(mi.brief, w - 28, 8).slice(0, 3);
+      bl.forEach((l, i) => u.text(ctx, l, x + 14, yy + i * 11, { size: 8, color: '#e8dcc8' }));
+      ctx.restore(); yy += Math.max(1, u.wrap(mi.brief, w - 28, 8).slice(0, 3).length) * 11 + 6;
+    } else yy += 39;
+    // завдання — з'являються по одному
+    u.rect(ctx, 'rgba(143,199,228,0.25)', x + 12, yy, w - 24, 1); yy += 5;
+    u.text(ctx, 'ЩО ТРЕБА ЗРОБИТИ', x + 14, yy, { size: 8, color: '#8fc7e4' }); yy += 13;
+    const steps = (mi.steps || []).slice(0, 4);
+    steps.forEach((label, i) => {
+      const a = ease((t - 0.9 - i * 0.28) / 0.25); if (a <= 0) return;
+      ctx.save(); ctx.globalAlpha = a; ctx.translate((1 - a) * 18, 0);
+      u.rect(ctx, '#120a18', x + 14, yy - 1, 13, 13); u.rect(ctx, '#f7c948', x + 15, yy, 11, 11);
+      u.text(ctx, String(i + 1), x + 20.5, yy + 1, { size: 8, align: 'center', color: '#3a2410' });
+      let lb = String(label); while (lb.length > 4 && u.measure(lb, 10) > w - 52) lb = lb.slice(0, -2) + '…';
+      u.text(ctx, lb, x + 34, yy, { size: 10, color: '#fbf6ea', shadow: true });
+      ctx.restore(); yy += 16;
+    });
+    // зірки-цілі
+    const sa = ease((t - 1.1 - steps.length * 0.28) / 0.3);
+    if (sa > 0 && yy + 12 < y + h - 18) {
+      ctx.save(); ctx.globalAlpha = sa;
+      const goals = ['Дійти', 'Вчасно', mi.star3Text || ''].filter(Boolean);
+      let gx = x + 14; const gy = y + h - 34;
+      goals.forEach((g) => { drawStarIcon(ctx, gx, gy, 1, true); u.text(ctx, g, gx + 10, gy, { size: 7, color: '#b4abb2' }); gx += u.measure(g, 7) + 24; });
+      ctx.restore();
+    }
+    // «тисни, щоб почати»
+    if (t > 0.8) {
+      const pulse = 0.55 + 0.45 * Math.sin(t * 5), touch = G.touch && G.touch.active;
+      const txt = touch ? 'ТОРКНИСЬ, ЩОБ ПОЧАТИ' : 'ТИСНИ ENTER АБО КЛІКНИ, ЩОБ ПОЧАТИ';
+      const bw = u.measure(txt, 8) + 20, bx = Math.round(VW / 2 - bw / 2), by = y + h - 18;
+      ctx.save(); ctx.globalAlpha = 0.65 + 0.35 * pulse;
+      u.rect(ctx, '#120a18', bx - 1, by - 1, bw + 2, 14); u.rect(ctx, '#4f8a36', bx, by, bw, 12);
+      u.text(ctx, txt, VW / 2, by + 2, { size: 8, align: 'center', color: '#fff8e0' });
+      ctx.restore();
+    }
+  }
   if (G.STATES.indexOf('missions') < 0) G.STATES.push('missions');
   if (G.STATES.indexOf('shop') < 0) G.STATES.push('shop');
   Sc.missions = { enter() {}, exit() {}, update() {}, draw() {} };
@@ -42289,11 +42388,13 @@
   S.intro.update = function () {
     if (S.intro._started) return;
     S.intro._started = true;
-    if (G.cutscene && G.cutscene.play) G.cutscene.play('intro', () => {
+    const go = () => { // картка місії (82_missions) — велике «що треба зробити» перед стартом
+      if (G.missions_briefWanted && G.missions_briefWanted() && G.scenes.brief) { G.setState('brief'); return; }
       G.setState('play');
       if (G.ui && G.run) G.ui.banner('МІСІЯ: ' + G.run.mission.title, 3000);
-    });
-    else G.setState('play');
+    };
+    if (G.cutscene && G.cutscene.play) G.cutscene.play('intro', go);
+    else go();
   };
 
   S.play.enter = function (prev) { if (prev !== 'paused' && prev !== 'dialog') call(G.audio, 'music', 'calm'); };
