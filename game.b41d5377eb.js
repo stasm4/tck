@@ -38345,7 +38345,7 @@
     }
   }
 
-  // ─── Пацани біля бурси: стоять, лузають насіння, газують мопедом; ТЦК ставлять підніжку ───
+  // ─── Пацани біля бурси: стоять, п'ють рево, поруч — їхні мопеди; ТЦК ставлять підніжку ───
   const LAD_LINES = ['Рево будеш?', 'Брат, ти з якого району?', 'Чьо такий бистрий?', 'ТЦК? Не, не бачили.', 'Ще по одній — і на пару.', 'Насіння будеш?', 'Стипендії нема, зате рево є.', 'Скинемось на рево?'];
   const LAD_SPOTS = [[46, 12, 0], [64, 8, 1], [84, 14, 0], [54, 30, 1], [74, 34, 0]];
   function drawLad(ctx) {
@@ -38359,18 +38359,23 @@
       ctx.drawImage(img, 0, k, w, h - k, x - 2, y + 7 + k, w + 4, h - k - 7);
     } else ctx.drawImage(img, x, y);
     // банка рево: час від часу підносить до рота
-    const sip = Math.sin(G.realTime * 0.9 + (n.ph || 0)) > 0.86, side = n.fd === 'left' ? -1 : 1, cx = Math.round(n.x) + side * 6, cy = y + (n.squat ? 7 : 0) + (sip ? 5 : 13);
+    const sip = Math.sin(G.realTime * 1.1 + (n.ph || 0)) > 0.55, side = n.fd === 'left' ? -1 : 1, cx = Math.round(n.x) + side * 6, cy = y + (n.squat ? 7 : 0) + (sip ? 5 : 13);
     ctx.fillStyle = '#1f6fd8'; ctx.fillRect(cx - 1, cy, 4, 6); ctx.fillStyle = '#ff8a2a'; ctx.fillRect(cx - 1, cy + 2, 4, 2); ctx.fillStyle = '#d8dce4'; ctx.fillRect(cx - 1, cy, 4, 1);
     const hy = y + (n.squat ? 7 : 0); // кепка
     ctx.fillStyle = '#17161c'; ctx.fillRect(x + Math.floor(w / 2) - 5, hy + 1, 10, 4); ctx.fillRect(x + Math.floor(w / 2) + (n.fd === 'left' ? -8 : 3), hy + 4, 5, 2);
   }
-  function drawStash(ctx) { // ящик рево і порожні банки
-    const n = this, x = Math.round(n.x), y = Math.round(n.y), R2 = (c, a, b, w, h) => { ctx.fillStyle = c; ctx.fillRect(x + a, y + b, w, h); };
-    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 5, 16, 3, 0, 0, Math.PI * 2); ctx.fill();
-    R2('#14549e', -13, -8, 26, 13); R2('#1f6fd8', -13, -8, 26, 3); R2('#ff8a2a', -13, 1, 26, 2);
-    for (let k = 0; k < 5; k++) { R2('#d8dce4', -11 + k * 5, -11, 3, 3); R2('#1f6fd8', -11 + k * 5, -10, 3, 2); }
-    if (G.text) G.text(ctx, 'РЕВО', x, y - 6, { size: 7, align: 'center', color: '#ffffff' });
-    [[-22, 6], [18, 3], [24, 8], [-17, 11]].forEach((q, i) => { R2('#1f6fd8', q[0], q[1], i % 2 ? 6 : 4, i % 2 ? 3 : 5); R2('#d8dce4', q[0], q[1], 1, i % 2 ? 3 : 5); });
+  // припаркований мопед (без звуку й руху): колеса, корпус, сидіння, фара; колір — свій у кожного
+  function drawMoped(ctx) {
+    const n = this, x = Math.round(n.x), y = Math.round(n.y), L = n.faceL ? -1 : 1, C = n.col || ['#d8302a', '#a81e1a', '#ff6a5a'];
+    const R2 = (c, a, b, w, h) => { ctx.fillStyle = c; ctx.fillRect(x + (L > 0 ? a : -a - w), y + b, w, h); };
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(x, y + 4, 15, 3, 0, 0, Math.PI * 2); ctx.fill();
+    R2('#1a1418', -12, -2, 7, 7); R2('#3a3438', -11, -1, 5, 5); R2('#9a9aa4', -9, 1, 1, 1);   // заднє колесо
+    R2('#1a1418', 6, -2, 7, 7); R2('#3a3438', 7, -1, 5, 5); R2('#9a9aa4', 9, 1, 1, 1);        // переднє колесо
+    R2(C[1], -10, -6, 14, 5); R2(C[0], -10, -7, 13, 3); R2(C[2], -9, -7, 8, 1);                // корпус
+    R2('#17161c', -9, -10, 8, 3); R2('#2a2830', -9, -10, 8, 1);                                  // сидіння
+    R2('#5a5a6a', 5, -12, 2, 8); R2('#2a2830', 3, -13, 6, 2);                                    // кермо
+    R2(C[0], 6, -9, 4, 3); R2('#fff4c0', 9, -9, 2, 2);                                           // передок і фара
+    R2('#9a9aa4', -13, 1, 3, 1);                                                                 // вихлопна труба
   }
   B.drawLad = drawLad;
   function updateLads(dt, p) {
@@ -38388,7 +38393,13 @@
           const n = G.npcs.spawn('man', x, y, 'idle'); if (!n) return;
           n.lad = true; n.ph = i * 2.3; n.sk = skins[i]; n.fd = i % 2 ? 'left' : 'right'; n.squat = !!q[2]; n.draw = drawLad; n.update = function () {}; B.lads.push(n);
         });
-        if (ok(tx + 100, ty + 24)) { const m = G.npcs.spawn('man', tx + 100, ty + 24, 'idle'); if (m) { m.lad = true; m.draw = drawStash; m.update = function () {}; } }
+        // поруч — двоє припаркованих мопедів (тихо стоять, не газують)
+        [[100, 22, false, ['#d8302a', '#a81e1a', '#ff6a5a']], [104, 40, true, ['#2a6ae8', '#1a4ab8', '#7aa8ff']]].forEach((q) => {
+          let x = tx + q[0], y = ty + q[1];
+          for (let k = 0; k < 6 && !ok(x, y); k++) { x += 8; y += 4; }
+          if (!ok(x, y)) return;
+          const m = G.npcs.spawn('man', x, y, 'idle'); if (m) { m.lad = true; m.faceL = q[2]; m.col = q[3]; m.draw = drawMoped; m.update = function () {}; }
+        });
       }
     }
     if (!B.lads || !B.lads.length) return;
