@@ -33421,7 +33421,7 @@
       steps: [
         { type: 'collect', pts: ['fish', 'honey', 'fruit'], hold: 0.8, label: 'Купи на ринку: рибу, мед, яблука', item: 'bag', names: ['Риба', 'Мед', 'Яблука'] },
         { type: 'go', at: 'tesha', label: 'Віднеси тещі на холодець' }],
-      events: [{ type: 'air_raid', at: [25, 40], chance: 0.5 }, { type: 'checkpoint', at: [8, 14], chance: 0.6 }],
+      events: [{ type: 'air_raid', at: [25, 40], chance: 1 }, { type: 'checkpoint', at: [8, 14], chance: 0.6 }],
       star3: 'side', place: 'mother_in_law',
       win: ['Теща: «Риба несвіжа.»', 'Ти: «Я за неї ледь не пішов служити.»', 'Теща: «То краще б пішов, там годують.»'],
       late: ['Холодець не застиг.', 'Теща теж не в настрої.'] },
@@ -35434,7 +35434,7 @@
       if (q.i === main) continue;
       if (!(S.mode || (q.n > 0 && S.n > q.n))) continue;
       const b = W.buildings[q.i];
-      if (b && STRIKE_KIND[b.kind] && b.face === 's') G.kyivScenes.strikeSite(b, 'repair');
+      if (b && STRIKE_KIND[b.kind] && b.face === 's') G.kyivScenes.strikeSite(b, !S.mode && S.n === q.n + 1 ? 'aftermath' : 'repair'); // наступного дня — рятувальники й пожежники, далі — ремонт
     }
   }
   // місія 25: сценарний прильот перед героєм під час тривоги; місія 13 («Тривожний четвер») — шахед летить через нічне
@@ -35449,6 +35449,37 @@
     if (!S || S.strikeOn) return;
     if (S.n === 25 && S.ev.air_raid && S.t > 3.5) { const b = pickStrikeBuilding(12, 220, null, false, true); if (b) startStrike(b); } // завжди той самий будинок біля старту (навіть якщо вже «влучав» у минулій спробі)
     if (S.n === 13 && S.ev.air_raid && S.ev.air_raid.t > 2.5 && S.rfx && !S.m13) { S.m13 = true; shahedEpisode(S.rfx, () => {}, true); }
+    if (S.n === 12) updateM12();
+  }
+  // місія 12 «Ринковий день»: будинок біля ринку (завжди той самий). Підійшов ближче — тривога (якщо ще нема),
+  // за кілька секунд шахед пікірує саме в нього. Наступного дня (місія 13) там рятувальники й пожежники.
+  function m12Building() { // будинок, повз який іде дорога з ринку до тещі (гравець точно пройде поруч)
+    const W = G.world, T = G.cfg.TILE, a = poi('honey') || poi('market'), z = poi('tesha'); if (!W || !W.buildings || !a || !z) return null;
+    let path = []; try { path = W.path(a, z) || []; } catch (e) { path = []; }
+    if (!path.length) return null;
+    const pts = path.filter((q, i) => i > 3 && i < path.length - 3);
+    let best = null, bs = 1e9;
+    W.buildings.forEach((b, i) => {
+      if (!STRIKE_KIND[b.kind] || b.face !== 's' || b.w < 4) return;
+      const fx = (b.x + b.w / 2) * T, fy = (b.y + b.h) * T;
+      let md = 1e9; for (const q of pts) { const d = Math.hypot(q.x - fx, q.y - fy); if (d < md) md = d; }
+      if (md < 24 || md > 230) return;
+      if (md < bs) { bs = md; best = Object.assign({ _i: i, _md: md }, b); best.ref = b; }
+    });
+    return best;
+  }
+  function updateM12() {
+    if (S.m12done) return;
+    if (S.m12b === undefined) S.m12b = m12Building();
+    const b = S.m12b, p = G.player; if (!b || !p) { S.m12done = true; return; }
+    const T = G.cfg.TILE, fx = (b.x + b.w / 2) * T, fy = (b.y + b.h) * T;
+    if (S.m12at == null) {
+      if (S.t < 8 || Math.hypot(p.x - fx, p.y - fy) > Math.max(160, (b._md || 0) + 70)) return;
+      if (!S.ev.air_raid) startEvent('air_raid');                    // тривога починається саме тут
+      S.m12at = S.t + 4.5;
+      return;
+    }
+    if (S.t >= S.m12at) { S.m12done = true; if (!S.strikeOn) startStrike(b); }
   }
   // шахед летить через небо (екранні частки): звук починається раніше, ніж його видно; 50% — мобільна група
   // відкриває вогонь трасерами в його бік і збиває (спалах, вибух), інакше пролітає і гул стихає
