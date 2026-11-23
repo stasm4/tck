@@ -31672,8 +31672,14 @@
     const od = PP.draw;
     PP.draw = function (ctx) {
       if (!LEGEND[this.skin] || this.hidden || this.inMetro) return od.call(this, ctx);
-      const C = LEGEND[this.skin];
-      const t = G.realTime, x = this.x, yb = this.y + (this.h || 6) / 2, yc = yb - 13, pu = 0.5 + 0.5 * Math.sin(t * 3);
+      return legendDraw(this, ctx, this.skin, () => od.call(this, ctx));
+    };
+  }, 0);
+  // сяйво легендарного скіна навколо будь-якої фігури (свій герой, напарник в онлайні): fn малює саму фігуру
+  function legendDraw(e, ctx, skin, fn) {
+    {
+      const C = LEGEND[skin]; if (!C) return fn();
+      const t = G.realTime, x = e.x, yb = e.y + (e.h || 6) / 2, yc = yb - 13, pu = 0.5 + 0.5 * Math.sin(t * 3);
       // зірочки на орбіті навколо героя: позаду — до нього, спереду — після
       const orbit = (front) => {
         for (let i = 0; i < 3; i++) {
@@ -31688,7 +31694,7 @@
       orbit(false);
       // золоте сяйво по контуру самої фігури
       ctx.save(); ctx.shadowColor = 'rgba(' + C + ',' + (0.7 + 0.3 * pu) + ')'; ctx.shadowBlur = 4 + 3 * pu; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-      const r = od.call(this, ctx);
+      const r = fn();
       ctx.restore();
       orbit(true);
       // кілька іскор угору
@@ -31698,13 +31704,13 @@
         ctx.fillStyle = 'rgba(' + C + ',' + al + ')'; ctx.fillRect(Math.round(sx), Math.round(sy), 1, 1);
       }
       ctx.restore();
-      if (CATS[this.skin]) catClaws(this, ctx, C);
+      if (CATS[skin]) catClaws(e, ctx, C);
       return r;
-    };
-  }, 0);
+    }
+  }
 
   G.pass = {
-    legendFx, isLegend: (id) => !!LEGEND[id],
+    legendFx, legendDraw, isLegend: (id) => !!LEGEND[id],
     SEASON, MAXL, LV_XP, PETS, REW,
     get level() { return level(); }, get xp() { return st.xp; }, get cur() { return lvCur(); },
     get canClaim() { return canClaim(); }, get pet() { return st.pet; }, get pets() { return st.pets.slice(); }, PET_LVL: { patron: 1, cat: 10, pigeon: 20 },
@@ -40890,7 +40896,11 @@
       const bx = Math.round(this.x), by = Math.round(this.y + this.h / 2);
       if (img && img.width) {
         if (this.caught) { ctx.save(); ctx.translate(bx, by - 2); ctx.rotate(Math.PI / 2); ctx.drawImage(img, -(img.width >> 1), -img.height + 3); ctx.restore(); }
-        else ctx.drawImage(img, bx - (img.width >> 1), by - img.height);
+        else if (G.pass && G.pass.isLegend && G.pass.isLegend(this.info.skin)) { // легендарний скін напарника теж світиться (і коти дряпаються)
+          const D = { right: [1, 0], left: [-1, 0], up: [0, -1], down: [0, 1] }[this.dir] || [0, 1];
+          this.fx = D[0]; this.fy = D[1]; this.punchT = this.punch ? 0.1 : 0;
+          G.pass.legendDraw(this, ctx, this.info.skin, () => ctx.drawImage(img, bx - (img.width >> 1), by - img.height));
+        } else ctx.drawImage(img, bx - (img.width >> 1), by - img.height);
       }
       const nm = this.info.name || 'Гравець', U = G.ui && G.ui.gfx;
       const ty = by - (this.caught ? 22 : 34);
