@@ -31418,7 +31418,7 @@
       const ids = FREE.concat(PREM).filter((r) => r && r.k === 'skin').map((r) => r.id);
       P().revokeSkins(ids); st.revoke = 0; save();
     }
-    if (G.author) { for (let L = 1; L <= MAXL; L++) { claim(L, 'f', true); claim(L, 'p', true); } save(); } // автор: усі нагороди вже забрані
+    if (G.author) { for (let L = 1; L <= MAXL; L++) { claim(L, 'f', true); claim(L, 'p', true); } FREE.concat(PREM).forEach((r) => { if (r && r.k === 'skin') P().grantSkin(r.id); if (r && r.k === 'pet' && st.pets.indexOf(r.id) < 0) st.pets.push(r.id); }); save(); } // автор: усі нагороди вже забрані
     let ch = false;
     const owns = (r) => r && ((r.k === 'skin' && P().skins.some((q) => q.id === r.id && q.unlocked)) || (r.k === 'pet' && st.pets.indexOf(r.id) >= 0) || (r.k === 'acc' && P().accOwned && P().accOwned(r.id)));
     for (let L = 1; L <= MAXL; L++) {
