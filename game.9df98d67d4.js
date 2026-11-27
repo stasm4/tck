@@ -31460,32 +31460,34 @@
   const weekDaysLeft = () => { const t = dms(dayKey(0)), wd = (new Date(t).getUTCDay() + 6) % 7; return 7 - wd; };
 
   // ── тижневі завдання ──
-  const WEEK = [
-    { id: 'w_vault', kind: 'vault', need: 50, text: 'Перестрибни 50 лавок' },
-    { id: 'w_ko', kind: 'ko', need: 25, text: 'Нокаутуй 25 ТЦК' },
-    { id: 'w_hide', kind: 'hide', need: 25, text: 'Сховайся 25 разів' },
-    { id: 'w_dash', kind: 'dash', need: 80, text: 'Зроби 80 ривків' },
-    { id: 'w_slip', kind: 'slip', need: 10, text: 'Посади 10 ТЦК на банан' },
-    { id: 'w_throw', kind: 'throw', need: 25, text: 'Кинь 25 предметів' },
-    { id: 'w_mission', kind: 'mission', need: 5, text: 'Пройди 5 місій' },
-    { id: 'w_star3', kind: 'star3', need: 3, text: 'Отримай 3 ★ у трьох місіях' },
-    { id: 'w_wave', kind: 'wave', need: 6, abs: true, text: 'Дійди до 6-ї хвилі у ВТЕЧІ' },
-    { id: 'w_surv', kind: 'survive', need: 300, abs: true, text: 'Протримайся 5 хв в одній ВТЕЧІ', fmt: (c, n) => Math.floor(c / 60) + ':' + String(Math.floor(c % 60)).padStart(2, '0') + '/' + Math.floor(n / 60) + ':00' },
-    { id: 'w_daily', kind: 'daily', need: 4, text: 'Зіграй щоденну втечу 4 рази' },
-    { id: 'w_esc', kind: 'escRun', need: 5, abs: true, text: 'Втечи 5 разів за один забіг' },
-    { id: 'w_combo', kind: 'combo', need: 8, abs: true, text: 'Зроби комбо ×8' },
+  const WEEK = [ // тижневі — посильні за кілька вечорів гри
+    { id: 'w_run', kind: 'run', need: 10, text: 'Зіграй 10 забігів' },
+    { id: 'w_vault', kind: 'vault', need: 25, text: 'Перестрибни 25 лавок' },
+    { id: 'w_ko', kind: 'ko', need: 12, text: 'Нокаутуй 12 ТЦК' },
+    { id: 'w_hide', kind: 'hide', need: 12, text: 'Сховайся 12 разів' },
+    { id: 'w_dash', kind: 'dash', need: 40, text: 'Зроби 40 ривків' },
+    { id: 'w_slip', kind: 'slip', need: 3, text: 'Посади 3 ТЦК на банан', off: true },
+    { id: 'w_throw', kind: 'throw', need: 12, text: 'Кинь 12 предметів' },
+    { id: 'w_mission', kind: 'mission', need: 3, text: 'Пройди 3 місії' },
+    { id: 'w_star3', kind: 'star3', need: 2, text: 'Отримай 3 ★ у двох місіях' },
+    { id: 'w_wave', kind: 'wave', need: 4, abs: true, text: 'Дійди до 4-ї хвилі у ВТЕЧІ' },
+    { id: 'w_surv', kind: 'survive', need: 180, abs: true, text: 'Протримайся 3 хв в одній ВТЕЧІ', fmt: (c, n) => Math.floor(c / 60) + ':' + String(Math.floor(c % 60)).padStart(2, '0') + '/' + Math.floor(n / 60) + ':00' },
+    { id: 'w_daily', kind: 'daily', need: 3, text: 'Зіграй щоденну втечу 3 рази' },
+    { id: 'w_esc', kind: 'escRun', need: 3, abs: true, text: 'Втечи 3 рази за один забіг' },
+    { id: 'w_combo', kind: 'combo', need: 5, abs: true, text: 'Зроби комбо ×5' },
   ];
   const WEEK_BY = {}; for (const w of WEEK) WEEK_BY[w.id] = w;
   function hash(s) { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; }
   function ensureWeek() {
     const k = weekKey();
     if (st.wk && st.wk.key === k && st.wk.list && st.wk.list.length) return;
-    const pool = WEEK.slice(); let h = hash('wk:' + k); const list = [];
+    const pool = WEEK.filter((w) => !w.off && w.id !== 'w_run'); let h = hash('wk:' + k); const list = [{ id: 'w_run', cur: 0, done: false }];
     while (list.length < 5 && pool.length) { h = Math.imul(h ^ (h >>> 13), 2654435761) >>> 0; list.push({ id: pool.splice(h % pool.length, 1)[0].id, cur: 0, done: false }); }
     st.wk = { key: k, list }; save();
   }
   function weekly() {
     ensureWeek();
+    for (const q of st.wk.list) { const d = WEEK_BY[q.id]; if (d && !q.done && q.cur >= d.need) { q.done = true; save(); addXp(XP.weekly); } }
     return st.wk.list.map((q) => { const d = WEEK_BY[q.id] || { text: q.id, need: 1 }; const cur = Math.min(q.cur, d.need); return { id: q.id, text: d.text, cur, need: d.need, done: q.done, prog: d.fmt ? d.fmt(cur, d.need) : cur + '/' + d.need }; });
   }
   G.events.on('chal:event', (e) => {
@@ -32140,20 +32142,21 @@
 
   // ─────────────────────────── Щоденні завдання ───────────────────────────
   // kind — що їх просуває (chalEvent); abs — значення за забіг (максимум), інакше — сума за день
-  const CHAL = [
-    { id: 'esc3', kind: 'escRun', need: 3, abs: true, reward: 45, text: 'Втечи 3 рази за один забіг' },
-    { id: 'vault10', kind: 'vault', need: 10, reward: 40, text: 'Перестрибни 10 лавок' },
-    { id: 'combo5', kind: 'combo', need: 5, abs: true, reward: 45, text: 'Зроби комбо ×5' },
-    { id: 'wave3', kind: 'wave', need: 3, abs: true, reward: 50, text: 'Дійди до 3-ї хвилі у ВТЕЧІ' },
-    { id: 'hide5', kind: 'hide', need: 5, reward: 30, text: 'Сховайся 5 разів' },
-    { id: 'ko5', kind: 'ko', need: 5, reward: 40, text: 'Нокаутуй 5 ТЦК' },
-    { id: 'dash15', kind: 'dash', need: 15, reward: 30, text: 'Зроби 15 ривків' },
-    { id: 'mission', kind: 'mission', need: 1, reward: 40, text: 'Пройди будь-яку місію кампанії' },
-    { id: 'surv3', kind: 'survive', need: 180, abs: true, reward: 50, text: 'Протримайся 3 хв в одній ВТЕЧІ', fmt: (c, n) => Math.floor(c / 60) + ':' + pad2(c % 60) + '/' + Math.floor(n / 60) + ':00' },
-    { id: 'slip3', kind: 'slip', need: 3, reward: 40, text: 'Посади 3 ТЦК на банан' },
+  const CHAL = [ // легкі, щоб за 1–2 забіги можна було виконати; off — лише для старих збережень, у нові дні не випадає
+    { id: 'run2', kind: 'run', need: 2, reward: 35, text: 'Зіграй 2 забіги' },
+    { id: 'esc3', kind: 'escRun', need: 2, abs: true, reward: 45, text: 'Втечи 2 рази за один забіг' },
+    { id: 'vault10', kind: 'vault', need: 5, reward: 40, text: 'Перестрибни 5 лавок' },
+    { id: 'combo5', kind: 'combo', need: 3, abs: true, reward: 45, text: 'Зроби комбо ×3' },
+    { id: 'wave3', kind: 'wave', need: 2, abs: true, reward: 50, text: 'Дійди до 2-ї хвилі у ВТЕЧІ' },
+    { id: 'hide5', kind: 'hide', need: 3, reward: 30, text: 'Сховайся 3 рази' },
+    { id: 'ko5', kind: 'ko', need: 3, reward: 40, text: 'Нокаутуй 3 ТЦК' },
+    { id: 'dash15', kind: 'dash', need: 10, reward: 30, text: 'Зроби 10 ривків' },
+    { id: 'mission', kind: 'mission', need: 1, reward: 40, text: 'Пройди будь-яку місію' },
+    { id: 'surv3', kind: 'survive', need: 90, abs: true, reward: 50, text: 'Протримайся 1:30 у ВТЕЧІ', fmt: (c, n) => Math.floor(c / 60) + ':' + pad2(c % 60) + '/' + Math.floor(n / 60) + ':' + pad2(n % 60) },
+    { id: 'slip3', kind: 'slip', need: 1, reward: 40, text: 'Посади ТЦК на банан', off: true },
     { id: 'daily', kind: 'daily', need: 1, reward: 30, text: 'Зіграй щоденну втечу' },
-    { id: 'star3', kind: 'star3', need: 1, reward: 60, text: 'Отримай 3 ★ у місії' },
-    { id: 'throw5', kind: 'throw', need: 5, reward: 30, text: 'Кинь 5 предметів' },
+    { id: 'star3', kind: 'star3', need: 1, reward: 60, text: 'Отримай 3 ★ у місії', off: true },
+    { id: 'throw5', kind: 'throw', need: 3, reward: 30, text: 'Кинь 3 предмети' },
   ];
   const CHAL_BY_ID = {};
   for (const c of CHAL) CHAL_BY_ID[c.id] = c;
@@ -32622,8 +32625,8 @@
     const t = dateKey(0);
     if (D.chal.date === t && D.chal.list.length === 3) return;
     const r = mulberry(hashStr('chal:' + t));
-    const pool = CHAL.slice();
-    const list = [];
+    const pool = CHAL.filter((c) => !c.off && c.id !== 'run2');
+    const list = [{ id: 'run2', cur: 0, done: false }]; // одне завдання дня — завжди найпростіше
     while (list.length < 3 && pool.length) list.push({ id: pool.splice(Math.floor(r() * pool.length), 1)[0].id, cur: 0, done: false });
     D.chal = { date: t, list, all: false };
     persist();
@@ -32894,6 +32897,7 @@
       });
       // Round 11: щоденні завдання і лічильники руху (події juice/movement — див. NOTES «Round 11»)
       const inPlayRun = () => !!(R && G.run && !G.run.ended);
+      G.events.on('run:end', (d) => { if (!(d && d.abandoned)) chalEvent('run'); });
       G.events.on('player:hide', () => { if (inPlayRun()) chalEvent('hide'); });
       G.events.on('tck:knockout', () => { if (inPlayRun()) chalEvent('ko'); });
       G.events.on('player:throw', () => { D.counters.throws++; if (inPlayRun()) chalEvent('throw'); });
