@@ -11031,13 +11031,43 @@
 
   // ── прибирання (round 5): дерева, чия крона накриває кіоск/зупинку/ятку/біотуалет/монумент ("дерево росте з кіоску"),
   // і машини на паркуванні впритул одна до одної (лишаємо проміжки). Лише прибирає — колізії стають тільки вільнішими.
-  const SPR_H = { firetruck: 30, police_car: 20, kiosk: 32, stop: 32, mstall: 52, umbrella: 46, toilet: 28, np_locker: 30, mosaic: 48, ilovekyiv: 30, motherland: 256, flagpole: 64, maf: 36, stall: 36, mcart: 26, swing: 24, slide: 28 };
+  const SPR_H = { firetruck: 30, police_car: 20, kiosk: 32, stop: 32, mstall: 52, umbrella: 46, toilet: 28, np_locker: 30, mosaic: 48, ilovekyiv: 30, motherland: 256, flagpole: 64, maf: 36, stall: 36, mcart: 26, swing: 24, slide: 28, bench: 20, bench_v: 32, trash: 20, flowerbed: 16, sandbox: 16, carousel: 26, crates: 18, sacks: 16 }; // дрібні речі теж — щоб дерево не росло з лавки/урни/клумби
   function sprRect(p) {
     const h = SPR_H[p.kind]; if (!h) return null;
     const ex = p.kind === 'umbrella' ? 4 : p.kind === 'ilovekyiv' ? 6 : p.kind === 'mcart' ? 2 : 0;
     return { x0: p.x * T - ex, x1: (p.x + p.w) * T + ex, y0: (p.y + p.h) * T - h, y1: (p.y + p.h) * T };
   }
+  // дрібні речі (лавка, урна, клумба, пісочниця…) не злипаються з іншими пропами й не стоять за кущем;
+  // лавки — з проміжком ≥2 тайли (не по три в ряд). Урна поруч з лавкою — можна (як у справжньому місті).
+  const DECOR = { bench: 1, bench_v: 1, trash: 1, flowerbed: 1, sandbox: 1, crates: 1, sacks: 1, pile: 1 };
+  function tidyDecor() {
+    const gone = new Set();
+    const near = (a, b, m) => a.x < b.x + b.w + m && a.x + a.w + m > b.x && a.y < b.y + b.h + m && a.y + a.h + m > b.y;
+    const isBench = (p) => p.kind === 'bench' || p.kind === 'bench_v';
+    for (let i = 0; i < props.length; i++) {
+      const a = props[i]; if (!DECOR[a.kind] || gone.has(a)) continue;
+      let bad = false;
+      for (let j = 0; j < props.length && !bad; j++) {
+        const b = props[j]; if (b === a || gone.has(b) || b.kind === 'car') continue;
+        const pair = (a.kind === 'trash' && isBench(b)) || (b.kind === 'trash' && isBench(a));
+        if (pair) continue;
+        const m = isBench(a) && isBench(b) ? 2 : 1;
+        if (!near(a, b, m)) continue;
+        if (!DECOR[b.kind]) bad = true; // впритул до кіоску/фонтану/зупинки — прибираємо дрібницю
+        else if (j < i) bad = true;      // дві дрібниці — лишаємо ту, що поставили першою
+      }
+      // кущ одразу перед річчю (знизу) накриває її — прибираємо
+      if (!bad) for (let x = a.x; x < a.x + a.w && !bad; x++) if (inb(x, a.y + a.h) && type[idx(x, a.y + a.h)] === HEDGE) bad = true;
+      if (bad) gone.add(a);
+    }
+    if (!gone.size) return;
+    for (const p of gone) for (let yy = p.y; yy < p.y + p.h; yy++) for (let xx = p.x; xx < p.x + p.w; xx++) {
+      const i = idx(xx, yy); if (type[i] === PROP) set(xx, yy, under[i] && !SOLID[under[i]] ? under[i] : SIDE);
+    }
+    const rest = props.filter((p) => !gone.has(p)); props.length = 0; for (const p of rest) props.push(p);
+  }
   function tidyProps() {
+    tidyDecor();
     const rects = [];
     for (const p of props) { const r = sprRect(p); if (r) rects.push(r); }
     const keep = [];
@@ -11048,6 +11078,8 @@
         const ox = Math.min(cx1, r.x1) - Math.max(cx0, r.x0), oy = Math.min(cy1, r.y1) - Math.max(cy0, r.y0);
         if (ox > 3 && oy > 3 && ox * oy > 40) { hit = true; break; }
       }
+      // крони не злипаються: дерево впритул до вже залишеного (≤1 тайл убік і ≤2 вгору-вниз) прибираємо
+      if (!hit) for (const k of keep) { const dx = Math.abs(k.x - tr.x), dy = Math.abs(k.y - tr.y); if ((dx <= 1 && dy <= 2) || (dx <= 2 && dy <= 1)) { hit = true; break; } }
       if (hit) { const i = idx(tr.x, tr.y); set(tr.x, tr.y, under[i] && !SOLID[under[i]] ? under[i] : SIDE); } else keep.push(tr);
     }
     trees.length = 0; for (const t of keep) trees.push(t);
@@ -12535,6 +12567,7 @@
       const t = type[idx(x, y)];
       if (t !== GRASS && t !== DIRT) return false;
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const u = tAt(x + dx, y + dy); if (u === TREE || u === PROP || u === HEDGE || u === BLDG || u === FENCE || u === WATER || u === DOOR) return false; }
+      for (let dx = -2; dx <= 1; dx++) if (tAt(x + dx, y + 2) === TREE || tAt(x + dx, y + 3) === TREE) return false; // крона дерева знизу накрила б ліхтар
       for (const l of lamps) if (Math.abs(l.x - px(x)) < 4 * T && Math.abs(l.y - px(y)) < 4 * T) return false;
       return true;
     };
